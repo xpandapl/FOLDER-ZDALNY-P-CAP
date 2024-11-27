@@ -501,7 +501,9 @@ button {
     if (checkbox.checked) {
         // Ustawienie suwaka na 1
         slider.value = 1;
-        slider.disabled = true; // Zablokuj suwak
+        // Uniemożliwienie interakcji użytkownika
+        slider.style.pointerEvents = 'none';
+        slider.style.backgroundColor = '#e0e0e0'; // Opcjonalnie: zmień kolor, aby wskazać, że suwak jest nieaktywny
 
         // Wyświetlenie opisu "Powyżej oczekiwań"
         descriptionDiv.textContent = question.dataset.descriptionAboveExpectations;
@@ -513,8 +515,9 @@ button {
         commentContainer.style.display = 'block';
         commentContainer.querySelector('textarea').required = true;
     } else {
-        // Odblokuj suwak
-        slider.disabled = false;
+        // Przywróć interakcję użytkownika
+        slider.style.pointerEvents = 'auto';
+        slider.style.backgroundColor = ''; // Przywróć domyślny kolor
 
         // Odblokuj i odznacz checkbox "Dodaj opis/argumentację"
         descriptionCheckbox.disabled = false;
@@ -526,6 +529,7 @@ button {
         updateSliderValue(slider);
     }
 }
+
 
 
 

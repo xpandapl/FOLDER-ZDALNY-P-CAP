@@ -20,7 +20,14 @@ class Result extends Model
         'feedback_manager',
     ];
 
-    // Relationships
+    // Dodaj właściwość $casts, aby zapewnić poprawne typy danych
+    protected $casts = [
+        'score_manager' => 'float',
+        'above_expectations_manager' => 'boolean',
+        // Możesz dodać inne atrybuty, jeśli to konieczne
+    ];
+
+    // Relacje
     public function competency()
     {
         return $this->belongsTo(Competency::class);
@@ -30,5 +37,4 @@ class Result extends Model
     {
         return $this->belongsTo(Employee::class);
     }
-    
 }

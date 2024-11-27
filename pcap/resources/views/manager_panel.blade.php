@@ -700,15 +700,16 @@
                                 <td>
                                     <!-- Ocena managera -->
                                     <select class="custom-select" name="score_manager[{{ $result->id }}]">
-                                        <option value="">Ok</option>
-                                        <option value="0" {{ $result->score_manager === '0' ? 'selected' : '' }}>N/D</option>
-                                        <option value="0.25" {{ $result->score_manager == '0.25' ? 'selected' : '' }}>0.25</option>
-                                        <option value="0.5" {{ $result->score_manager == '0.5' ? 'selected' : '' }}>0.5</option>
-                                        <option value="0.75" {{ $result->score_manager == '0.75' ? 'selected' : '' }}>0.75</option>
-                                        <option value="1" {{ $result->score_manager == '1' && !$result->above_expectations_manager ? 'selected' : '' }}>1</option>
+                                        <option value="" {{ is_null($result->score_manager) ? 'selected' : '' }}>Ok</option>
+                                        <option value="0" {{ $result->score_manager === 0.0 && !$result->above_expectations_manager ? 'selected' : '' }}>N/D</option>
+                                        <option value="0.25" {{ $result->score_manager === 0.25 ? 'selected' : '' }}>0.25</option>
+                                        <option value="0.5" {{ $result->score_manager === 0.5 ? 'selected' : '' }}>0.5</option>
+                                        <option value="0.75" {{ $result->score_manager === 0.75 ? 'selected' : '' }}>0.75</option>
+                                        <option value="1" {{ $result->score_manager === 1.0 && !$result->above_expectations_manager ? 'selected' : '' }}>1</option>
                                         <option value="above_expectations" {{ $result->above_expectations_manager ? 'selected' : '' }}>Powyżej oczekiwań</option>
                                     </select>
                                 </td>
+
                                 <td>
                                     <textarea class="feedback" name="feedback_manager[{{ $result->id }}]">{{ $result->feedback_manager }}</textarea>
                                 </td>
@@ -717,12 +718,12 @@
                     </tbody>
                 </table>
                 @if(isset($levelSummaries))
-                    <div class="level-summaries">
-                        <div class="cards-container">
-                            @foreach($levelSummaries as $level => $summary)
-                                <div class="card">
-                                    @php
-                                        // Wybór ikony i koloru w zależności od poziomu
+                <div class="level-summaries">
+                    <div class="cards-container">
+                        @foreach($levelSummaries as $level => $summary)
+                            <div class="card">
+                                @php
+                                // Wybór ikony i koloru w zależności od poziomu
                                         $iconClass = 'fas fa-star';
                                         $iconColor = '#4CAF50'; // Domyślny kolor
 
@@ -745,29 +746,42 @@
                                             $iconClass = 'fas fa-user-shield';
                                             $iconColor = '#795548'; // Brązowy
                                         }
-                                    @endphp
-                                    <i class="{{ $iconClass }}" style="color: {{ $iconColor }};"></i>
-                                    <div class="card-content">
-                                        <strong>Poziom {{ $level }}</strong>
-                                        <p>{{ $summary['earnedPoints'] }} / {{ $summary['maxPoints'] }} pkt.</p>
-                                        @if(is_numeric($summary['percentage']))
-                                            @php
-                                                $percentageValue = $summary['percentage'];
-                                            @endphp
-                                            <p>
-                                                <span class="{{ $percentageValue >= 80 ? 'high-percentage' : '' }}">
-                                                    {{ number_format($percentageValue, 2) }}%
-                                                </span>
-                                            </p>
-                                        @else
-                                            <p>{{ $summary['percentage'] }}</p>
-                                        @endif
-                                    </div>
+                                @endphp
+                                <i class="{{ $iconClass }}" style="color: {{ $iconColor }};"></i>
+                                <div class="card-content">
+                                    <strong>Poziom {{ $level }}</strong>
+                                    <p>
+                                        {{ $summary['earnedPointsManager'] }} / {{ $summary['maxPoints'] }} pkt.
+                                    </p>
+                                    @if(is_numeric($summary['percentageEmployee']))
+                                        <p>
+                                            Samoocena:
+                                            <span class="{{ $summary['percentageEmployee'] >= ($level == 1 ? 80 : 85) ? 'high-percentage' : '' }}">
+                                                {{ number_format($summary['percentageEmployee'], 2) }}%
+                                            </span>
+                                        </p>
+                                    @else
+                                        <p>Samoocena: {{ $summary['percentageEmployee'] }}</p>
+                                    @endif
+                                    @if(is_numeric($summary['percentageManager']))
+                                        <p>
+                                            Feedback:
+                                            <span class="{{ $summary['percentageManager'] >= ($level == 1 ? 80 : 85) ? 'high-percentage' : '' }}">
+                                                {{ number_format($summary['percentageManager'], 2) }}%
+                                            </span>
+                                        </p>
+                                    @else
+                                        <p>Feedback: {{ $summary['percentageManager'] }}</p>
+                                    @endif
                                 </div>
-                            @endforeach
-                        </div>
+                            </div>
+                        @endforeach
                     </div>
+                </div>
+
+
                 @endif
+
 
             </div>
 
@@ -913,15 +927,16 @@
                                 <td>
                                     <!-- Ocena managera -->
                                     <select class="custom-select" name="score_manager[{{ $result->id }}]">
-                                        <option value="">Ok</option>
-                                        <option value="0" {{ $result->score_manager === '0' ? 'selected' : '' }}>N/D</option>
-                                        <option value="0.25" {{ $result->score_manager == '0.25' ? 'selected' : '' }}>0.25</option>
-                                        <option value="0.5" {{ $result->score_manager == '0.5' ? 'selected' : '' }}>0.5</option>
-                                        <option value="0.75" {{ $result->score_manager == '0.75' ? 'selected' : '' }}>0.75</option>
-                                        <option value="1" {{ $result->score_manager == '1' && !$result->above_expectations_manager ? 'selected' : '' }}>1</option>
+                                        <option value="" {{ is_null($result->score_manager) ? 'selected' : '' }}>Ok</option>
+                                        <option value="0" {{ $result->score_manager === 0.0 && !$result->above_expectations_manager ? 'selected' : '' }}>N/D</option>
+                                        <option value="0.25" {{ $result->score_manager === 0.25 ? 'selected' : '' }}>0.25</option>
+                                        <option value="0.5" {{ $result->score_manager === 0.5 ? 'selected' : '' }}>0.5</option>
+                                        <option value="0.75" {{ $result->score_manager === 0.75 ? 'selected' : '' }}>0.75</option>
+                                        <option value="1" {{ $result->score_manager === 1.0 && !$result->above_expectations_manager ? 'selected' : '' }}>1</option>
                                         <option value="above_expectations" {{ $result->above_expectations_manager ? 'selected' : '' }}>Powyżej oczekiwań</option>
                                     </select>
                                 </td>
+
                                 <td>
                                     <textarea class="feedback" name="feedback_manager[{{ $result->id }}]">{{ $result->feedback_manager }}</textarea>
                                 </td>
@@ -962,18 +977,28 @@
                                     <i class="{{ $iconClass }}" style="color: {{ $iconColor }};"></i>
                                     <div class="card-content">
                                         <strong>Poziom {{ $level }}</strong>
-                                        <p>{{ $summary['earnedPoints'] }} / {{ $summary['maxPoints'] }} pkt.</p>
-                                        @if(is_numeric($summary['percentage']))
-                                            @php
-                                                $percentageValue = $summary['percentage'];
-                                            @endphp
+                                        <p>
+                                            {{ $summary['earnedPointsManager'] }} / {{ $summary['maxPoints'] }} pkt.
+                                        </p>
+                                        @if(is_numeric($summary['percentageEmployee']))
                                             <p>
-                                                <span class="{{ $percentageValue >= 80 ? 'high-percentage' : '' }}">
-                                                    {{ number_format($percentageValue, 2) }}%
+                                                Samoocena:
+                                                <span class="{{ $summary['percentageEmployee'] >= ($level == 1 ? 80 : 85) ? 'high-percentage' : '' }}">
+                                                    {{ number_format($summary['percentageEmployee'], 2) }}%
                                                 </span>
                                             </p>
                                         @else
-                                            <p>{{ $summary['percentage'] }}</p>
+                                            <p>Samoocena: {{ $summary['percentageEmployee'] }}</p>
+                                        @endif
+                                        @if(is_numeric($summary['percentageManager']))
+                                            <p>
+                                                Feedback:
+                                                <span class="{{ $summary['percentageManager'] >= ($level == 1 ? 80 : 85) ? 'high-percentage' : '' }}">
+                                                    {{ number_format($summary['percentageManager'], 2) }}%
+                                                </span>
+                                            </p>
+                                        @else
+                                            <p>Feedback: {{ $summary['percentageManager'] }}</p>
                                         @endif
                                     </div>
                                 </div>
@@ -1004,7 +1029,7 @@
                     <tr>
                         <th>Imię i nazwisko</th>
                         <th>Nazwa stanowiska</th>
-                        @foreach($levelNames as $levelName)
+                        @foreach($levelNames as $levelKey => $levelName)
                             <th>{{ $levelName }}</th>
                         @endforeach
                         <th>Poziom</th>
@@ -1015,68 +1040,52 @@
                         <tr>
                             <td>{{ $emp['name'] }}</td>
                             <td>{{ $emp['job_title'] }}</td>
-                            @foreach($levelNames as $levelName)
+                            @foreach($levelNames as $levelKey => $levelName)
+                                <!-- Manager's Percentage -->
                                 <td>
-                                    @if(isset($emp['levelPercentages'][$levelName]) && $emp['levelPercentages'][$levelName] !== null)
-                                        @php
-                                            $percentage = $emp['levelPercentages'][$levelName];
-                                            $isHigh = is_numeric($percentage) && $percentage >= 80;
-                                        @endphp
-                                        <span class="{{ $isHigh ? 'high-percentage' : '' }}">
-                                        {{ is_numeric($percentage) ? number_format((float)$percentage, 2) . '%' : 'N/D' }}
-                                        </span>
-                                    @else
-                                        N/D
-                                    @endif
+                                    @php
+                                        $percentageManager = $emp['levelPercentagesManager'][$levelName] ?? null;
+                                        $threshold = $levelKey == 1 ? 80 : 85;
+                                        $isHighManager = is_numeric($percentageManager) && $percentageManager >= $threshold;
+                                    @endphp
+                                    <span class="{{ $isHighManager ? 'high-percentage' : '' }}">
+                                        {{ is_numeric($percentageManager) ? number_format((float)$percentageManager, 2) . '%' : 'N/D' }}
+                                    </span>
                                 </td>
                             @endforeach
-                            <td>
-                                @php
-                                    $highestLevel = 'Junior'; // Domyślny poziom
-                                    // Iterujemy od najwyższego poziomu do najniższego
-                                    foreach(array_reverse($levelNames, true) as $levelKey => $levelName) {
-                                        if(isset($emp['levelPercentages'][$levelName]) && is_numeric($emp['levelPercentages'][$levelName]) && $emp['levelPercentages'][$levelName] >= 80) {
-                                            $highestLevel = $levelName;
-                                            break; // Zatrzymujemy się po znalezieniu najwyższego poziomu
-                                        }
-                                    }
-                                @endphp
-                                {{ $highestLevel }}
-                            </td>
+                            <!-- Highest Level based on Manager's Assessment -->
+                            <td>{{ $emp['highestLevelManager'] }}</td>
                         </tr>
                     @endforeach
                 </tbody>
             </table>
 
+
             @php
-                // Inicjalizacja zmiennych do zliczania
+                // Initialize variables for counting
                 $levelCounts = array_fill_keys($levelNames, 0);
-                $filledSurveyCount = 0;
 
                 foreach($teamEmployeesData as $emp) {
-                    // Obliczanie najwyższego poziomu dla danego pracownika
-                    $highestLevel = 'Junior'; // Domyślny poziom
-                    foreach(array_reverse($levelNames, true) as $levelKey => $levelName) {
-                        if(isset($emp['levelPercentages'][$levelName]) && is_numeric($emp['levelPercentages'][$levelName]) && $emp['levelPercentages'][$levelName] >= 80) {
-                            $highestLevel = $levelName;
-                            break; // Zatrzymujemy się po znalezieniu najwyższego poziomu
-                        }
-                    }
+                    // Calculate the highest level based on manager's assessment
+                    $highestLevel = $emp['highestLevelManager'];
 
-                    // Zliczanie pracowników na danym poziomie
+                    // Count employees at each level
                     if(isset($highestLevel)) {
                         $levelCounts[$highestLevel] += 1;
                     }
-
-                    // Sprawdzenie, czy pracownik wypełnił ankietę
-                    foreach($emp['levelPercentages'] as $percentage) {
-                        if(is_numeric($percentage)) {
-                            $filledSurveyCount +=1;
-                            break; // Przerwij pętlę po znalezieniu pierwszej liczbowej wartości
-                        }
+                }
+            @endphp
+            @php
+                $filledSurveyCount = 0;
+                foreach($teamEmployeesData as $emp) {
+                    if (!empty($emp['levelPercentagesManager'])) {
+                        $filledSurveyCount += 1;
                     }
                 }
             @endphp
+
+
+
 
             <div class="summary" style="margin-top: 20px;">
             <div class="cards-container">
@@ -1099,18 +1108,22 @@
                             $iconClass = 'fas fa-briefcase';
                         }
 
-                        // Ustal kolor ikony na podstawie wartości liczby
-                        $iconColorClass = $levelCounts[$levelName] == 0 ? 'icon-gray' : 'icon-green';
+                        // Use counts based on manager's assessments
+                        $count = $levelCounts[$levelName] ?? 0;
+
+                        // Determine icon color based on count
+                        $iconColorClass = $count == 0 ? 'icon-gray' : 'icon-green';
                     @endphp
                     <div class="card">
                         <i class="{{ $iconClass }} {{ $iconColorClass }}"></i>
                         <div class="card-content">
                             <strong>{{ $levelName }}</strong>
-                            <p>{{ $levelCounts[$levelName] }} {{ pluralForm($levelCounts[$levelName], ['osoba', 'osoby', 'osób']) }}</p>
+                            <p>{{ $count }} {{ pluralForm($count, ['osoba', 'osoby', 'osób']) }}</p>
                         </div>
                     </div>
                 @endforeach
 
+                @if(isset($filledSurveyCount))
                     <div class="card">
                         <i class="fas fa-check icon-green"></i>
                         <div class="card-content">
@@ -1118,8 +1131,9 @@
                             <p>{{ $filledSurveyCount }} {{ pluralForm($filledSurveyCount, ['osoba', 'osoby', 'osób']) }}</p>
                         </div>
                     </div>
-                </div>
+                @endif
             </div>
+        </div>
 
 
         </div>
@@ -1148,83 +1162,64 @@
             <!-- Tabela z podsumowaniem całej organizacji -->
             <h3>Podsumowanie kompetencji w organizacji</h3>
             <table>
-                <thead>
+            <thead>
+                <tr>
+                    <th>Imię i nazwisko</th>
+                    <th>Nazwa stanowiska</th>
+                    @foreach($levelNames as $levelKey => $levelName)
+                        <th>{{ $levelName }}</th>
+                    @endforeach
+                    <th>Poziom</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($organizationEmployeesData as $emp)
                     <tr>
-                        <th>Imię i nazwisko</th>
-                        <th>Nazwa stanowiska</th>
-                        @foreach($levelNames as $levelName)
-                            <th>{{ $levelName }}</th>
-                        @endforeach
-                        <th>Poziom</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($organizationEmployeesData as $emp)
-                        <tr>
-                            <td>{{ $emp['name'] }}</td>
-                            <td>{{ $emp['job_title'] }}</td>
-                            @foreach($levelNames as $levelName)
-                                <td>
-                                    @if(isset($emp['levelPercentages'][$levelName]) && $emp['levelPercentages'][$levelName] !== null)
-                                        @php
-                                            $percentage = $emp['levelPercentages'][$levelName];
-                                            $isHigh = is_numeric($percentage) && $percentage >= 80;
-                                        @endphp
-                                        <span class="{{ $isHigh ? 'high-percentage' : '' }}">
-                                        {{ is_numeric($percentage) ? number_format((float)$percentage, 2) . '%' : 'N/D' }}
-                                        </span>
-                                    @else
-                                        N/D
-                                    @endif
-                                </td>
-                            @endforeach
+                        <td>{{ $emp['name'] }}</td>
+                        <td>{{ $emp['job_title'] }}</td>
+                        @foreach($levelNames as $levelKey => $levelName)
+                            <!-- Manager's Percentage -->
                             <td>
                                 @php
-                                    $highestLevel = 'Junior'; // Domyślny poziom
-                                    // Iterujemy od najwyższego poziomu do najniższego
-                                    foreach(array_reverse($levelNames, true) as $levelKey => $levelName) {
-                                        if(isset($emp['levelPercentages'][$levelName]) && is_numeric($emp['levelPercentages'][$levelName]) && $emp['levelPercentages'][$levelName] >= 80) {
-                                            $highestLevel = $levelName;
-                                            break; // Zatrzymujemy się po znalezieniu najwyższego poziomu
-                                        }
-                                    }
+                                    $percentageManager = $emp['levelPercentagesManager'][$levelName] ?? null;
+                                    $threshold = $levelKey == 1 ? 80 : 85;
+                                    $isHighManager = is_numeric($percentageManager) && $percentageManager >= $threshold;
                                 @endphp
-                                {{ $highestLevel }}
+                                <span class="{{ $isHighManager ? 'high-percentage' : '' }}">
+                                    {{ is_numeric($percentageManager) ? number_format((float)$percentageManager, 2) . '%' : 'N/D' }}
+                                </span>
                             </td>
-                        </tr>
-                    @endforeach
-                </tbody>
+                        @endforeach
+                        <!-- Highest Level based on Manager's Assessment -->
+                        <td>{{ $emp['highestLevelManager'] }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+
+
             </table>
 
             @php
-                // Inicjalizacja zmiennych do zliczania
+                // Initialize variables for counting
                 $levelCounts = array_fill_keys($levelNames, 0);
                 $filledSurveyCount = 0;
 
                 foreach($organizationEmployeesData as $emp) {
-                    // Obliczanie najwyższego poziomu dla danego pracownika
-                    $highestLevel = 'Junior'; // Domyślny poziom
-                    foreach(array_reverse($levelNames, true) as $levelKey => $levelName) {
-                        if(isset($emp['levelPercentages'][$levelName]) && is_numeric($emp['levelPercentages'][$levelName]) && $emp['levelPercentages'][$levelName] >= 80) {
-                            $highestLevel = $levelName;
-                            break; // Zatrzymujemy się po znalezieniu najwyższego poziomu
-                        }
-                    }
+                    // Calculate the highest level based on manager's assessment
+                    $highestLevel = $emp['highestLevelManager'];
 
-                    // Zliczanie pracowników na danym poziomie
+                    // Count employees at each level
                     if(isset($highestLevel)) {
                         $levelCounts[$highestLevel] += 1;
                     }
 
-                    // Sprawdzenie, czy pracownik wypełnił ankietę
-                    foreach($emp['levelPercentages'] as $percentage) {
-                        if(is_numeric($percentage)) {
-                            $filledSurveyCount +=1;
-                            break; // Przerwij pętlę po znalezieniu pierwszej liczbowej wartości
-                        }
+                    // Check if the employee has filled out the survey
+                    if (!empty($emp['levelPercentagesManager'])) {
+                        $filledSurveyCount += 1;
                     }
                 }
             @endphp
+
 
             <div class="summary" style="margin-top: 20px;">
             <div class="cards-container">
@@ -1429,12 +1424,12 @@
                                         <td>
                                             <!-- Ocena managera -->
                                             <select class="custom-select" name="score_manager[{{ $result->id }}]">
-                                                <option value="">Ok</option>
-                                                <option value="0" {{ $result->score_manager === '0' ? 'selected' : '' }}>N/D</option>
-                                                <option value="0.25" {{ $result->score_manager == '0.25' ? 'selected' : '' }}>0.25</option>
-                                                <option value="0.5" {{ $result->score_manager == '0.5' ? 'selected' : '' }}>0.5</option>
-                                                <option value="0.75" {{ $result->score_manager == '0.75' ? 'selected' : '' }}>0.75</option>
-                                                <option value="1" {{ $result->score_manager == '1' && !$result->above_expectations_manager ? 'selected' : '' }}>1</option>
+                                                <option value="" {{ is_null($result->score_manager) ? 'selected' : '' }}>Ok</option>
+                                                <option value="0" {{ $result->score_manager === 0.0 && !$result->above_expectations_manager ? 'selected' : '' }}>N/D</option>
+                                                <option value="0.25" {{ $result->score_manager === 0.25 ? 'selected' : '' }}>0.25</option>
+                                                <option value="0.5" {{ $result->score_manager === 0.5 ? 'selected' : '' }}>0.5</option>
+                                                <option value="0.75" {{ $result->score_manager === 0.75 ? 'selected' : '' }}>0.75</option>
+                                                <option value="1" {{ $result->score_manager === 1.0 && !$result->above_expectations_manager ? 'selected' : '' }}>1</option>
                                                 <option value="above_expectations" {{ $result->above_expectations_manager ? 'selected' : '' }}>Powyżej oczekiwań</option>
                                             </select>
                                         </td>
@@ -1478,18 +1473,28 @@
                                     <i class="{{ $iconClass }}" style="color: {{ $iconColor }};"></i>
                                     <div class="card-content">
                                         <strong>Poziom {{ $level }}</strong>
-                                        <p>{{ $summary['earnedPoints'] }} / {{ $summary['maxPoints'] }} pkt.</p>
-                                        @if(is_numeric($summary['percentage']))
-                                            @php
-                                                $percentageValue = $summary['percentage'];
-                                            @endphp
+                                        <p>
+                                            {{ $summary['earnedPointsManager'] }} / {{ $summary['maxPoints'] }} pkt.
+                                        </p>
+                                        @if(is_numeric($summary['percentageEmployee']))
                                             <p>
-                                                <span class="{{ $percentageValue >= 80 ? 'high-percentage' : '' }}">
-                                                    {{ number_format($percentageValue, 2) }}%
+                                                Samoocena:
+                                                <span class="{{ $summary['percentageEmployee'] >= ($level == 1 ? 80 : 85) ? 'high-percentage' : '' }}">
+                                                    {{ number_format($summary['percentageEmployee'], 2) }}%
                                                 </span>
                                             </p>
                                         @else
-                                            <p>{{ $summary['percentage'] }}</p>
+                                            <p>Samoocena: {{ $summary['percentageEmployee'] }}</p>
+                                        @endif
+                                        @if(is_numeric($summary['percentageManager']))
+                                            <p>
+                                                Feedback:
+                                                <span class="{{ $summary['percentageManager'] >= ($level == 1 ? 80 : 85) ? 'high-percentage' : '' }}">
+                                                    {{ number_format($summary['percentageManager'], 2) }}%
+                                                </span>
+                                            </p>
+                                        @else
+                                            <p>Feedback: {{ $summary['percentageManager'] }}</p>
                                         @endif
                                     </div>
                                 </div>
@@ -1515,52 +1520,41 @@
         <div id="department-tab" style="display:none;">
             <!-- Tabela z podsumowaniem działu -->
             <table>
-                <thead>
+            <thead>
+                <tr>
+                    <th>Imię i nazwisko</th>
+                    <th>Nazwa stanowiska</th>
+                    @foreach($levelNames as $levelKey => $levelName)
+                        <th>{{ $levelName }}</th>
+                    @endforeach
+                    <th>Poziom</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($departmentEmployeesData as $emp)
                     <tr>
-                        <th>Imię i nazwisko</th>
-                        <th>Nazwa stanowiska</th>
-                        @foreach($levelNames as $levelName)
-                            <th>{{ $levelName }}</th>
-                        @endforeach
-                        <th>Poziom</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($departmentEmployeesData as $emp)
-                        <tr>
-                            <td>{{ $emp['name'] }}</td>
-                            <td>{{ $emp['job_title'] }}</td>
-                            @foreach($levelNames as $levelName)
-                                <td>
-                                    @if(isset($emp['levelPercentages'][$levelName]) && $emp['levelPercentages'][$levelName] !== null)
-                                        @php
-                                            $percentage = $emp['levelPercentages'][$levelName];
-                                            $isHigh = is_numeric($percentage) && $percentage >= 80;
-                                        @endphp
-                                        <span class="{{ $isHigh ? 'high-percentage' : '' }}">
-                                        {{ is_numeric($percentage) ? number_format((float)$percentage, 2) . '%' : 'N/D' }}
-                                        </span>
-                                    @else
-                                        N/D
-                                    @endif
-                                </td>
-                            @endforeach
+                        <td>{{ $emp['name'] }}</td>
+                        <td>{{ $emp['job_title'] }}</td>
+                        @foreach($levelNames as $levelKey => $levelName)
+                            <!-- Manager's Percentage -->
                             <td>
                                 @php
-                                    $highestLevel = 'Junior'; // Default level
-                                    // Iterate from highest to lowest level
-                                    foreach(array_reverse($levelNames, true) as $levelKey => $levelName) {
-                                        if(isset($emp['levelPercentages'][$levelName]) && is_numeric($emp['levelPercentages'][$levelName]) && $emp['levelPercentages'][$levelName] >= 80) {
-                                            $highestLevel = $levelName;
-                                            break; // Stop after finding the highest level
-                                        }
-                                    }
+                                    $percentageManager = $emp['levelPercentagesManager'][$levelName] ?? null;
+                                    $threshold = $levelKey == 1 ? 80 : 85;
+                                    $isHighManager = is_numeric($percentageManager) && $percentageManager >= $threshold;
                                 @endphp
-                                {{ $highestLevel }}
+                                <span class="{{ $isHighManager ? 'high-percentage' : '' }}">
+                                    {{ is_numeric($percentageManager) ? number_format((float)$percentageManager, 2) . '%' : 'N/D' }}
+                                </span>
                             </td>
-                        </tr>
-                    @endforeach
-                </tbody>
+                        @endforeach
+                        <!-- Highest Level based on Manager's Assessment -->
+                        <td>{{ $emp['highestLevelManager'] }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+
+
             </table>
 
             @php
@@ -1569,14 +1563,8 @@
                 $filledSurveyCount = 0;
 
                 foreach($departmentEmployeesData as $emp) {
-                    // Calculate the highest level for each employee
-                    $highestLevel = 'Junior'; // Default level
-                    foreach(array_reverse($levelNames, true) as $levelKey => $levelName) {
-                        if(isset($emp['levelPercentages'][$levelName]) && is_numeric($emp['levelPercentages'][$levelName]) && $emp['levelPercentages'][$levelName] >= 80) {
-                            $highestLevel = $levelName;
-                            break; // Stop after finding the highest level
-                        }
-                    }
+                    // Calculate the highest level based on manager's assessment
+                    $highestLevel = $emp['highestLevelManager'];
 
                     // Count employees at each level
                     if(isset($highestLevel)) {
@@ -1584,14 +1572,14 @@
                     }
 
                     // Check if the employee has filled out the survey
-                    foreach($emp['levelPercentages'] as $percentage) {
-                        if(is_numeric($percentage)) {
-                            $filledSurveyCount += 1;
-                            break; // Break after finding the first numeric value
-                        }
+                    if (!empty($emp['levelPercentagesManager'])) {
+                        $filledSurveyCount += 1;
                     }
                 }
             @endphp
+
+
+
 
             <!-- Summary similar to the HR tab -->
             <div class="summary" style="margin-top: 20px;">

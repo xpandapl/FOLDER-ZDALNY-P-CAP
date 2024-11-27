@@ -27,90 +27,114 @@ class ManagerController extends Controller
     ];
 
     public function index(Request $request)
-    {
-        $manager = auth()->user();
+{
+    $manager = auth()->user();
 
-        if (!$manager) {
-            abort(403, 'Użytkownik nie jest zalogowany.');
-        }    
+    if (!$manager) {
+        abort(403, 'Użytkownik nie jest zalogowany.');
+    }    
 
-        $levelNames = [
-            1 => 'Junior',
-            2 => 'Specjalista',
-            3 => 'Senior',
-            4 => 'Supervisor',
-            5 => 'Manager',
-            6 => 'Head of'
-        ];
+    $levelNames = [
+        1 => 'Junior',
+        2 => 'Specjalista',
+        3 => 'Senior',
+        4 => 'Supervisor',
+        5 => 'Manager',
+        6 => 'Head of'
+    ];
 
-        // Get the employee ID from the request (if selected)
-        $employeeId = $request->input('employee');
+    // Get the employee ID from the request (if selected)
+    $employeeId = $request->input('employee');
 
-        // Fetch employees under the manager with necessary relationships
-        $employees = Employee::with(['team', 'results.competency.competencyTeamValues'])
-            ->where('manager_username', $manager->name)
+    // Fetch employees under the manager with necessary relationships
+    $employees = Employee::with(['team', 'results.competency.competencyTeamValues'])
+        ->where('manager_username', $manager->name)
+        ->get();
+
+    // For supermanagers, fetch all employees with necessary relationships
+    if ($manager->role == 'supermanager') {
+        $allEmployees = Employee::with(['team', 'results.competency.competencyTeamValues'])->get();
+    } else {
+        $allEmployees = collect(); // Empty collection for non-supermanagers
+    }
+
+    if ($manager->role == 'head') {
+        $departmentEmployees = Employee::with(['team', 'results.competency.competencyTeamValues'])
+            ->where('department', $manager->department)
             ->get();
+    } else {
+        $departmentEmployees = collect(); // Empty collection for non-heads
+    }    
 
-        // For supermanagers, fetch all employees with necessary relationships
-        if ($manager->role == 'supermanager') {
-            $allEmployees = Employee::with(['team', 'results.competency.competencyTeamValues'])->get();
-        } else {
-            $allEmployees = collect(); // Empty collection for non-supermanagers
-        }
+    // Initialize variables
+    $employee = null;
+    $results = collect(); // Empty collection
+    $levelSummaries = [];
 
-        if ($manager->role == 'head') {
-            $departmentEmployees = Employee::with(['team', 'results.competency.competencyTeamValues'])
-                ->where('department', $manager->department)
-                ->get();
-        } else {
-            $departmentEmployees = collect(); // Empty collection for non-heads
-        }    
+    if ($employeeId) {
+        $employee = Employee::with(['team', 'results.competency.competencyTeamValues'])->find($employeeId);
+    
+        // Check if manager has access to this employee
+        if ($employee && (
+            $manager->role == 'supermanager' ||
+            $employee->manager_username == $manager->name ||
+            ($manager->role == 'head' && $employee->department == $manager->department)
+        )) {
+            // Access allowed
+            $results = $employee->results()->with('competency.competencyTeamValues')->get();
+        
+            // Initialize level summaries
+            $levelSummaries = [];
 
-        // Initialize variables
-        $employee = null;
-        $results = collect(); // Empty collection
-        $levelSummaries = [];
-
-        if ($employeeId) {
-            $employee = Employee::with(['team', 'results.competency.competencyTeamValues'])->find($employeeId);
-
-            // Check if manager has access to this employee
-            if ($employee && (
-                $manager->role == 'supermanager' ||
-                $employee->manager_username == $manager->name ||
-                ($manager->role == 'head' && $employee->department == $manager->department)
-            )) {
-                // Access allowed
-                $results = $employee->results;
+            // Calculate per-level summaries for individual tab
+            $levels = $results->groupBy('competency.level');
+            foreach ($levels as $level => $levelResults) {
+                $earnedPointsEmployee = 0;
+                $earnedPointsManager = 0;
+                $maxPoints = 0;
             
-                // Calculate per-level summaries for individual tab
-                $levels = $results->groupBy('competency.level');
-                foreach ($levels as $level => $levelResults) {
-                    $earnedPoints = 0;
-                    $maxPoints = 0;
-                    foreach ($levelResults as $result) {
-                        $competencyValue = $result->competency->competencyTeamValues->first()->value ?? 0;
-                        // Choose manager's score if available, otherwise user's score
-                        $score = $result->score_manager !== null ? $result->score_manager : $result->score;
+                foreach ($levelResults as $result) {
+                    $competencyValue = $result->competency->getValueForTeam($employee->team->id);
             
-                        // Include in calculations if score > 0
-                        if ($score > 0) {
-                            $earnedPoints += $competencyValue * $score;
-                            $maxPoints += $competencyValue;
-                        }
+                    // Employee's score
+                    $scoreEmployee = $result->score;
+            
+                    // Manager's score (if exists, else employee's score)
+                    $scoreManager = ($result->score_manager !== null) ? $result->score_manager : $result->score;
+            
+                    // Include in calculations if score > 0
+                    if ($scoreEmployee > 0) {
+                        $earnedPointsEmployee += $competencyValue * $scoreEmployee;
                     }
-                    $percentage = $maxPoints > 0 ? ($earnedPoints / $maxPoints) * 100 : 'N/D';
-                    $levelSummaries[$level] = [
-                        'earnedPoints' => $earnedPoints,
-                        'maxPoints' => $maxPoints,
-                        'percentage' => $percentage,
-                    ];
+                    if ($scoreManager > 0) {
+                        $earnedPointsManager += $competencyValue * $scoreManager;
+                    }
+                    if ($competencyValue > 0) {
+                        $maxPoints += $competencyValue;
+                    }
                 }
-            } else {
-                // Unauthorized access
-                abort(403, 'Nie masz dostępu do tego pracownika.');
+            
+                // Calculate percentages
+                $percentageEmployee = $maxPoints > 0 ? ($earnedPointsEmployee / $maxPoints) * 100 : 'N/D';
+                $percentageManager = $maxPoints > 0 ? ($earnedPointsManager / $maxPoints) * 100 : 'N/D';
+            
+                // Store in levelSummaries
+                $levelSummaries[$level] = [
+                    'earnedPointsEmployee' => $earnedPointsEmployee,
+                    'earnedPointsManager' => $earnedPointsManager,
+                    'maxPoints' => $maxPoints,
+                    'percentageEmployee' => $percentageEmployee,
+                    'percentageManager' => $percentageManager,
+                ];
             }
+            
+
+        } else {
+            // Unauthorized access
+            abort(403, 'Nie masz dostępu do tego pracownika.');
         }
+    }
+        
 
         // Threshold for level completion
         $threshold = 80; // Adjust as needed
@@ -196,78 +220,91 @@ class ManagerController extends Controller
      * Prepare employee data for team and organization summaries
      */
     private function prepareEmployeesData($employees, $levelNames)
-    {
-        $employeesData = [];
+{
+    $employeesData = [];
 
-        foreach ($employees as $emp) {
-            // Get the team based on the employee's department
-            if (!$emp->team) {
-                Log::warning('No team found for employee', [
-                    'employee_id' => $emp->id,
-                    'employee_name' => $emp->name,
-                    'department' => $emp->department,
-                ]);
-                continue;
-            }
-
-            $teamId = $emp->team->id;
-
-            // Build an array of competency values for the employee's team
-            $competencyValues = CompetencyTeamValue::where('team_id', $teamId)
-                ->whereIn('competency_id', $emp->results->pluck('competency_id'))
-                ->pluck('value', 'competency_id');
-
-            // Array to store percentages for each level
-            $levelPercentages = [];
-
-            foreach ($levelNames as $levelKey => $levelName) {
-                $levelResults = $emp->results->filter(function ($result) use ($levelKey) {
-                    $levelNumber = (int)$result->competency->level;
-                    return $levelNumber == $levelKey;
-                });
-
-                if ($levelResults->isEmpty()) {
-                    $levelPercentages[$levelName] = null;
-                } else {
-                    $earnedPoints = 0;
-                    $maxPoints = 0;
-
-                    foreach ($levelResults as $result) {
-                        // Use the competency value specific to the employee's team
-                        $competencyValue = $competencyValues[$result->competency_id] ?? 0;
-                        $score = $result->score_manager !== null ? $result->score_manager : $result->score;
-
-                        if ($score > 0) {
-                            $earnedPoints += $competencyValue * $score;
-                            $maxPoints += $competencyValue;
-                        }
-                    }
-
-                    $percentage = $maxPoints > 0 ? ($earnedPoints / $maxPoints) * 100 : 'N/D';
-                    $levelPercentages[$levelName] = $percentage;
-                }
-            }
-
-            // **Determine highest level**
-            $highestLevel = 'Junior'; // Default level
-            foreach (array_reverse($levelNames, true) as $levelKey => $levelName) {
-                if (isset($levelPercentages[$levelName]) && is_numeric($levelPercentages[$levelName]) && $levelPercentages[$levelName] >= 80) {
-                    $highestLevel = $levelName;
-                    break; // Stop after finding the highest level
-                }
-            }
-
-            // Add data to employeesData
-            $employeesData[] = [
-                'name' => $emp->employee_name ?? $emp->name ?? 'Brak danych',
-                'job_title' => $emp->position ?? $emp->job_title ?? 'Brak danych',
-                'levelPercentages' => $levelPercentages,
-                'highestLevel' => $highestLevel,
-            ];
+    foreach ($employees as $emp) {
+        // Get the team based on the employee's department
+        if (!$emp->team) {
+            Log::warning('No team found for employee', [
+                'employee_id' => $emp->id,
+                'employee_name' => $emp->name,
+                'department' => $emp->department,
+            ]);
+            continue;
         }
 
-        return $employeesData;
+        $teamId = $emp->team->id;
+
+        // Build an array of competency values for the employee's team
+        $competencyValues = CompetencyTeamValue::where('team_id', $teamId)
+            ->whereIn('competency_id', $emp->results->pluck('competency_id'))
+            ->pluck('value', 'competency_id');
+
+        // Arrays to store percentages for each level
+        $levelPercentagesEmployee = [];
+        $levelPercentagesManager = [];
+
+        foreach ($levelNames as $levelKey => $levelName) {
+            $levelResults = $emp->results->filter(function ($result) use ($levelKey) {
+                $levelNumber = (int)$result->competency->level;
+                return $levelNumber == $levelKey;
+            });
+
+            if ($levelResults->isEmpty()) {
+                $levelPercentagesEmployee[$levelName] = null;
+                $levelPercentagesManager[$levelName] = null;
+            } else {
+                $earnedPointsEmployee = 0;
+                $earnedPointsManager = 0;
+                $maxPoints = 0;
+
+                foreach ($levelResults as $result) {
+                    // Use the competency value specific to the employee's team
+                    $competencyValue = $competencyValues[$result->competency_id] ?? 0;
+
+                    // Employee's score
+                    $scoreEmployee = $result->score;
+
+                    // Manager's score (if exists, else employee's score)
+                    $scoreManager = ($result->score_manager !== null) ? $result->score_manager : $result->score;
+
+                    if ($scoreEmployee > 0) {
+                        $earnedPointsEmployee += $competencyValue * $scoreEmployee;
+                    }
+                    if ($scoreManager > 0) {
+                        $earnedPointsManager += $competencyValue * $scoreManager;
+                    }
+                    if ($competencyValue > 0) {
+                        $maxPoints += $competencyValue;
+                    }
+                }
+
+                $percentageEmployee = $maxPoints > 0 ? ($earnedPointsEmployee / $maxPoints) * 100 : 'N/D';
+                $percentageManager = $maxPoints > 0 ? ($earnedPointsManager / $maxPoints) * 100 : 'N/D';
+
+                $levelPercentagesEmployee[$levelName] = $percentageEmployee;
+                $levelPercentagesManager[$levelName] = $percentageManager;
+            }
+        }
+
+        // Determine highest levels
+        $highestLevelEmployee = $this->determineHighestLevel($levelPercentagesEmployee);
+        $highestLevelManager = $this->determineHighestLevel($levelPercentagesManager);
+
+        // Add data to employeesData
+        $employeesData[] = [
+            'name' => $emp->employee_name ?? $emp->name ?? 'Brak danych',
+            'job_title' => $emp->position ?? $emp->job_title ?? 'Brak danych',
+            'levelPercentagesEmployee' => $levelPercentagesEmployee,
+            'levelPercentagesManager' => $levelPercentagesManager,
+            'highestLevelEmployee' => $highestLevelEmployee,
+            'highestLevelManager' => $highestLevelManager,
+        ];
     }
+
+    return $employeesData;
+}
 
 
 
@@ -304,19 +341,27 @@ class ManagerController extends Controller
     }
     $headers[] = 'Poziom';
 
+    $headers = ['Imię i nazwisko', 'Nazwa stanowiska'];
+    foreach ($this->levelNames as $levelName) {
+        $headers[] = $levelName;
+    }
+    $headers[] = 'Poziom';
+
+    $data = [];
     foreach ($employeesData as $empData) {
         $row = [
             $empData['name'],
             $empData['job_title'],
         ];
         foreach ($this->levelNames as $levelName) {
-            $percentageValue = $empData['levelPercentages'][$levelName] ?? null;
-            $percentage = is_numeric($percentageValue) ? number_format($percentageValue, 2) . '%' : 'N/D';
-            $row[] = $percentage;
+            $percentageValueManager = $empData['levelPercentagesManager'][$levelName] ?? null;
+            $percentageManager = is_numeric($percentageValueManager) ? number_format($percentageValueManager, 2) . '%' : 'N/D';
+            $row[] = $percentageManager;
         }
-        $row[] = $empData['highestLevel'];
+        $row[] = $empData['highestLevelManager'];
         $data[] = $row;
     }
+
 
     // Use a proper export class
     return Excel::download(
@@ -341,9 +386,6 @@ class ManagerController extends Controller
         return $highestLevel;
     }
 
-
-
-
     public function update(Request $request)
     {
         // Update manager's assessments
@@ -352,13 +394,13 @@ class ManagerController extends Controller
 
             if ($result) {
                 if ($scoreManager === 'above_expectations') {
-                    $result->score_manager = 1;
+                    $result->score_manager = 1.0;
                     $result->above_expectations_manager = 1;
-                } elseif ($scoreManager !== null && $scoreManager !== '') {
-                    $result->score_manager = $scoreManager;
+                } elseif ($scoreManager === null || $scoreManager === '') {
+                    $result->score_manager = null;
                     $result->above_expectations_manager = 0;
                 } else {
-                    $result->score_manager = null;
+                    $result->score_manager = (float)$scoreManager;
                     $result->above_expectations_manager = 0;
                 }
                 $result->feedback_manager = $request->feedback_manager[$resultId] ?? null;
@@ -371,6 +413,8 @@ class ManagerController extends Controller
         // Redirect back to the manager panel with the employee parameter
         return redirect()->action([ManagerController::class, 'index'], ['employee' => $employeeId])->with('success', 'Oceny zostały zaktualizowane.');
     }
+
+
 
     public function generatePdf($employeeId)
     {
@@ -484,7 +528,7 @@ class ManagerController extends Controller
             }
     
             // Get competency value
-            $competencyValue = $competency->competencyTeamValues->first()->value ?? 0;
+            $competencyValue = $competency->getValueForTeam($employee->team->id);
     
             // Use manager's score if available, otherwise employee's score
             $score = $result->score_manager !== null ? $result->score_manager : $result->score;

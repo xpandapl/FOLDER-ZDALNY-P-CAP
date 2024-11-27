@@ -80,9 +80,12 @@ class SelfAssessmentController extends Controller
     
                 // Create or update the competency
                 $competency = Competency::updateOrCreate(
-                    ['competency_name' => $competencyName, 'level' => $level],
                     [
+                        'competency_name' => $competencyName,
+                        'level' => $level,
                         'competency_type' => $competencyType,
+                    ],
+                    [
                         'description_075_to_1' => $description075to1,
                         'description_0_to_05' => $description0to05,
                         'description_above_expectations' => $descriptionAboveExpectations,
@@ -466,6 +469,14 @@ public function generateXls($uuid)
     
         // Iterate through competency IDs
         foreach ($competencyIds as $competencyId) {
+            $isAboveExpectations = isset($aboveExpectations[$competencyId]) ? 1 : 0;
+        
+            // Jeśli above_expectations jest zaznaczone, ustaw score na 1
+            if ($isAboveExpectations) {
+                $scoreValue = 1;
+            } else {
+                $scoreValue = $scores[$competencyId] ?? 0;
+            }
             Result::updateOrCreate(
                 [
                     'employee_id' => $employee->id,

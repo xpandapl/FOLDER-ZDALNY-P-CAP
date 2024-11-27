@@ -19,20 +19,15 @@ class Competency extends Model
         'value',
     ];
 
-    public function teamValues()
-{
-    return $this->hasMany(CompetencyTeamValue::class);
-}
-public function competencyTeamValues()
-{
-    return $this->hasMany(CompetencyTeamValue::class);
-}
-public function getValueForTeam($teamId)
-{
-    $ctv = $this->competencyTeamValues->firstWhere('team_id', $teamId);
-    return $ctv ? $ctv->value : 0;
-}
+    public function competencyTeamValues()
+    {
+        return $this->hasMany(CompetencyTeamValue::class);
+    }
 
-
+    public function getValueForTeam($teamId)
+    {
+        $ctv = $this->competencyTeamValues()->where('team_id', $teamId)->first();
+        return $ctv ? $ctv->value : 0;
+    }
 
 }
