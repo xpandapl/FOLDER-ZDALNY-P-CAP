@@ -162,8 +162,10 @@
                             "Content-Type": "application/json",
                             "X-CSRF-TOKEN": csrfToken
                         },
+                        credentials: 'same-origin',
                         body: JSON.stringify({ department: department })
                     })
+
                     .then(response => response.json())
                     .then(managers => {
                         // `managers` is an object with key-value pairs
