@@ -29,11 +29,36 @@ class Employee extends Model
         return $this->belongsTo(Team::class, 'department', 'name');
     }
 
+    public function overriddenCompetencyValues()
+{
+    return $this->hasMany(EmployeeCompetencyValue::class);
+}
 
 
+    public function competencyValues()
+    {
+        return $this->hasMany(EmployeeCompetencyValue::class);
+    }
+    
+    public function getCompetencyValue($competencyId)
+    {
+        // Check for overridden competency value
+        $overriddenValue = $this->overriddenCompetencyValues->firstWhere('competency_id', $competencyId);
 
+        if ($overriddenValue) {
+            return $overriddenValue->value;
+        }
 
+        // Get team competency value
+        if ($this->team) {
+            $competencyTeamValue = $this->team->competencyTeamValues->firstWhere('competency_id', $competencyId);
+            if ($competencyTeamValue) {
+                return $competencyTeamValue->value;
+            }
+        }
 
+        return 0; // Default value if none found
+    }
 
 
 

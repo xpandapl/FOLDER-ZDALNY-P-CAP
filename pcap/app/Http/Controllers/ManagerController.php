@@ -14,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use App\Models\Team;
+use App\Models\EmployeeCompetencyValue;
+
 
 class ManagerController extends Controller
 {
@@ -32,7 +34,7 @@ class ManagerController extends Controller
 
     if (!$manager) {
         abort(403, 'Użytkownik nie jest zalogowany.');
-    }    
+    }
 
     $levelNames = [
         1 => 'Junior',
@@ -47,9 +49,17 @@ class ManagerController extends Controller
     $employeeId = $request->input('employee');
 
     // Fetch employees under the manager with necessary relationships
-    $employees = Employee::with(['team', 'results.competency.competencyTeamValues'])
-        ->where('manager_username', $manager->name)
-        ->get();
+    $employees = Employee::with([
+        'team:id,name', // Only load team name and ID
+        'results' => function ($query) {
+            $query->select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'above_expectations', 'comments', 'feedback_manager');
+        },
+        'results.competency' => function ($query) {
+            $query->select('id', 'competency_name', 'level', 'competency_type');
+        },
+        // Load overridden competency values if necessary
+    ])->where('manager_username', $manager->name)->get(['id', 'name', 'job_title', 'department']);
+    
 
     // For supermanagers, fetch all employees with necessary relationships
     if ($manager->role == 'supermanager') {
@@ -64,16 +74,17 @@ class ManagerController extends Controller
             ->get();
     } else {
         $departmentEmployees = collect(); // Empty collection for non-heads
-    }    
+    }
 
     // Initialize variables
     $employee = null;
     $results = collect(); // Empty collection
     $levelSummaries = [];
+    $overriddenValues = collect(); // Initialize here to ensure it's always defined
 
     if ($employeeId) {
         $employee = Employee::with(['team', 'results.competency.competencyTeamValues'])->find($employeeId);
-    
+
         // Check if manager has access to this employee
         if ($employee && (
             $manager->role == 'supermanager' ||
@@ -82,7 +93,7 @@ class ManagerController extends Controller
         )) {
             // Access allowed
             $results = $employee->results()->with('competency.competencyTeamValues')->get();
-        
+
             // Initialize level summaries
             $levelSummaries = [];
 
@@ -94,14 +105,14 @@ class ManagerController extends Controller
                 $maxPoints = 0;
             
                 foreach ($levelResults as $result) {
-                    $competencyValue = $result->competency->getValueForTeam($employee->team->id);
-            
+                    $competencyValue = $employee->getCompetencyValue($result->competency_id) ?? 0;
+
                     // Employee's score
                     $scoreEmployee = $result->score;
-            
+
                     // Manager's score (if exists, else employee's score)
                     $scoreManager = ($result->score_manager !== null) ? $result->score_manager : $result->score;
-            
+
                     // Include in calculations if score > 0
                     if ($scoreEmployee > 0) {
                         $earnedPointsEmployee += $competencyValue * $scoreEmployee;
@@ -113,11 +124,11 @@ class ManagerController extends Controller
                         $maxPoints += $competencyValue;
                     }
                 }
-            
+
                 // Calculate percentages
                 $percentageEmployee = $maxPoints > 0 ? ($earnedPointsEmployee / $maxPoints) * 100 : 'N/D';
                 $percentageManager = $maxPoints > 0 ? ($earnedPointsManager / $maxPoints) * 100 : 'N/D';
-            
+
                 // Store in levelSummaries
                 $levelSummaries[$level] = [
                     'earnedPointsEmployee' => $earnedPointsEmployee,
@@ -127,7 +138,9 @@ class ManagerController extends Controller
                     'percentageManager' => $percentageManager,
                 ];
             }
-            
+            // Fetch overridden values
+            $overriddenValues = EmployeeCompetencyValue::where('employee_id', $employee->id)
+                ->pluck('value', 'competency_id');
 
         } else {
             // Unauthorized access
@@ -193,6 +206,10 @@ class ManagerController extends Controller
             }
         }
 
+        
+
+        
+
         // Fetch all teams
         $teams = Team::all();
 
@@ -211,6 +228,7 @@ class ManagerController extends Controller
             'levelNames',
             'hrData',
             'manager',
+            'overriddenValues',
             'teams'
         ));
         
@@ -220,48 +238,41 @@ class ManagerController extends Controller
      * Prepare employee data for team and organization summaries
      */
     private function prepareEmployeesData($employees, $levelNames)
-{
-    $employeesData = [];
+    {
+        $employeesData = [];
 
-    foreach ($employees as $emp) {
-        // Get the team based on the employee's department
-        if (!$emp->team) {
-            Log::warning('No team found for employee', [
-                'employee_id' => $emp->id,
-                'employee_name' => $emp->name,
-                'department' => $emp->department,
-            ]);
-            continue;
-        }
+        foreach ($employees as $emp) {
+            if (!$emp->team) {
+                Log::warning('No team found for employee', [
+                    'employee_id' => $emp->id,
+                    'employee_name' => $emp->name,
+                    'department' => $emp->department,
+                ]);
+                continue;
+            }
 
-        $teamId = $emp->team->id;
+            // Arrays to store percentages for each level
+            $levelPercentagesEmployee = [];
+            $levelPercentagesManager = [];
 
-        // Build an array of competency values for the employee's team
-        $competencyValues = CompetencyTeamValue::where('team_id', $teamId)
-            ->whereIn('competency_id', $emp->results->pluck('competency_id'))
-            ->pluck('value', 'competency_id');
+            foreach ($levelNames as $levelKey => $levelName) {
+                $levelResults = $emp->results->filter(function ($result) use ($levelKey) {
+                    return (int)$result->competency->level === $levelKey;
+                });
 
-        // Arrays to store percentages for each level
-        $levelPercentagesEmployee = [];
-        $levelPercentagesManager = [];
+                if ($levelResults->isEmpty()) {
+                    $levelPercentagesEmployee[$levelName] = null;
+                    $levelPercentagesManager[$levelName] = null;
+                    continue;
+                }
 
-        foreach ($levelNames as $levelKey => $levelName) {
-            $levelResults = $emp->results->filter(function ($result) use ($levelKey) {
-                $levelNumber = (int)$result->competency->level;
-                return $levelNumber == $levelKey;
-            });
-
-            if ($levelResults->isEmpty()) {
-                $levelPercentagesEmployee[$levelName] = null;
-                $levelPercentagesManager[$levelName] = null;
-            } else {
                 $earnedPointsEmployee = 0;
                 $earnedPointsManager = 0;
                 $maxPoints = 0;
 
                 foreach ($levelResults as $result) {
                     // Use the competency value specific to the employee's team
-                    $competencyValue = $competencyValues[$result->competency_id] ?? 0;
+                    $competencyValue = $emp->getCompetencyValue($result->competency_id);
 
                     // Employee's score
                     $scoreEmployee = $result->score;
@@ -286,25 +297,25 @@ class ManagerController extends Controller
                 $levelPercentagesEmployee[$levelName] = $percentageEmployee;
                 $levelPercentagesManager[$levelName] = $percentageManager;
             }
+
+            // Determine highest levels
+            $highestLevelEmployee = $this->determineHighestLevel($levelPercentagesEmployee);
+            $highestLevelManager = $this->determineHighestLevel($levelPercentagesManager);
+
+            // Add data to employeesData
+            $employeesData[] = [
+                'name' => $emp->name ?? 'Brak danych',
+                'job_title' => $emp->job_title ?? 'Brak danych',
+                'levelPercentagesEmployee' => $levelPercentagesEmployee,
+                'levelPercentagesManager' => $levelPercentagesManager,
+                'highestLevelEmployee' => $highestLevelEmployee,
+                'highestLevelManager' => $highestLevelManager,
+            ];
         }
 
-        // Determine highest levels
-        $highestLevelEmployee = $this->determineHighestLevel($levelPercentagesEmployee);
-        $highestLevelManager = $this->determineHighestLevel($levelPercentagesManager);
-
-        // Add data to employeesData
-        $employeesData[] = [
-            'name' => $emp->employee_name ?? $emp->name ?? 'Brak danych',
-            'job_title' => $emp->position ?? $emp->job_title ?? 'Brak danych',
-            'levelPercentagesEmployee' => $levelPercentagesEmployee,
-            'levelPercentagesManager' => $levelPercentagesManager,
-            'highestLevelEmployee' => $highestLevelEmployee,
-            'highestLevelManager' => $highestLevelManager,
-        ];
+        return $employeesData;
     }
 
-    return $employeesData;
-}
 
 
 
@@ -409,11 +420,35 @@ class ManagerController extends Controller
         }
 
         $employeeId = $request->input('employee_id');
+        $employee = Employee::find($employeeId);
+
+         // Handle overridden competency values
+        $competencyValues = $request->input('competency_values', []);
+        $deleteCompetencyValues = $request->input('delete_competency_values', []);
+
+        // Process deletions
+        foreach ($deleteCompetencyValues as $competencyId) {
+            EmployeeCompetencyValue::where('employee_id', $employeeId)
+                ->where('competency_id', $competencyId)
+                ->delete();
+        }
+
+        // Save or update overridden competency values
+        foreach ($competencyValues as $competencyId => $value) {
+            EmployeeCompetencyValue::updateOrCreate(
+                [
+                    'employee_id' => $employeeId,
+                    'competency_id' => $competencyId,
+                ],
+                [
+                    'value' => $value,
+                ]
+            );
+        }
 
         // Redirect back to the manager panel with the employee parameter
         return redirect()->action([ManagerController::class, 'index'], ['employee' => $employeeId])->with('success', 'Oceny zostały zaktualizowane.');
     }
-
 
 
     public function generatePdf($employeeId)

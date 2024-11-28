@@ -21,5 +21,10 @@ class Team extends Model
     {
         return $this->hasMany(Employee::class, 'department', 'name');
     }
+    public function competencyTeamValues()
+    {
+        return $this->hasMany(CompetencyTeamValue::class);
+    }
+
 
 }

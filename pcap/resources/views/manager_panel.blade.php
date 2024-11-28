@@ -18,6 +18,7 @@
             max-width: 1200px;
             margin: auto;
             box-sizing: border-box;
+            margin-top:50px;
         }
         /* Form Group Styles */
         .form-group {
@@ -515,6 +516,46 @@
             background-color: #45a049;
         }
 
+        .competency-value-display {
+            font-weight: bold;
+        }
+
+        .competency-value-overridden {
+            color: lightblue;
+        }
+
+        .icon-wrapper {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background-color: lightgrey;
+            border-radius: 50%;
+            padding: 2px;
+            margin-left: 5px; /* Optional spacing between the value and the icon */
+            cursor: pointer;
+        }
+
+        .icon-wrapper:hover {
+            background-color: grey; /* Optional: Change background color on hover */
+        }
+
+        .icon-button {
+            color: black;
+            font-size: 14px; /* Adjust size as needed */
+        }
+        .notification-bar {
+            background-color: midnightblue; /* Jasnoniebieski kolor */
+            color: white;             /* Biały kolor tekstu */
+            padding: 5px;             /* Margines wewnętrzny */
+            text-align: center;       /* Wyśrodkowanie tekstu */
+            font-size: 14px;          /* Rozmiar czcionki */
+            position: fixed;          /* Przyklejenie paska do góry ekranu */
+            top: 0;                   /* Pozycja od góry */
+            left: 0;                  /* Pozycja od lewej */
+            width: 100%;              /* Szerokość na całe okno */
+            z-index: 1000;            /* Zapewnienie, że pasek będzie na wierzchu */
+        }
+
 
 
 
@@ -522,6 +563,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
+    <div class="notification-bar">
+            W nocy była aktualizacja, przez którą trochę się to wszystko zacina, proszę o cierpliwość - jutro powinno być lepiej.
+        </div>
     <div class="container">
         <h2>Panel Managera</h2>
 
@@ -677,9 +721,9 @@
                                 </tr>
                             @endif
                             @php
-                                // Pobierz wartość kompetencji dla zespołu pracownika
-                                $competencyValue = $result->competency->getValueForTeam($employee->team->id);
+                                $competencyValue = $employee->getCompetencyValue($result->competency_id) ?? 0;
                             @endphp
+
                             <tr>
                                 <td>
                                     {{ $result->competency->competency_name }}
@@ -694,7 +738,20 @@
                                 <td>{{ $result->score > 0 ? $result->score : 'N/D' }}</td>
                                 <td>{{ $result->above_expectations ? 'Tak' : 'Nie' }}</td>
                                 <td>{{ $result->comments }}</td>
-                                <td>{{ $competencyValue }}</td>
+                                <td>
+                                    <div class="competency-value-container" data-competency-id="{{ $result->competency_id }}" data-original-value="{{ $competencyValue }}">
+                                        <span class="competency-value-display {{ isset($overriddenValues[$result->competency_id]) ? 'competency-value-overridden' : '' }}">
+                                            {{ $overriddenValues[$result->competency_id] ?? $competencyValue }}
+                                        </span>
+                                        <input style="width:50px; display: none;" type="number" step="5" value="{{ $overriddenValues[$result->competency_id] ?? $competencyValue }}">
+                                        <span class="icon-wrapper">
+                                            <i class="fas {{ isset($overriddenValues[$result->competency_id]) ? 'fa-trash remove-overridden-value-button' : 'fa-pencil-alt edit-competency-value-button' }} icon-button" data-competency-id="{{ $result->competency_id }}"></i>
+                                        </span>
+                                    </div>
+                                </td>
+
+
+
 
                                 <!-- Pozostałe kolumny -->
                                 <td>
@@ -1667,6 +1724,88 @@
         @endphp
 
 
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('click', function(event) {
+            var icon = event.target;
+
+            if (icon.classList.contains('edit-competency-value-button')) {
+                var competencyId = icon.getAttribute('data-competency-id');
+                var container = document.querySelector('.competency-value-container[data-competency-id="' + competencyId + '"]');
+                var inputField = container.querySelector('input');
+                var displaySpan = container.querySelector('.competency-value-display');
+
+                // Show input field and hide display span
+                displaySpan.style.display = 'none';
+                inputField.style.display = 'inline-block';
+                inputField.focus();
+
+                // Change icon to save icon
+                icon.classList.remove('edit-competency-value-button', 'fa-pencil-alt');
+                icon.classList.add('save-competency-value-button', 'fa-save');
+
+            } else if (icon.classList.contains('save-competency-value-button')) {
+                var competencyId = icon.getAttribute('data-competency-id');
+                var container = document.querySelector('.competency-value-container[data-competency-id="' + competencyId + '"]');
+                var inputField = container.querySelector('input');
+                var displaySpan = container.querySelector('.competency-value-display');
+
+                // Update display span with new value
+                var newValue = inputField.value;
+                displaySpan.textContent = newValue;
+                displaySpan.style.color = 'lightblue';
+
+                // Hide input field and show display span
+                inputField.style.display = 'none';
+                displaySpan.style.display = 'inline';
+
+                // Add overridden class
+                displaySpan.classList.add('competency-value-overridden');
+
+                // Add name attribute to input for form submission
+                inputField.setAttribute('name', 'competency_values[' + competencyId + ']');
+
+                // Change icon to trash icon
+                icon.classList.remove('save-competency-value-button', 'fa-save');
+                icon.classList.add('remove-overridden-value-button', 'fa-trash');
+
+                } else if (icon.classList.contains('remove-overridden-value-button')) {
+                var competencyId = icon.getAttribute('data-competency-id');
+                var container = document.querySelector('.competency-value-container[data-competency-id="' + competencyId + '"]');
+                var inputField = container.querySelector('input');
+                var displaySpan = container.querySelector('.competency-value-display');
+                var originalValue = container.getAttribute('data-original-value');
+
+                // Remove the name attribute from the input field so it's not submitted
+                inputField.removeAttribute('name');
+
+                // Update display to show original value
+                displaySpan.textContent = originalValue;
+                displaySpan.style.color = ''; // Reset color
+
+                // Hide input field and show display span
+                inputField.style.display = 'none';
+                displaySpan.style.display = 'inline';
+
+                // Remove overridden class
+                displaySpan.classList.remove('competency-value-overridden');
+
+                // Change icon back to pencil icon
+                icon.classList.remove('remove-overridden-value-button', 'fa-trash');
+                icon.classList.add('edit-competency-value-button', 'fa-pencil-alt');
+
+                // Add hidden input field to signal deletion
+                var deleteInput = document.createElement('input');
+                deleteInput.type = 'hidden';
+                deleteInput.name = 'delete_competency_values[]';
+                deleteInput.value = competencyId;
+                container.appendChild(deleteInput);
+            }
+        });
+    });
+
+
+        </script>
 
         <script>
     const tabIds = @json($tabIds);

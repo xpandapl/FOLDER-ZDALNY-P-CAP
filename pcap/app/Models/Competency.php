@@ -24,6 +24,12 @@ class Competency extends Model
         return $this->hasMany(CompetencyTeamValue::class);
     }
 
+    public function employeeCompetencyValues()
+    {
+        return $this->hasMany(EmployeeCompetencyValue::class);
+    }
+
+
     public function getValueForTeam($teamId)
     {
         $ctv = $this->competencyTeamValues()->where('team_id', $teamId)->first();
