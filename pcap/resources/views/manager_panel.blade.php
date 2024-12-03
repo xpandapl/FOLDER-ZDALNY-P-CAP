@@ -561,26 +561,40 @@
 
     </style>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+        <!-- Select2 - biblioteka potrzebna do wyszukiwania na droplistach-->
+        <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 </head>
 <body>
-    <div class="notification-bar">
+    <div style="display:none;" class="notification-bar">
             W nocy była aktualizacja, przez którą trochę się to wszystko zacina, proszę o cierpliwość - jutro powinno być lepiej.
         </div>
     <div class="container">
         <h2>Panel Managera</h2>
 
-        <!-- Przycisk Wyloguj -->
+        <!-- Przycisk Wyloguj i Panel Administratora -->
         <div style="text-align: right; margin-bottom: 20px;">
             <!-- Formularz wylogowania -->
             <form id="logout-form" action="{{ route('logout') }}" method="POST" style="display: none;">
                 @csrf
             </form>
 
+            @if($manager->role == 'supermanager')
+                <!-- Przycisk Panel Administratora -->
+                <a href="{{ url('/admin') }}">
+                    <button class="logout-button">
+                        Panel Administratora
+                    </button>
+                </a>
+            @endif
+
             <!-- Przycisk Wyloguj -->
             <button class="logout-button" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
                 <i class="fas fa-sign-out-alt"></i> Wyloguj
             </button>
         </div>
+
 
         <!-- Zakładki -->
         <div class="tabs">
@@ -739,7 +753,7 @@
                                 <td>{{ $result->above_expectations ? 'Tak' : 'Nie' }}</td>
                                 <td>{{ $result->comments }}</td>
                                 <td>
-                                    <div class="competency-value-container" data-competency-id="{{ $result->competency_id }}" data-original-value="{{ $competencyValue }}">
+                                    <div class="competency-value-container" data-competency-id="{{ $result->competency_id }}" data-original-value="{{ $overriddenValues[$result->competency_id] ?? $competencyValue }}" data-team-value="{{ $competencyValue }}">
                                         <span class="competency-value-display {{ isset($overriddenValues[$result->competency_id]) ? 'competency-value-overridden' : '' }}">
                                             {{ $overriddenValues[$result->competency_id] ?? $competencyValue }}
                                         </span>
@@ -1575,6 +1589,15 @@
         @if($manager->role == 'head')
         <!-- Zakładka Dział -->
         <div id="department-tab" style="display:none;">
+             <!-- Add Download Button -->
+            <div style="margin-bottom: 20px;">
+                <form action="{{ route('department.export') }}" method="GET">
+                    @csrf
+                    <button type="submit">
+                        Pobierz XLS <i class="fas fa-download download-icon"></i>
+                    </button>
+                </form>
+            </div>
             <!-- Tabela z podsumowaniem działu -->
             <table>
             <thead>
@@ -1724,190 +1747,221 @@
         @endphp
 
 
-        <script>
-        document.addEventListener('DOMContentLoaded', function() {
-        document.addEventListener('click', function(event) {
-            var icon = event.target;
 
-            if (icon.classList.contains('edit-competency-value-button')) {
-                var competencyId = icon.getAttribute('data-competency-id');
-                var container = document.querySelector('.competency-value-container[data-competency-id="' + competencyId + '"]');
-                var inputField = container.querySelector('input');
-                var displaySpan = container.querySelector('.competency-value-display');
-
-                // Show input field and hide display span
-                displaySpan.style.display = 'none';
-                inputField.style.display = 'inline-block';
-                inputField.focus();
-
-                // Change icon to save icon
-                icon.classList.remove('edit-competency-value-button', 'fa-pencil-alt');
-                icon.classList.add('save-competency-value-button', 'fa-save');
-
-            } else if (icon.classList.contains('save-competency-value-button')) {
-                var competencyId = icon.getAttribute('data-competency-id');
-                var container = document.querySelector('.competency-value-container[data-competency-id="' + competencyId + '"]');
-                var inputField = container.querySelector('input');
-                var displaySpan = container.querySelector('.competency-value-display');
-
-                // Update display span with new value
-                var newValue = inputField.value;
-                displaySpan.textContent = newValue;
-                displaySpan.style.color = 'lightblue';
-
-                // Hide input field and show display span
-                inputField.style.display = 'none';
-                displaySpan.style.display = 'inline';
-
-                // Add overridden class
-                displaySpan.classList.add('competency-value-overridden');
-
-                // Add name attribute to input for form submission
-                inputField.setAttribute('name', 'competency_values[' + competencyId + ']');
-
-                // Change icon to trash icon
-                icon.classList.remove('save-competency-value-button', 'fa-save');
-                icon.classList.add('remove-overridden-value-button', 'fa-trash');
-
-                } else if (icon.classList.contains('remove-overridden-value-button')) {
-                var competencyId = icon.getAttribute('data-competency-id');
-                var container = document.querySelector('.competency-value-container[data-competency-id="' + competencyId + '"]');
-                var inputField = container.querySelector('input');
-                var displaySpan = container.querySelector('.competency-value-display');
-                var originalValue = container.getAttribute('data-original-value');
-
-                // Remove the name attribute from the input field so it's not submitted
-                inputField.removeAttribute('name');
-
-                // Update display to show original value
-                displaySpan.textContent = originalValue;
-                displaySpan.style.color = ''; // Reset color
-
-                // Hide input field and show display span
-                inputField.style.display = 'none';
-                displaySpan.style.display = 'inline';
-
-                // Remove overridden class
-                displaySpan.classList.remove('competency-value-overridden');
-
-                // Change icon back to pencil icon
-                icon.classList.remove('remove-overridden-value-button', 'fa-trash');
-                icon.classList.add('edit-competency-value-button', 'fa-pencil-alt');
-
-                // Add hidden input field to signal deletion
-                var deleteInput = document.createElement('input');
-                deleteInput.type = 'hidden';
-                deleteInput.name = 'delete_competency_values[]';
-                deleteInput.value = competencyId;
-                container.appendChild(deleteInput);
-            }
-        });
-    });
-
-
-        </script>
 
         <script>
-    const tabIds = @json($tabIds);
-    console.log('tabIds:', tabIds);
-
-    function showTab(tab) {
-        tabIds.forEach(tabId => {
-            const tabElement = document.getElementById(tabId + '-tab');
-            if (tabElement) {
-                tabElement.style.display = tab === tabId ? 'block' : 'none';
-            }
-        });
-
-        // Update focus class on buttons
-        const tabButtons = document.querySelectorAll('.button-tab');
-        tabButtons.forEach(button => {
-            if (button.getAttribute('data-tab') === tab) {
-                button.classList.add('focus');
-            } else {
-                button.classList.remove('focus');
-            }
-        });
-
-        // Update the URL parameter without reloading the page
-        const url = new URL(window.location.href);
-        url.searchParams.set('tab', tab);
-        window.history.replaceState({}, '', url.toString());
-    }
-
-    function filterByDepartmentEmployee() {
-        const employeeId = document.getElementById('department-employee-select').value;
-        const url = new URL(window.location.href);
-        if (employeeId) {
-            url.searchParams.set('employee', employeeId);
-        } else {
-            url.searchParams.delete('employee');
-        }
-        url.searchParams.set('tab', 'department_individual');
-        window.location.href = url.toString();
-    }
-
-
-    document.addEventListener('DOMContentLoaded', function() {
-        // Dodaj nasłuchiwacze zdarzeń do przycisków
-        const tabButtons = document.querySelectorAll('.button-tab');
-        tabButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const tab = this.getAttribute('data-tab');
-                showTab(tab);
+        $(document).ready(function() {
+            // Inicjalizacja Select2 dla odpowiednich pól wyboru
+            $('#employee-select').select2({
+                placeholder: '-- Wybierz pracownika --',
+                allowClear: true,
+                width: 'resolve'
             });
-        });
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const defaultTab = urlParams.get('tab') || 'individual';
-        console.log('DOMContentLoaded: defaultTab is', defaultTab);
-        showTab(defaultTab);
-    });
+            $('#hr-employee-select').select2({
+                placeholder: '-- Wybierz pracownika --',
+                allowClear: true,
+                width: 'resolve'
+            });
 
-    function filterByEmployee() {
-        const employeeId = document.getElementById('employee-select').value;
-        const url = new URL(window.location.href);
-        if (employeeId) {
-            url.searchParams.set('employee', employeeId);
-        } else {
-            url.searchParams.delete('employee');
-        }
-        url.searchParams.delete('tab'); // Optionally reset the tab
-        window.location.href = url.toString();
-    }
+            $('#department-employee-select').select2({
+                placeholder: '-- Wybierz pracownika --',
+                allowClear: true,
+                width: 'resolve'
+            });
 
-    function filterByHREmployee() {
-        const employeeId = document.getElementById('hr-employee-select').value;
-        const url = new URL(window.location.href);
-        if (employeeId) {
-            url.searchParams.set('employee', employeeId);
-        } else {
-            url.searchParams.delete('employee');
-        }
-        url.searchParams.set('tab', 'hr_individual');
-        window.location.href = url.toString();
-    }
+            // Dodaj nasłuchiwacze zdarzeń do przycisków zakładek
+            const tabButtons = document.querySelectorAll('.button-tab');
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const tab = this.getAttribute('data-tab');
+                    showTab(tab);
+                });
+            });
 
-            function showDefinitionModal(competencyId) {
-                fetch('/competency-definition/' + competencyId)
-                    .then(response => response.text())
-                    .then(data => {
-                        document.getElementById('definitionContent').innerHTML = data;
-                        document.getElementById('definitionModal').style.display = 'block';
-                    });
-            }
+            // Ustaw domyślną zakładkę na podstawie parametrów URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const defaultTab = urlParams.get('tab') || 'individual';
+            console.log('DOMContentLoaded: defaultTab is', defaultTab);
+            showTab(defaultTab);
 
-            function closeDefinitionModal() {
-                document.getElementById('definitionModal').style.display = 'none';
-            }
-
+            // Globalny nasłuchiwacz zdarzeń kliknięcia
             document.addEventListener('click', function(event) {
+                const target = event.target;
+
+                // Obsługa kliknięć ikon edycji wartości kompetencji
+                if (target.classList.contains('edit-competency-value-button')) {
+                    handleEditCompetencyValue(target);
+                } else if (target.classList.contains('save-competency-value-button')) {
+                    handleSaveCompetencyValue(target);
+                } else if (target.classList.contains('remove-overridden-value-button')) {
+                    handleRemoveOverriddenValue(target);
+                }
+
+                // Zamknięcie modala po kliknięciu poza jego zawartość
                 const modal = document.getElementById('definitionModal');
                 if (event.target === modal) {
                     closeDefinitionModal();
                 }
             });
-        </script>
-    </div>
+        });
+
+        // Definicje funkcji
+        const tabIds = @json($tabIds);
+        console.log('tabIds:', tabIds);
+
+        function showTab(tab) {
+            tabIds.forEach(tabId => {
+                const tabElement = document.getElementById(tabId + '-tab');
+                if (tabElement) {
+                    tabElement.style.display = tab === tabId ? 'block' : 'none';
+                }
+            });
+
+            // Aktualizacja klasy focus na przyciskach
+            const tabButtons = document.querySelectorAll('.button-tab');
+            tabButtons.forEach(button => {
+                if (button.getAttribute('data-tab') === tab) {
+                    button.classList.add('focus');
+                } else {
+                    button.classList.remove('focus');
+                }
+            });
+
+            // Aktualizacja parametru URL bez przeładowania strony
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', tab);
+            window.history.replaceState({}, '', url.toString());
+        }
+
+        function filterByEmployee() {
+            const employeeId = document.getElementById('employee-select').value;
+            const url = new URL(window.location.href);
+            if (employeeId) {
+                url.searchParams.set('employee', employeeId);
+            } else {
+                url.searchParams.delete('employee');
+            }
+            url.searchParams.delete('tab'); // Opcjonalnie resetuj zakładkę
+            window.location.href = url.toString();
+        }
+
+        function filterByHREmployee() {
+            const employeeId = document.getElementById('hr-employee-select').value;
+            const url = new URL(window.location.href);
+            if (employeeId) {
+                url.searchParams.set('employee', employeeId);
+            } else {
+                url.searchParams.delete('employee');
+            }
+            url.searchParams.set('tab', 'hr_individual');
+            window.location.href = url.toString();
+        }
+
+        function filterByDepartmentEmployee() {
+            const employeeId = document.getElementById('department-employee-select').value;
+            const url = new URL(window.location.href);
+            if (employeeId) {
+                url.searchParams.set('employee', employeeId);
+            } else {
+                url.searchParams.delete('employee');
+            }
+            url.searchParams.set('tab', 'department_individual');
+            window.location.href = url.toString();
+        }
+
+        function showDefinitionModal(competencyId) {
+            fetch('/competency-definition/' + competencyId)
+                .then(response => response.text())
+                .then(data => {
+                    document.getElementById('definitionContent').innerHTML = data;
+                    document.getElementById('definitionModal').style.display = 'block';
+                });
+        }
+
+        function closeDefinitionModal() {
+            document.getElementById('definitionModal').style.display = 'none';
+        }
+
+        // Funkcje obsługujące edycję wartości kompetencji
+        function handleEditCompetencyValue(icon) {
+            const competencyId = icon.getAttribute('data-competency-id');
+            const container = document.querySelector('.competency-value-container[data-competency-id="' + competencyId + '"]');
+            const inputField = container.querySelector('input');
+            const displaySpan = container.querySelector('.competency-value-display');
+
+            // Pokaż pole input i ukryj wyświetlaną wartość
+            displaySpan.style.display = 'none';
+            inputField.style.display = 'inline-block';
+            inputField.focus();
+
+            // Zmień ikonę na ikonę zapisu
+            icon.classList.remove('edit-competency-value-button', 'fa-pencil-alt');
+            icon.classList.add('save-competency-value-button', 'fa-save');
+        }
+
+        function handleSaveCompetencyValue(icon) {
+            const competencyId = icon.getAttribute('data-competency-id');
+            const container = document.querySelector('.competency-value-container[data-competency-id="' + competencyId + '"]');
+            const inputField = container.querySelector('input');
+            const displaySpan = container.querySelector('.competency-value-display');
+
+            // Aktualizuj wyświetlaną wartość
+            const newValue = inputField.value;
+            displaySpan.textContent = newValue;
+            displaySpan.style.color = 'lightblue';
+
+            // Ukryj pole input i pokaż wyświetlaną wartość
+            inputField.style.display = 'none';
+            displaySpan.style.display = 'inline';
+
+            // Dodaj klasę oznaczającą nadpisaną wartość
+            displaySpan.classList.add('competency-value-overridden');
+
+            // Dodaj atrybut name do inputa, aby został przesłany w formularzu
+            inputField.setAttribute('name', 'competency_values[' + competencyId + ']');
+
+            // Zmień ikonę na ikonę usuwania
+            icon.classList.remove('save-competency-value-button', 'fa-save');
+            icon.classList.add('remove-overridden-value-button', 'fa-trash');
+        }
+
+        function handleRemoveOverriddenValue(icon) {
+            const competencyId = icon.getAttribute('data-competency-id');
+            const container = document.querySelector('.competency-value-container[data-competency-id="' + competencyId + '"]');
+            const inputField = container.querySelector('input');
+            const displaySpan = container.querySelector('.competency-value-display');
+            const teamValue = container.getAttribute('data-team-value');
+
+            // Usuń atrybut name z inputa, aby nie był przesyłany
+            inputField.removeAttribute('name');
+
+            // Ustaw wyświetlaną wartość na wartość zespołu
+            displaySpan.textContent = teamValue;
+            displaySpan.style.color = ''; // Resetuj kolor
+
+            // Ukryj pole input i pokaż wyświetlaną wartość
+            inputField.style.display = 'none';
+            displaySpan.style.display = 'inline';
+
+            // Usuń klasę oznaczającą nadpisaną wartość
+            displaySpan.classList.remove('competency-value-overridden');
+
+            // Zmień ikonę na ikonę edycji
+            icon.classList.remove('remove-overridden-value-button', 'fa-trash');
+            icon.classList.add('edit-competency-value-button', 'fa-pencil-alt');
+
+            // Dodaj ukryte pole input sygnalizujące usunięcie nadpisanej wartości
+            const deleteInput = document.createElement('input');
+            deleteInput.type = 'hidden';
+            deleteInput.name = 'delete_competency_values[]';
+            deleteInput.value = competencyId;
+            container.appendChild(deleteInput);
+
+            // Aktualizuj atrybut data-original-value na wartość zespołu
+            container.setAttribute('data-original-value', teamValue);
+        }
+</script>
+
 </body>
 </html>

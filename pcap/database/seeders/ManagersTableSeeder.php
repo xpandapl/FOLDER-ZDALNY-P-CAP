@@ -18,7 +18,7 @@ class ManagersTableSeeder extends Seeder
     {
         $managers = [
             ['name' => 'Grzegorz Galon', 'department' => 'Sales'],
-            ['name' => 'Filip Jeżycki', 'department' => 'Sales'],
+            ['name' => 'Filip Jerzycki', 'department' => 'Sales'],
             ['name' => 'Konrad Czajkowski', 'department' => 'Sales'],
             ['name' => 'Kamil Kalicki', 'department' => 'Sales'],
             ['name' => 'Mikołaj Sobczak', 'department' => 'Sales'],

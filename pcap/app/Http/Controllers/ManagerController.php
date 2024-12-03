@@ -15,6 +15,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use App\Models\Team;
 use App\Models\EmployeeCompetencyValue;
+use Illuminate\Support\Facades\Auth;
 
 
 class ManagerController extends Controller
@@ -233,6 +234,68 @@ class ManagerController extends Controller
         ));
         
     }
+
+    public function exportDepartment(Request $request)
+    {
+        $manager = Auth::user();
+
+        if ($manager->role != 'head') {
+            abort(403, 'Unauthorized');
+        }
+
+        $levelNames = $this->levelNames;
+
+        // Fetch the department employees data
+        $departmentEmployees = Employee::with(['team', 'results.competency.competencyTeamValues'])
+            ->where('department', $manager->department)
+            ->get();
+
+        $departmentEmployeesData = $this->prepareEmployeesData($departmentEmployees, $levelNames);
+
+        // Prepare data for Excel
+        $data = [];
+        // Add headers
+        $headers = ['Imię i nazwisko', 'Nazwa stanowiska'];
+        foreach ($levelNames as $levelKey => $levelName) {
+            $headers[] = $levelName;
+        }
+        $headers[] = 'Poziom';
+
+        $data[] = $headers;
+
+        foreach ($departmentEmployeesData as $emp) {
+            $row = [
+                $emp['name'],
+                $emp['job_title'],
+            ];
+            foreach ($levelNames as $levelKey => $levelName) {
+                $percentageValueManager = $emp['levelPercentagesManager'][$levelName] ?? null;
+                $percentageManager = is_numeric($percentageValueManager) ? number_format((float)$percentageValueManager, 2) . '%' : 'N/D';
+                $row[] = $percentageManager;
+            }
+            $row[] = $emp['highestLevelManager'];
+            $data[] = $row;
+        }
+
+        // Generate and download the Excel file
+        return Excel::download(
+            new class($data) implements \Maatwebsite\Excel\Concerns\FromArray {
+                private $data;
+
+                public function __construct(array $data)
+                {
+                    $this->data = $data;
+                }
+
+                public function array(): array
+                {
+                    return $this->data;
+                }
+            },
+            'raport_dział_' . $manager->department . '.xlsx'
+        );
+    }
+
 
     /**
      * Prepare employee data for team and organization summaries

@@ -182,7 +182,7 @@ class SelfAssessmentController extends Controller
 public function showStep1Form()
 {
     // Define the block date
-    $blockDate = Carbon::parse('2024-11-29');
+    $blockDate = Carbon::parse(config('app.block_date', '2024-12-05'));
 
     // Check if the current date is after the block date
     if (Carbon::now()->gt($blockDate)) {
@@ -207,7 +207,7 @@ public function showStep1Form()
     public function saveStep1(Request $request)
     {
         // Define the block date
-        $blockDate = Carbon::parse('2024-11-29');
+        $blockDate = Carbon::parse(config('app.block_date', '2024-12-05'));
     
         // Check if the current date is after the block date
         if (Carbon::now()->gt($blockDate)) {
@@ -517,7 +517,7 @@ public function generateXls($uuid)
         }
     
         // Check if editing is allowed
-        $blockDate = Carbon::parse('2024-11-29');
+        $blockDate = Carbon::parse(config('app.block_date', '2024-12-05'));
         if (Carbon::now()->gt($blockDate)) {
             return redirect()->route('self.assessment.complete', ['uuid' => $uuid])->withErrors('Edycja formularza jest już zablokowana.');
         }

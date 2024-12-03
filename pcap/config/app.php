@@ -230,6 +230,7 @@ return [
         'URL' => Illuminate\Support\Facades\URL::class,
         'Validator' => Illuminate\Support\Facades\Validator::class,
         'View' => Illuminate\Support\Facades\View::class,
+        'block_date' => env('APP_BLOCK_DATE', '2024-12-05'),
 
     ],
 

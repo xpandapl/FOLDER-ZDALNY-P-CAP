@@ -32,7 +32,15 @@ Route::get('/upload-excel', [SelfAssessmentController::class, 'showUploadForm'])
 Route::post('/upload-excel', [SelfAssessmentController::class, 'uploadExcel'])->name('upload.excel.post');
 
 // Admin panel
-Route::get('/admin', [AdminPanelController::class, 'index']);
+Route::get('/admin', [AdminPanelController::class, 'index'])->name('admin.panel');
+Route::delete('/admin/delete-employee', [AdminPanelController::class, 'deleteEmployee'])->name('admin.delete_employee');
+Route::post('/admin/update-dates', [AdminPanelController::class, 'updateDates'])->name('admin.update_dates');
+// Fetch employee data
+Route::get('/admin/employee/{id}', [AdminPanelController::class, 'getEmployee'])->name('admin.get_employee');
+// Update employee data
+Route::put('/admin/update-employee', [AdminPanelController::class, 'updateEmployee'])->name('admin.update_employee');
+
+
 
 // Manager panel
 Route::post('/manager-panel/update', [ManagerController::class, 'update'])->name('manager.panel.update');
@@ -50,6 +58,7 @@ Route::get('/manager-panel/generate-xls/{employeeId}', [ManagerController::class
     ->middleware('manager');
 
 Route::post('/manager/download-team-report', [ManagerController::class, 'downloadTeamReport'])->name('manager.download_team_report');
+Route::get('/department/export', [ManagerController::class, 'exportDepartment'])->name('department.export');
 
 // Uwierzytelnianie
 Auth::routes();
