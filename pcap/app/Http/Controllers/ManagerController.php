@@ -21,14 +21,13 @@ use Illuminate\Support\Facades\Auth;
 class ManagerController extends Controller
 {
     private $levelNames = [
-        1 => 'Junior',
-        2 => 'Specjalista',
-        3 => 'Senior',
-        4 => 'Supervisor',
-        5 => 'Manager',
-        6 => 'Head of'
+        1 => "1. Junior",
+        2 => "2. Specjalista",
+        3 => "3. Senior",
+        4 => "4. Supervisor",
+        5 => "5. Manager"
     ];
-
+    
     public function index(Request $request)
 {
     $manager = auth()->user();
@@ -38,12 +37,11 @@ class ManagerController extends Controller
     }
 
     $levelNames = [
-        1 => 'Junior',
-        2 => 'Specjalista',
-        3 => 'Senior',
-        4 => 'Supervisor',
-        5 => 'Manager',
-        6 => 'Head of'
+        1 => '1. Junior',
+        2 => '2. Specjalista',
+        3 => '3. Senior',
+        4 => '4. Supervisor',
+        5 => '5. Manager'
     ];
 
     // Get the employee ID from the request (if selected)
@@ -361,9 +359,41 @@ class ManagerController extends Controller
                 $levelPercentagesManager[$levelName] = $percentageManager;
             }
 
-            // Determine highest levels
-            $highestLevelEmployee = $this->determineHighestLevel($levelPercentagesEmployee);
-            $highestLevelManager = $this->determineHighestLevel($levelPercentagesManager);
+            // Dotychczasowa logika wyliczenia najwyższego poziomu:
+            $highestLevelEmployee = $this->determineHighestLevel(
+                $levelPercentagesEmployee['1. Junior'] ?? 0,
+                $levelPercentagesEmployee['2. Specjalista'] ?? 0,
+                $levelPercentagesEmployee['3. Senior'] ?? 0,
+                $levelPercentagesEmployee['4. Supervisor'] ?? 0,
+                $levelPercentagesEmployee['5. Manager'] ?? 0
+            );
+            
+            $highestLevelManager = $this->determineHighestLevel(
+                $levelPercentagesManager['1. Junior'] ?? 0,
+                $levelPercentagesManager['2. Specjalista'] ?? 0,
+                $levelPercentagesManager['3. Senior'] ?? 0,
+                $levelPercentagesManager['4. Supervisor'] ?? 0,
+                $levelPercentagesManager['5. Manager'] ?? 0
+            );
+            // Po wyliczeniu $highestLevelEmployee i $highestLevelManager
+            // Jeśli $highestLevelEmployee lub $highestLevelManager == "3/4. Senior/Supervisor"
+            // to w statystykach i sumowaniach powinniśmy liczyć go jako "4. Supervisor"
+
+            if ($highestLevelEmployee === "3/4. Senior/Supervisor") {
+                // Wyświetlanie w widoku indywidualnym zostaje takie samo
+                // Nic nie zmieniamy dla indywidualnego widoku
+            }
+
+            if ($highestLevelManager === "3/4. Senior/Supervisor") {
+                // Dla podsumowań:
+                // W samym $employeesData pozostawiamy "3/4. Senior/Supervisor" tak, żeby w tabelach
+                // indywidualnych i w XLS wyświetlało się "3/4. Senior/Supervisor".
+                // Ale przy zliczaniu levelCounts i w podsumowaniach użyjemy mapowania
+                // "3/4. Senior/Supervisor" -> "4. Supervisor".
+                // Aby to było łatwe, można to mapowanie zrobić nieco później.
+            }
+
+            
 
             // Add data to employeesData
             $employeesData[] = [
@@ -383,82 +413,71 @@ class ManagerController extends Controller
 
 
     public function downloadTeamReport(Request $request)
-{
-    $teamId = $request->input('team_id');
-    $format = $request->input('format');
-
-    $team = Team::findOrFail($teamId);
-
-    // Fetch employees of the team based on department
-    $employees = Employee::with(['results', 'team'])
-        ->where('department', $team->name)
-        ->get();
-
-    // Prepare data
-    $employeesData = $this->prepareEmployeesData($employees, $this->levelNames);
-
-    if ($format === 'pdf') {
-        // Generate PDF
-        $pdf = PDF::loadView('exports.team_report_pdf', [
-            'team' => $team,
-            'employeesData' => $employeesData,
-            'levelNames' => $this->levelNames
-        ])->setPaper('a4', 'landscape');
-
-        return $pdf->download('raport_' . $team->name . '.pdf');
-    } elseif ($format === 'xls') {
-        // Prepare data for Excel
-    $data = []; // Data rows
-    $headers = ['Imię i nazwisko', 'Nazwa stanowiska'];
-    foreach ($this->levelNames as $levelName) {
-        $headers[] = $levelName;
-    }
-    $headers[] = 'Poziom';
-
-    $headers = ['Imię i nazwisko', 'Nazwa stanowiska'];
-    foreach ($this->levelNames as $levelName) {
-        $headers[] = $levelName;
-    }
-    $headers[] = 'Poziom';
-
-    $data = [];
-    foreach ($employeesData as $empData) {
-        $row = [
-            $empData['name'],
-            $empData['job_title'],
-        ];
-        foreach ($this->levelNames as $levelName) {
-            $percentageValueManager = $empData['levelPercentagesManager'][$levelName] ?? null;
-            $percentageManager = is_numeric($percentageValueManager) ? number_format($percentageValueManager, 2) . '%' : 'N/D';
-            $row[] = $percentageManager;
-        }
-        $row[] = $empData['highestLevelManager'];
-        $data[] = $row;
-    }
-
-
-    // Use a proper export class
-    return Excel::download(
-        new TeamReportExport($data, $headers),
-        'raport_' . $team->name . '.xlsx'
-    );
-    }
-}
-
-
-    // Helper method to determine the highest level achieved
-    private function determineHighestLevel($levelPercentages)
     {
-        $highestLevel = 'Junior'; // Default level
-        // Iterate from highest to lowest level
-        foreach (array_reverse($this->levelNames, true) as $levelKey => $levelName) {
-            if (isset($levelPercentages[$levelName]) && is_numeric($levelPercentages[$levelName]) && $levelPercentages[$levelName] >= 80) {
-                $highestLevel = $levelName;
-                break;
+        $teamId = $request->input('team_id');
+        $format = $request->input('format');
+    
+        $team = Team::findOrFail($teamId);
+    
+        // Fetch employees of the team based on department
+        $employees = Employee::with(['results', 'team'])
+            ->where('department', $team->name)
+            ->get();
+    
+        // Prepare data
+        $employeesData = $this->prepareEmployeesData($employees, $this->levelNames);
+    
+        if ($format === 'pdf') {
+            // Generate PDF
+            $pdf = PDF::loadView('exports.team_report_pdf', [
+                'team' => $team,
+                'employeesData' => $employeesData,
+                'levelNames' => $this->levelNames
+            ])->setPaper('a4', 'landscape');
+    
+            return $pdf->download('raport_' . $team->name . '.pdf');
+        } elseif ($format === 'xls') {
+            // Prepare data for Excel
+            // Najpierw definiujemy nagłówki
+            $headers = ['Imię i nazwisko', 'Nazwa stanowiska'];
+            foreach ($this->levelNames as $levelName) {
+                $headers[] = $levelName;
             }
+            $headers[] = 'Poziom';
+    
+            // Usuwamy powtórną definicję headers:
+            // $headers = ['Imię i nazwisko', 'Nazwa stanowiska'];
+            // foreach ($this->levelNames as $levelName) {
+            //     $headers[] = $levelName;
+            // }
+            // $headers[] = 'Poziom';
+    
+            // Budujemy dane do eksportu
+            $data = [];
+            foreach ($employeesData as $empData) {
+                $row = [
+                    $empData['name'],
+                    $empData['job_title'],
+                ];
+                foreach ($this->levelNames as $levelName) {
+                    // Korzystamy z managerowskich procentów
+                    $percentageValueManager = $empData['levelPercentagesManager'][$levelName] ?? null;
+                    $percentageManager = is_numeric($percentageValueManager) ? number_format($percentageValueManager, 2) . '%' : 'N/D';
+                    $row[] = $percentageManager;
+                }
+                // Używamy najwyższego poziomu menedżerskiego
+                $row[] = $empData['highestLevelManager'];
+                $data[] = $row;
+            }
+    
+            // Eksport do Excela
+            return Excel::download(
+                new TeamReportExport($data, $headers),
+                'raport_' . $team->name . '.xlsx'
+            );
         }
-        return $highestLevel;
     }
+
 
     public function update(Request $request)
     {
@@ -512,6 +531,79 @@ class ManagerController extends Controller
         // Redirect back to the manager panel with the employee parameter
         return redirect()->action([ManagerController::class, 'index'], ['employee' => $employeeId])->with('success', 'Oceny zostały zaktualizowane.');
     }
+
+    private function determineHighestLevel($percJunior, $percSpecialist, $percSenior, $percSupervisor, $percManager)
+{
+    // Zgodnie z logiką z formuły Excel i wcześniejszymi ustaleniami:
+    // E=Junior (percJunior)
+    // F=Specjalista (percSpecialist)
+    // G=Senior (percSenior)
+    // H=Supervisor (percSupervisor)
+    // I=Manager (percManager)
+    //
+    // Porównania:
+    // Junior≥80% => daje możliwość awansu dalej
+    // Specialist≥85% => kolejny krok
+    // Senior≥85% lub (≥60% i inne warunki) => senior/supervisor logic
+    // Supervisor≥80%
+    // Manager≥80%
+    //
+    // Oraz:
+    // 1. Junior
+    // 2. Specjalista
+    // 3. Senior
+    // 4. Supervisor
+    // 5. Manager
+    // Senior/Supervisor => "3/4. Senior/Supervisor"
+
+    // Junior check
+    if ($percJunior < 80) {
+        return "1. Junior";
+    }
+
+    // Specialist check
+    if ($percSpecialist < 85) {
+        return "1. Junior";
+    }
+
+    // Minimum to "2. Specjalista" na tym etapie
+    // Sprawdzamy dalej Senior, Supervisor i Manager
+
+    // Senior≥85%?
+    if ($percSenior >= 85) {
+        // Mamy Senior
+        if ($percSupervisor >= 80) {
+            // Senior i Supervisor
+            if ($percManager >= 80) {
+                // Manager osiągnięty
+                return "5. Manager";
+            } else {
+                // Senior≥80% i Supervisor≥80%, Manager<80%
+                return "3/4. Senior/Supervisor";
+            }
+        } else {
+            // Supervisor nie osiągnięty
+            // Sam Senior≥85%
+            return "3. Senior";
+        }
+    } else {
+        // Senior nie osiągnął 80%
+        // Sprawdzamy Supervisor≥80% i Senior≥60%
+        if ($percSupervisor >= 80 && $percSenior >= 60) {
+            // Supervisor
+            // Nie osiągnęliśmy Senior≥80%, ale mamy minimalnie Senior≥60% i Supervisor≥80%
+            // To daje "4. Supervisor"
+            // Manager sprawdzany tylko przy Senior≥80% i Supervisor≥80%, tu go nie sprawdzamy
+            return "4. Supervisor";
+        } else {
+            // Nie spełniamy warunków wyższych niż Specjalista
+            return "2. Specjalista";
+        }
+    }
+}
+
+    
+    
 
 
     public function generatePdf($employeeId)

@@ -40,21 +40,20 @@
                     <td class="col-name">{{ $emp['name'] }}</td>
                     <td class="col-job-title">{{ $emp['job_title'] }}</td>
                     @foreach($levelNames as $levelName)
-                        <td class="col-percentage">
-                            @if(isset($emp['levelPercentages'][$levelName]) && $emp['levelPercentages'][$levelName] !== null)
-                                @php
-                                    $percentage = $emp['levelPercentages'][$levelName];
-                                    $isHigh = is_numeric($percentage) && $percentage >= 80;
-                                @endphp
-                                <span class="{{ $isHigh ? 'high-percentage' : '' }}">
-                                    {{ is_numeric($percentage) ? number_format((float)$percentage, 2) . '%' : 'N/D' }}
-                                </span>
-                            @else
-                                N/D
-                            @endif
-                        </td>
+                        @if(isset($emp['levelPercentagesManager'][$levelName]) && $emp['levelPercentagesManager'][$levelName] !== null)
+                            @php
+                                $percentage = $emp['levelPercentagesManager'][$levelName];
+                                $isHigh = is_numeric($percentage) && $percentage >= 80;
+                            @endphp
+                            <span class="{{ $isHigh ? 'high-percentage' : '' }}">
+                                {{ is_numeric($percentage) ? number_format((float)$percentage, 2) . '%' : 'N/D' }}
+                            </span>
+                        @else
+                            N/D
+                        @endif
                     @endforeach
-                    <td class="col-highest-level">{{ $emp['highestLevel'] }}</td>
+                    <td class="col-highest-level">{{ $emp['highestLevelManager'] }}</td>
+
                 </tr>
             @endforeach
         </tbody>

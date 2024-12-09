@@ -1116,7 +1116,7 @@
                                 <td>
                                     @php
                                         $percentageManager = $emp['levelPercentagesManager'][$levelName] ?? null;
-                                        $threshold = $levelKey == 1 ? 80 : 85;
+                                        $threshold = $levelKey == 1 ? 80 : ($levelKey == 2 || $levelKey == 3 ? 85 : 80);
                                         $isHighManager = is_numeric($percentageManager) && $percentageManager >= $threshold;
                                     @endphp
                                     <span class="{{ $isHighManager ? 'high-percentage' : '' }}">
@@ -1140,12 +1140,18 @@
                     // Calculate the highest level based on manager's assessment
                     $highestLevel = $emp['highestLevelManager'];
 
+                    // MAPOWANIE poziomu 3/4. Senior/Supervisor na 4. Supervisor dla podsumowań
+                    if ($highestLevel === "3/4. Senior/Supervisor") {
+                        $highestLevel = "4. Supervisor";
+                    }
+
                     // Count employees at each level
                     if(isset($highestLevel)) {
                         $levelCounts[$highestLevel] += 1;
                     }
                 }
             @endphp
+
             @php
                 $filledSurveyCount = 0;
                 foreach($teamEmployeesData as $emp) {
@@ -1162,29 +1168,38 @@
             <div class="cards-container">
                 @foreach($levelNames as $levelName)
                     @php
-                        // Ustal ikonę na podstawie nazwy poziomu
-                        if($levelName == 'Junior') {
-                            $iconClass = 'fas fa-user-graduate';
-                        } elseif($levelName == 'Specjalista') {
-                            $iconClass = 'fas fa-user';
-                        } elseif($levelName == 'Senior') {
-                            $iconClass = 'fas fa-user-tie';
-                        } elseif($levelName == 'Supervisor') {
-                            $iconClass = 'fas fa-chalkboard-teacher';
-                        } elseif($levelName == 'Manager') {
-                            $iconClass = 'fas fa-user-cog';
-                        } elseif($levelName == 'Head of') {
-                            $iconClass = 'fas fa-user-shield';
-                        } else {
-                            $iconClass = 'fas fa-briefcase';
-                        }
-
-                        // Use counts based on manager's assessments
+                        // Ustal ikonę i kolor na podstawie fragmentów tekstu w $levelName
+                        $iconClass = 'fas fa-briefcase';
+                        $iconColor = '#4CAF50'; // Domyślny kolor ikony jeśli nie rozpoznamy poziomu
                         $count = $levelCounts[$levelName] ?? 0;
 
-                        // Determine icon color based on count
-                        $iconColorClass = $count == 0 ? 'icon-gray' : 'icon-green';
+                        if (strpos($levelName, '1. Junior') !== false) {
+                            $iconClass = 'fas fa-user-graduate';
+                            $iconColor = '#2196F3';
+                        } elseif (strpos($levelName, '2. Specjalista') !== false) {
+                            $iconClass = 'fas fa-user';
+                            $iconColor = '#4CAF50';
+                        } elseif (strpos($levelName, '3/4. Senior/Supervisor') !== false) {
+                            $iconClass = 'fas fa-chalkboard-teacher';
+                            $iconColor = '#9C27B0';
+                        } elseif (strpos($levelName, '3. Senior') !== false) {
+                            $iconClass = 'fas fa-user-tie';
+                            $iconColor = '#FF9800';
+                        } elseif (strpos($levelName, '4. Supervisor') !== false) {
+                            $iconClass = 'fas fa-chalkboard-teacher';
+                            $iconColor = '#9C27B0';
+                        } elseif (strpos($levelName, '5. Manager') !== false) {
+                            $iconClass = 'fas fa-user-cog';
+                            $iconColor = '#F44336';
+                        } elseif (strpos($levelName, '6. Head of') !== false) {
+                            $iconClass = 'fas fa-user-shield';
+                            $iconColor = '#795548';
+                        }
+
+                        // Ustal kolor ikony na podstawie wartości liczby
+                        $iconColorClass = $levelCounts[$levelName] == 0 ? 'icon-gray' : 'icon-green';
                     @endphp
+
                     <div class="card">
                         <i class="{{ $iconClass }} {{ $iconColorClass }}"></i>
                         <div class="card-content">
@@ -1253,7 +1268,7 @@
                             <td>
                                 @php
                                     $percentageManager = $emp['levelPercentagesManager'][$levelName] ?? null;
-                                    $threshold = $levelKey == 1 ? 80 : 85;
+                                    $threshold = $levelKey == 1 ? 80 : ($levelKey == 2 || $levelKey == 3 ? 85 : 80);
                                     $isHighManager = is_numeric($percentageManager) && $percentageManager >= $threshold;
                                 @endphp
                                 <span class="{{ $isHighManager ? 'high-percentage' : '' }}">
@@ -1279,6 +1294,11 @@
                     // Calculate the highest level based on manager's assessment
                     $highestLevel = $emp['highestLevelManager'];
 
+                    // MAPOWANIE poziomu 3/4. Senior/Supervisor na 4. Supervisor dla podsumowań
+                    if ($highestLevel === "3/4. Senior/Supervisor") {
+                        $highestLevel = "4. Supervisor";
+                    }
+
                     // Count employees at each level
                     if(isset($highestLevel)) {
                         $levelCounts[$highestLevel] += 1;
@@ -1292,16 +1312,17 @@
             @endphp
 
 
+
             <div class="summary" style="margin-top: 20px;">
             <div class="cards-container">
                 @foreach($levelNames as $levelName)
                     @php
                         // Ustal ikonę na podstawie nazwy poziomu
-                        if($levelName == 'Junior') {
+                        if($levelName == '1. Junior') {
                             $iconClass = 'fas fa-user-graduate';
-                        } elseif($levelName == 'Specjalista') {
+                        } elseif($levelName == '2. Specjalista') {
                             $iconClass = 'fas fa-user';
-                        } elseif($levelName == 'Senior') {
+                        } elseif($levelName == '3. Senior') {
                             $iconClass = 'fas fa-user-tie';
                         } elseif($levelName == 'Supervisor') {
                             $iconClass = 'fas fa-chalkboard-teacher';
@@ -1315,6 +1336,7 @@
 
                         // Ustal kolor ikony na podstawie wartości liczby
                         $iconColorClass = $levelCounts[$levelName] == 0 ? 'icon-gray' : 'icon-green';
+                        
                     @endphp
                     <div class="card">
                         <i class="{{ $iconClass }} {{ $iconColorClass }}"></i>
@@ -1620,7 +1642,7 @@
                             <td>
                                 @php
                                     $percentageManager = $emp['levelPercentagesManager'][$levelName] ?? null;
-                                    $threshold = $levelKey == 1 ? 80 : 85;
+                                    $threshold = $levelKey == 1 ? 80 : ($levelKey == 2 || $levelKey == 3 ? 85 : 80);
                                     $isHighManager = is_numeric($percentageManager) && $percentageManager >= $threshold;
                                 @endphp
                                 <span class="{{ $isHighManager ? 'high-percentage' : '' }}">
@@ -1645,6 +1667,11 @@
                 foreach($departmentEmployeesData as $emp) {
                     // Calculate the highest level based on manager's assessment
                     $highestLevel = $emp['highestLevelManager'];
+
+                    // MAPOWANIE poziomu 3/4. Senior/Supervisor na 4. Supervisor dla podsumowań
+                    if ($highestLevel === "3/4. Senior/Supervisor") {
+                        $highestLevel = "4. Supervisor";
+                    }
 
                     // Count employees at each level
                     if(isset($highestLevel)) {

