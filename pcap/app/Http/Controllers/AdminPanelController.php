@@ -42,6 +42,18 @@ class AdminPanelController extends Controller
         return view('admin_panel', compact('employees', 'blockDate', 'users'));
     }
     
+    public function showAdminPanel()
+    {
+        $employees = \App\Models\Employee::all();
+        $users = \App\Models\User::where('role', 'manager')->get();
+        $blockDate = \App\Models\BlockDate::first();
+        if (!$blockDate) {
+            $blockDate = (object)['block_date' => now()->format('Y-m-d')];
+        }
+        $teams = \App\Models\Team::pluck('name');
+
+        return view('admin_panel', compact('employees', 'users', 'blockDate', 'teams'));
+    }
 
     public function updateDates(Request $request)
     {
@@ -49,21 +61,27 @@ class AdminPanelController extends Controller
             'block_date' => 'required|date',
         ]);
 
-        // Zapisz nową datę blokady (np. w pliku konfiguracyjnym lub bazie danych)
         $blockDate = $request->input('block_date');
 
-        // Jeśli używasz pliku konfiguracyjnego
-        $path = base_path('.env');
-        if (file_exists($path)) {
-            file_put_contents($path, str_replace(
-                'APP_BLOCK_DATE=' . config('app.block_date'),
-                'APP_BLOCK_DATE=' . $blockDate,
-                file_get_contents($path)
-            ));
+        // Zapisz do bazy danych
+        $record = \App\Models\BlockDate::first();
+        if ($record) {
+            $record->block_date = $blockDate;
+            $record->save();
+        } else {
+            \App\Models\BlockDate::create(['block_date' => $blockDate]);
         }
 
-        // Wyczyść cache konfiguracji
-        \Artisan::call('config:clear');
+        // (Opcjonalnie) Zapisz do .env jeśli nadal chcesz
+        // $path = base_path('.env');
+        // if (file_exists($path)) {
+        //     file_put_contents($path, str_replace(
+        //         'APP_BLOCK_DATE=' . config('app.block_date'),
+        //         'APP_BLOCK_DATE=' . $blockDate,
+        //         file_get_contents($path)
+        //     ));
+        //     \Artisan::call('config:clear');
+        // }
 
         return redirect()->route('admin.panel')->with('success', 'Data blokady została zaktualizowana.');
     }
@@ -117,6 +135,25 @@ class AdminPanelController extends Controller
     }
 
 
-    
-    
+    public function addManager(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'username' => 'required|string|max:255|unique:users,username',
+            'email' => 'required|email|max:255|unique:users,email',
+            'password' => 'required|string|min:8',
+            'department' => 'required|string|max:255',
+        ]);
+
+        \App\Models\User::create([
+            'name' => $request->name,
+            'username' => $request->username,
+            'email' => $request->email,
+            'password' => bcrypt($request->password),
+            'role' => 'manager',
+            'department' => $request->department,
+        ]);
+
+        return redirect()->back()->with('success', 'Manager został dodany.');
+    }
 }

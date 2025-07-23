@@ -18,6 +18,7 @@ use App\Exports\ResultsExport;
 use Maatwebsite\Excel\Facades\Excel;
 use PDF;
 use Illuminate\Support\Facades\Log;
+use App\Models\BlockDate; // dodaj na górze
 
 use Carbon\Carbon;
 use Illuminate\Support\Str;
@@ -67,7 +68,7 @@ class SelfAssessmentController extends Controller
                 $description0to05 = trim($row['E'] ?? '');
                 $descriptionAboveExpectations = trim($row['F'] ?? '');
     
-                // Read team values (columns H to N)
+                // Read team values (columns H to P)
                 $teamValues = [
                     'Production' => isset($row['I']) ? intval($row['I']) : 0, // Column I
                     'Sales' => isset($row['J']) ? intval($row['J']) : 0, // Column J
@@ -76,6 +77,7 @@ class SelfAssessmentController extends Controller
                     'People & Culture' => isset($row['M']) ? intval($row['M']) : 0, // Column M
                     'Zarząd' => isset($row['N']) ? intval($row['N']) : 0, // Column N
                     'Order Care' => isset($row['O']) ? intval($row['O']) : 0, // Column O
+                    'Finanse i Kadry' => isset($row['P']) ? intval($row['P']) : 0, // Column P
                 ];
     
                 // Create or update the competency
@@ -182,7 +184,8 @@ class SelfAssessmentController extends Controller
 public function showStep1Form()
 {
     // Define the block date
-    $blockDate = Carbon::parse(config('app.block_date', '2024-12-12'));
+    $blockDateRecord = BlockDate::first();
+    $blockDate = $blockDateRecord ? \Carbon\Carbon::parse($blockDateRecord->block_date) : \Carbon\Carbon::parse('2025-12-15');
 
     // Check if the current date is after the block date
     if (Carbon::now()->gt($blockDate)) {
@@ -191,7 +194,7 @@ public function showStep1Form()
     }
 
     $departments = [
-        'Sales', 'Growth', 'Production', 'Logistyka', 'People & Culture', 'Zarząd'
+        'Sales', 'Growth', 'Production', 'Logistyka', 'People & Culture', 'Zarząd', 'Finanse i Kadry'
     ];
 
     // Początkowo pusta lista przełożonych
@@ -207,7 +210,8 @@ public function showStep1Form()
     public function saveStep1(Request $request)
     {
         // Define the block date
-        $blockDate = Carbon::parse(config('app.block_date', '2024-12-12'));
+        $blockDateRecord = BlockDate::first();
+        $blockDate = $blockDateRecord ? \Carbon\Carbon::parse($blockDateRecord->block_date) : \Carbon\Carbon::parse('2025-12-15');
     
         // Check if the current date is after the block date
         if (Carbon::now()->gt($blockDate)) {
@@ -261,6 +265,7 @@ public function showStep1Form()
             'Zarząd' => 'Z',
             'Order Care' => 'O',
             'People & Culture' => 'H',
+            'Finanse i Kadry' => 'F',
         ];
 
         // Pobranie wybranego działu z danych pracownika
@@ -517,7 +522,7 @@ public function generateXls($uuid)
         }
     
         // Check if editing is allowed
-        $blockDate = Carbon::parse(config('app.block_date', '2024-12-12'));
+        $blockDate = Carbon::parse(config('app.block_date', '2025-12-15'));
         if (Carbon::now()->gt($blockDate)) {
             return redirect()->route('self.assessment.complete', ['uuid' => $uuid])->withErrors('Edycja formularza jest już zablokowana.');
         }

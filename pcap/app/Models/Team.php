@@ -13,6 +13,9 @@ class Team extends Model
         'name',
     ];
 
+    protected $table = 'teams';
+    public $timestamps = false;
+
     public function competencies()
     {
         return $this->belongsToMany(Competency::class, 'competency_team_values')->withPivot('value');

@@ -158,6 +158,36 @@
         <div class="tab-pane fade" id="managers" role="tabpanel" aria-labelledby="managers-tab">
             <div class="user-list mt-3">
                 <h2>Lista Managerów</h2>
+                <!-- Dodaj formularz dodawania managera -->
+                <form method="POST" action="{{ route('admin.add_manager') }}" class="mb-4">
+                    @csrf
+                    <div class="row">
+                        <div class="col">
+                            <input type="text" name="name" class="form-control" placeholder="Imię i Nazwisko" required>
+                        </div>
+                        <div class="col">
+                            <input type="text" name="username" class="form-control" placeholder="Login" required>
+                        </div>
+                        <div class="col">
+                            <input type="email" name="email" class="form-control" placeholder="Email" required>
+                        </div>
+                        <div class="col">
+                            <input type="password" name="password" class="form-control" placeholder="Hasło" required>
+                        </div>
+                        <div class="col">
+                            <select name="department" class="form-control" required>
+                                <option value="">Wybierz dział</option>
+                                @foreach($teams as $team)
+                                    <option value="{{ $team }}">{{ $team }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col">
+                            <button type="submit" class="btn btn-success">Dodaj Managera</button>
+                        </div>
+                    </div>
+                </form>
+                <!-- ...istniejąca tabela managerów... -->
                 <table class="table table-bordered">
                     <thead>
                         <tr>
@@ -189,7 +219,8 @@
                     @csrf
                     <div class="mb-3">
                         <label for="block_date" class="form-label">Data blokady formularza:</label>
-                        <input type="date" class="form-control" style="width:200px;" id="block_date" name="block_date" value="{{ $blockDate->format('Y-m-d') }}">
+                        <input type="date" class="form-control" style="width:200px;" id="block_date" name="block_date"
+    value="{{ $blockDate ? \Carbon\Carbon::parse($blockDate->block_date)->format('Y-m-d') : '' }}">
                     </div>
                     <button type="submit" class="btn btn-primary">Zapisz</button>
                 </form>
