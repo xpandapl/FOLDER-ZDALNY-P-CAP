@@ -538,14 +538,21 @@ button {
     const question = slider.closest('.question');
     const descriptionDiv = question.querySelector('.slider-description');
 
-    if (value >= 0.75) {
-        descriptionDiv.textContent = question.dataset.description075to1;
+    if (value === 0) {
+        descriptionDiv.style.display = 'none';
+        descriptionDiv.textContent = '';
+    } else if (value === 0.25) {
+        descriptionDiv.textContent = question.dataset.description025;
         descriptionDiv.style.display = 'block';
-    } else if (value <= 0.5 && value >= 0) {
+    } else if (value === 0.5) {
         descriptionDiv.textContent = question.dataset.description0to05;
+        descriptionDiv.style.display = 'block';
+    } else if (value === 0.75 || value === 1) {
+        descriptionDiv.textContent = question.dataset.description075to1;
         descriptionDiv.style.display = 'block';
     } else {
         descriptionDiv.style.display = 'none';
+        descriptionDiv.textContent = '';
     }
 }
 
@@ -724,7 +731,9 @@ button {
 
                 <!-- Pętla wyświetlająca pytania -->
                 @foreach($competencies as $competency)
-                <div class="question" data-description0to05="{{ $competency->description_0_to_05 }}"
+                <div class="question"
+                     data-description0to05="{{ $competency->description_0_to_05 }}"
+                     data-description025="{{ $competency->description_025 }}"
                      data-description075to1="{{ $competency->description_075_to_1 }}"
                      data-description-above-expectations="{{ $competency->description_above_expectations }}"
                      data-competency-type="{{ $competency->competency_type }}">

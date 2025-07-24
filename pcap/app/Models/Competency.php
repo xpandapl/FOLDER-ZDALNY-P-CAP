@@ -17,6 +17,7 @@ class Competency extends Model
         'description_0_to_05',
         'description_above_expectations',
         'value',
+        'description_025',
     ];
 
     public function competencyTeamValues()

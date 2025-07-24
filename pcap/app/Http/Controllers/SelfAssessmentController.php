@@ -65,8 +65,9 @@ class SelfAssessmentController extends Controller
                 $competencyType = trim($row['B']); // Excel Column B
                 $competencyName = trim($row['C']); // Excel Column C
                 $description075to1 = trim($row['D'] ?? '');
+                $description025 = trim($row['F'] ?? ''); // NOWA definicja dla 0,25 (kolumna F)
                 $description0to05 = trim($row['E'] ?? '');
-                $descriptionAboveExpectations = trim($row['F'] ?? '');
+                $descriptionAboveExpectations = trim($row['G'] ?? ''); // above expectations teraz w G
     
                 // Read team values (columns H to P)
                 $teamValues = [
@@ -89,6 +90,7 @@ class SelfAssessmentController extends Controller
                     ],
                     [
                         'description_075_to_1' => $description075to1,
+                        'description_025' => $description025, // dodaj do fillable i migracji jeśli nie ma
                         'description_0_to_05' => $description0to05,
                         'description_above_expectations' => $descriptionAboveExpectations,
                     ]
