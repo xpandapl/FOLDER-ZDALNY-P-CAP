@@ -471,9 +471,12 @@ class ManagerController extends Controller
             }
     
             // Eksport do Excela
+            $date = now()->format('Y-m-d_H-i');
+            $teamName = str_replace(' ', '_', $team->name);
+            $filename = "P-CAP Raport Full-{$date}_{$teamName}.xlsx";
             return Excel::download(
                 new TeamReportExport($data, $headers),
-                'raport_' . $team->name . '.xlsx'
+                $filename
             );
         }
     }
@@ -630,7 +633,10 @@ class ManagerController extends Controller
         $pdf = PDF::loadView('pdf.employee_report', compact('employee', 'results'))
             ->setPaper('a4', 'landscape');
 
-        return $pdf->download('raport_' . $employee->name . '.pdf');
+        $date = now()->format('Y-m-d_H-i');
+        $name = str_replace(' ', '_', $employee->name);
+        $filename = "P-CAP Raport Full-{$date}_{$name}.pdf";
+        return $pdf->download($filename);
     }
 
     public function generateXls($employeeId)
@@ -806,4 +812,4 @@ class ManagerController extends Controller
             'raport_' . $employee->name . '.xlsx'
         );
     }    
-}    
+}

@@ -412,7 +412,10 @@ public function showStep1Form()
         'team' => $team // Pass the $team variable to the view
     ])->setPaper('a4', 'landscape');
 
-    return $pdf->download('raport.pdf');
+    $date = now()->format('Y-m-d_H-i');
+    $name = str_replace(' ', '_', $employee->name);
+    $filename = "P-CAP Raport Full-{$date}_{$name}.pdf";
+    return $pdf->download($filename);
 }
 
 public function generateXls($uuid)
@@ -436,9 +439,11 @@ public function generateXls($uuid)
         ->get();
 
     // Export to Excel
-    return Excel::download(new ResultsExport($results, $team), 'raport.xlsx');
+    $date = now()->format('Y-m-d_H-i');
+    $name = str_replace(' ', '_', $employee->name);
+    $filename = "P-CAP Raport Full-{$date}_{$name}.xlsx";
+    return Excel::download(new ResultsExport($results, $team), $filename);
 }
-
     
     
 
