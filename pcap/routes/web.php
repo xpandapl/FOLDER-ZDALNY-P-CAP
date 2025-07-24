@@ -72,6 +72,9 @@ Route::get('/competency-definition/{id}', [SelfAssessmentController::class, 'get
 Route::get('/self-assessment/generate-pdf/{uuid}', [SelfAssessmentController::class, 'generatePdf'])->name('self.assessment.generate_pdf');
 Route::get('/self-assessment/generate-xls/{uuid}', [SelfAssessmentController::class, 'generateXls'])->name('self.assessment.generate_xls');
 
+// Trasa autosave
+Route::post('/self-assessment/autosave', [SelfAssessmentController::class, 'autosave'])->name('self_assessment.autosave');
+
 
 // Trasa debugowania (opcjonalnie)
 Route::get('/debug', function () {

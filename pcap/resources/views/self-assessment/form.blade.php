@@ -537,10 +537,16 @@ button {
     const value = parseFloat(slider.value);
     const question = slider.closest('.question');
     const descriptionDiv = question.querySelector('.slider-description');
+    const touched = slider.dataset.touched === "true";
 
     if (value === 0) {
-        descriptionDiv.style.display = 'none';
-        descriptionDiv.textContent = '';
+        if (touched) {
+            descriptionDiv.textContent = "Nie dotyczy mnie ta kompetencja";
+            descriptionDiv.style.display = 'block';
+        } else {
+            descriptionDiv.style.display = 'none';
+            descriptionDiv.textContent = '';
+        }
     } else if (value === 0.25) {
         descriptionDiv.textContent = question.dataset.description025;
         descriptionDiv.style.display = 'block';
@@ -584,7 +590,7 @@ button {
     document.addEventListener("DOMContentLoaded", function() {
             // Inicjalizacja suwaków i opisów
             document.querySelectorAll('.slider').forEach(slider => {
-                updateSliderValue(slider);
+                // Nie wywołuj updateSliderValue na starcie!
             });
 
             document.querySelectorAll('input[name^="above_expectations"]').forEach(checkbox => {
@@ -639,8 +645,83 @@ button {
                 userCard.classList.toggle("expanded");
             });
         });
+        document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll('.slider').forEach(slider => {
+        if (parseFloat(slider.value) !== 0) {
+            updateSliderValue(slider);
+        }
+    });
+
+    document.querySelectorAll('input[name^="above_expectations"]').forEach(checkbox => {
+        if (checkbox.checked) {
+            toggleAboveExpectations(checkbox);
+        }
+    });
+
+    // Inicjalizacja checkboxów "Dodaj opis/argumentację"
+    document.querySelectorAll('input[name^="add_description"]').forEach(checkbox => {
+        toggleDescriptionInput(checkbox);
+    });
+
+    var skipButton = document.getElementById("skipButton");
+    if (skipButton) {
+        var skipModal = document.getElementById("skipModal");
+        var confirmSkip = document.getElementById("confirmSkip");
+        var cancelSkip = document.getElementById("cancelSkip");
+
+        // Wyświetlanie okna modalnego po kliknięciu "Pomiń resztę samooceny"
+        skipButton.addEventListener("click", function() {
+            skipModal.style.display = "flex";
+        });
+
+        // Potwierdzenie pominięcia - przekierowanie do zakończenia samooceny
+        var uuid = "{{ $uuid }}";
+
+        confirmSkip.addEventListener("click", function() {
+            window.location.href = "/self-assessment/complete/" + uuid;
+        });
+
+        // Anulowanie pominięcia - ukrywanie modala
+        cancelSkip.addEventListener("click", function() {
+            skipModal.style.display = "none";
+        });
+    }
+
+    // Modal close button
+    var closeModalButton = document.getElementById("closeModal");
+    if (closeModalButton) {
+        closeModalButton.addEventListener("click", function() {
+            document.getElementById("saveModal").style.display = "none";
+        });
+    }
+});
 
 
+function markSliderTouched(slider) {
+    slider.dataset.touched = "true";
+}
+
+let autosaveInterval = setInterval(function() {
+    let form = document.getElementById('assessmentForm');
+    if (!form) return;
+
+    let formData = new FormData(form);
+
+    fetch('{{ route('self_assessment.autosave') }}', {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Możesz dodać powiadomienie o autozapisie, np. console.log('Autozapis OK');
+    })
+    .catch(error => {
+        // Możesz dodać obsługę błędów, np. console.error('Autozapis error', error);
+    });
+}, 60000); // co 60 sekund
 </script>
 
 </head>
@@ -755,7 +836,14 @@ button {
                                 <div class="slider-label">1</div>
                             </div>
                             <input type="hidden" name="competency_id[]" value="{{ $competency->id }}">
-                            <input type="range" min="0" max="1" step="0.25" value="{{ $savedAnswers['score'][$competency->id] ?? 0 }}" class="slider" name="score[{{ $competency->id }}]" onchange="updateSliderValue(this)">
+                            <input type="range"
+    min="0" max="1" step="0.25"
+    value="{{ $savedAnswers['score'][$competency->id] ?? 0 }}"
+    class="slider"
+    name="score[{{ $competency->id }}]"
+    onchange="updateSliderValue(this)"
+    oninput="markSliderTouched(this)"
+    data-touched="{{ (isset($savedAnswers['score'][$competency->id]) && $savedAnswers['score'][$competency->id] != 0) ? 'true' : 'false' }}">
 
                         </div>
 

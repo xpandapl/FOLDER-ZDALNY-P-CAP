@@ -554,4 +554,42 @@ public function generateXls($uuid)
         // Redirect to complete page with generated UUID link
         return redirect()->route('form.complete', ['uuid' => $uuid]);
     }
+
+    public function autosave(Request $request)
+    {
+        $uuid = $request->input('uuid');
+        if (!$uuid) {
+            return response()->json(['status' => 'error', 'message' => 'Brakuje identyfikatora użytkownika.'], 400);
+        }
+
+        $employee = \App\Models\Employee::where('uuid', $uuid)->first();
+        if (!$employee) {
+            return response()->json(['status' => 'error', 'message' => 'Nie znaleziono użytkownika.'], 404);
+        }
+
+        $competencyIds = $request->input('competency_id', []);
+        $scores = $request->input('score', []);
+        $aboveExpectations = $request->input('above_expectations', []);
+        $comments = $request->input('comments', []);
+
+        foreach ($competencyIds as $competencyId) {
+            $isAboveExpectations = isset($aboveExpectations[$competencyId]) ? 1 : 0;
+            $scoreValue = $isAboveExpectations ? 1 : ($scores[$competencyId] ?? 0);
+
+            \App\Models\Result::updateOrCreate(
+                [
+                    'employee_id' => $employee->id,
+                    'competency_id' => $competencyId,
+                ],
+                [
+                    'score' => $scoreValue,
+                    'above_expectations' => $isAboveExpectations,
+                    'comments' => $comments[$competencyId] ?? null,
+                    'updated_at' => now(),
+                ]
+            );
+        }
+
+        return response()->json(['status' => 'success']);
+    }
 }
