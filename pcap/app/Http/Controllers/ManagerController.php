@@ -795,6 +795,10 @@ class ManagerController extends Controller
         $data[] = ['', '', '', '', '', '', '', '', '', 'Ogólny procent uzyskany', is_numeric($totalPercentage) ? number_format($totalPercentage, 2) . '%' : $totalPercentage];
     
         // Use an anonymous class to export data
+
+        $date = now()->format('Y-m-d_H-i');
+        $name = str_replace(' ', '_', $employee->name);
+        $filename = "P-CAP Raport Full-{$date}_{$name}.xlsx";
         return Excel::download(
             new class($data) implements \Maatwebsite\Excel\Concerns\FromArray {
                 private $data;
@@ -809,7 +813,8 @@ class ManagerController extends Controller
                     return $this->data;
                 }
             },
-            'raport_' . $employee->name . '.xlsx'
+
+            $filename
         );
     }    
 }
