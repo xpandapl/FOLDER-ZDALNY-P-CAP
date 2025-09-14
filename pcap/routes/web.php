@@ -28,8 +28,12 @@ Route::post('/submit-assessment', [SelfAssessmentController::class, 'submitAsses
 Route::post('/save-results', [SelfAssessmentController::class, 'saveResults'])->name('save_results'); // Zapis wyników po wypełnieniu całego formularza
 
 // Routes for uploading Excel
-Route::get('/upload-excel', [SelfAssessmentController::class, 'showUploadForm'])->name('upload.excel');
-Route::post('/upload-excel', [SelfAssessmentController::class, 'uploadExcel'])->name('upload.excel.post');
+// Admin-only: upload/update question base
+Route::middleware(['auth'])->group(function(){
+    Route::get('/upload-excel', [SelfAssessmentController::class, 'showUploadForm'])->name('upload.excel');
+    Route::post('/upload-excel', [SelfAssessmentController::class, 'uploadExcel'])->name('upload.excel.post');
+    Route::get('/upload-excel/template', [SelfAssessmentController::class, 'downloadTemplate'])->name('upload.excel.template');
+});
 
 // Admin panel
 Route::get('/admin', [AdminPanelController::class, 'showAdminPanel'])->name('admin.panel');
@@ -40,6 +44,11 @@ Route::get('/admin/employee/{id}', [AdminPanelController::class, 'getEmployee'])
 // Update employee data
 Route::put('/admin/update-employee', [AdminPanelController::class, 'updateEmployee'])->name('admin.update_employee');
 Route::post('/admin/add-manager', [AdminPanelController::class, 'addManager'])->name('admin.add_manager');
+// Manager edit endpoints
+Route::get('/admin/manager/{id}', [AdminPanelController::class, 'getManager'])->name('admin.get_manager');
+Route::put('/admin/update-manager', [AdminPanelController::class, 'updateManager'])->name('admin.update_manager');
+// Competencies summary (lazy JSON)
+Route::get('/admin/competencies/summary', [AdminPanelController::class, 'competenciesSummary'])->name('admin.competencies_summary');
 
 
 

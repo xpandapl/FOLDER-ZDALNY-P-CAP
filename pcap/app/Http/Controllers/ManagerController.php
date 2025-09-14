@@ -50,27 +50,52 @@ class ManagerController extends Controller
     // Fetch employees under the manager with necessary relationships
     $employees = Employee::with([
         'team:id,name', // Only load team name and ID
+        'team.competencyTeamValues:id,team_id,competency_id,value', // Preload team competency values to avoid N+1 in getCompetencyValue
+        'overriddenCompetencyValues:id,employee_id,competency_id,value', // Preload overridden values
         'results' => function ($query) {
-            $query->select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'above_expectations', 'comments', 'feedback_manager');
+            // Load only the fields used in calculations
+            $query->select('id', 'employee_id', 'competency_id', 'score', 'score_manager');
         },
         'results.competency' => function ($query) {
-            $query->select('id', 'competency_name', 'level', 'competency_type');
+            // Only fields required for grouping by level
+            $query->select('id', 'level');
         },
-        // Load overridden competency values if necessary
-    ])->where('manager_username', $manager->name)->get(['id', 'name', 'job_title', 'department']);
+    ])->where('manager_username', $manager->name)
+      ->get(['id', 'name', 'job_title', 'department']);
     
 
     // For supermanagers, fetch all employees with necessary relationships
     if ($manager->role == 'supermanager') {
-        $allEmployees = Employee::with(['team', 'results.competency.competencyTeamValues'])->get();
+        $allEmployees = Employee::with([
+                'team:id,name',
+                'team.competencyTeamValues:id,team_id,competency_id,value',
+                'overriddenCompetencyValues:id,employee_id,competency_id,value',
+                'results' => function ($q) {
+                    $q->select('id','employee_id','competency_id','score','score_manager');
+                },
+                'results.competency' => function ($q) {
+                    $q->select('id','level');
+                },
+            ])
+            ->get(['id','name','job_title','department']);
     } else {
         $allEmployees = collect(); // Empty collection for non-supermanagers
     }
 
     if ($manager->role == 'head') {
-        $departmentEmployees = Employee::with(['team', 'results.competency.competencyTeamValues'])
+        $departmentEmployees = Employee::with([
+                'team:id,name',
+                'team.competencyTeamValues:id,team_id,competency_id,value',
+                'overriddenCompetencyValues:id,employee_id,competency_id,value',
+                'results' => function ($q) {
+                    $q->select('id','employee_id','competency_id','score','score_manager');
+                },
+                'results.competency' => function ($q) {
+                    $q->select('id','level');
+                },
+            ])
             ->where('department', $manager->department)
-            ->get();
+            ->get(['id','name','job_title','department']);
     } else {
         $departmentEmployees = collect(); // Empty collection for non-heads
     }
@@ -162,15 +187,13 @@ class ManagerController extends Controller
 
         // Prepare HR data
         if ($manager->role == 'supermanager') {
-            // Get all teams with employees and their results
-            $teams = Team::with(['employees.results'])->get();
+            // Load minimal employee data with results_count instead of full results
+            $teams = Team::with(['employees' => function($q){
+                $q->select('id','department')->withCount('results');
+            }])->get();
 
             foreach ($teams as $team) {
-                // Get count of employees who have completed the self-assessment
-                $completedCount = $team->employees->filter(function ($emp) {
-                    return $emp->results->isNotEmpty();
-                })->count();
-
+                $completedCount = $team->employees->where('results_count', '>', 0)->count();
                 $hrData[] = [
                     'team_name' => $team->name,
                     'completed_count' => $completedCount,
@@ -186,17 +209,17 @@ class ManagerController extends Controller
             $departmentEmployeesData = $this->prepareEmployeesData($departmentEmployees, $levelNames);
         
             // Przygotuj podsumowanie dla działu (podobnie jak dla HR)
-            $teamsInDepartment = Team::with(['employees.results'])
+            $teamsInDepartment = Team::with(['employees' => function($q){
+                    $q->select('id','department')->withCount('results');
+                }])
                 ->whereHas('employees', function ($query) use ($manager) {
                     $query->where('department', $manager->department);
                 })
                 ->get();
         
             foreach ($teamsInDepartment as $team) {
-                // Get count of employees who have completed the self-assessment
-                $completedCount = $team->employees->filter(function ($emp) {
-                    return $emp->results->isNotEmpty();
-                })->count();
+                // Count employees who have at least one result
+                $completedCount = $team->employees->where('results_count', '>', 0)->count();
         
                 $departmentData[] = [
                     'team_name' => $team->name,
@@ -484,8 +507,10 @@ class ManagerController extends Controller
 
     public function update(Request $request)
     {
-        // Update manager's assessments
-        foreach ($request->score_manager as $resultId => $scoreManager) {
+        // Update manager's assessments (handle empty submissions safely)
+        $scores = (array) $request->input('score_manager', []);
+        $feedbacks = (array) $request->input('feedback_manager', []);
+        foreach ($scores as $resultId => $scoreManager) {
             $result = Result::find($resultId);
 
             if ($result) {
@@ -499,7 +524,7 @@ class ManagerController extends Controller
                     $result->score_manager = (float)$scoreManager;
                     $result->above_expectations_manager = 0;
                 }
-                $result->feedback_manager = $request->feedback_manager[$resultId] ?? null;
+                $result->feedback_manager = $feedbacks[$resultId] ?? null;
                 $result->save();
             }
         }
@@ -508,8 +533,8 @@ class ManagerController extends Controller
         $employee = Employee::find($employeeId);
 
          // Handle overridden competency values
-        $competencyValues = $request->input('competency_values', []);
-        $deleteCompetencyValues = $request->input('delete_competency_values', []);
+    $competencyValues = (array) $request->input('competency_values', []);
+    $deleteCompetencyValues = (array) $request->input('delete_competency_values', []);
 
         // Process deletions
         foreach ($deleteCompetencyValues as $competencyId) {

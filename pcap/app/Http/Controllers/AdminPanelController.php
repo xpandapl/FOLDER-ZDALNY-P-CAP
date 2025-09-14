@@ -37,22 +37,26 @@ class AdminPanelController extends Controller
         $blockDate = Carbon::parse(config('app.block_date', '2024-12-10'));
     
         // Pobierz listę użytkowników
-        $users = \App\Models\User::orderBy('name')->get();
+    $users = \App\Models\User::whereIn('role', ['manager','head','supermanager'])->orderBy('name')->get();
+    $managerNameByUsername = $users->pluck('name', 'username');
+    $roles = ['manager', 'head', 'supermanager'];
     
-        return view('admin_panel', compact('employees', 'blockDate', 'users'));
+    return view('admin_panel', compact('employees', 'blockDate', 'users', 'managerNameByUsername', 'roles'));
     }
     
     public function showAdminPanel()
     {
-        $employees = \App\Models\Employee::all();
-        $users = \App\Models\User::where('role', 'manager')->get();
+    $employees = \App\Models\Employee::all();
+    $users = \App\Models\User::whereIn('role', ['manager','head','supermanager'])->orderBy('name')->get();
+    $managerNameByUsername = $users->pluck('name', 'username');
         $blockDate = \App\Models\BlockDate::first();
         if (!$blockDate) {
             $blockDate = (object)['block_date' => now()->format('Y-m-d')];
         }
         $teams = \App\Models\Team::pluck('name');
+    $roles = ['manager', 'head', 'supermanager'];
 
-        return view('admin_panel', compact('employees', 'users', 'blockDate', 'teams'));
+    return view('admin_panel', compact('employees', 'users', 'blockDate', 'teams', 'managerNameByUsername', 'roles'));
     }
 
     public function updateDates(Request $request)
@@ -106,6 +110,33 @@ class AdminPanelController extends Controller
         return redirect()->route('admin.panel')->with('error', 'Nie znaleziono pracownika.');
     }
 
+    public function getManager($id)
+    {
+        $user = \App\Models\User::find($id);
+        if ($user) {
+            return response()->json($user);
+        }
+        return response()->json(['message' => 'Nie znaleziono użytkownika.'], 404);
+    }
+
+    public function updateManager(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+            'role' => 'required|string|in:manager,head,supermanager',
+            'department' => 'required|string|exists:teams,name',
+        ]);
+
+        $user = \App\Models\User::find($request->input('user_id'));
+        if ($user) {
+            $user->role = $request->input('role');
+            $user->department = $request->input('department');
+            $user->save();
+            return redirect()->route('admin.panel')->with('success', 'Dane managera zostały zaktualizowane.');
+        }
+        return redirect()->route('admin.panel')->with('error', 'Nie znaleziono użytkownika.');
+    }
+
     public function getEmployee($id)
     {
         $employee = \App\Models\Employee::find($id);
@@ -120,12 +151,15 @@ class AdminPanelController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'job_title' => 'required|string|max:255',
+            // Now storing full manager name directly in employees.manager_username
+            'manager_username' => 'nullable|string|max:255',
         ]);
 
         $employee = \App\Models\Employee::find($request->input('employee_id'));
         if ($employee) {
             $employee->name = $request->input('name');
             $employee->job_title = $request->input('job_title');
+            $employee->manager_username = $request->input('manager_username');
             $employee->save();
 
             return redirect()->route('admin.panel')->with('success', 'Dane pracownika zostały zaktualizowane.');
@@ -155,5 +189,60 @@ class AdminPanelController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Manager został dodany.');
+    }
+
+    // Lazy-loaded JSON: competencies summary with counts and averages
+    public function competenciesSummary(Request $request)
+    {
+        // Accept pagination and optional department filter
+        $perPage = (int) $request->input('per_page', 20);
+        if ($perPage < 1) { $perPage = 20; }
+        if ($perPage > 100) { $perPage = 100; }
+    $department = $request->input('department'); // nullable
+    $level = $request->input('level'); // nullable
+    $ctype = $request->input('competency_type'); // nullable
+
+        $query = \DB::table('competencies as c')
+            ->leftJoin('results as r', 'r.competency_id', '=', 'c.id');
+
+        if ($department) {
+            $query->leftJoin('employees as e', 'e.id', '=', 'r.employee_id')
+                  ->where('e.department', $department);
+        }
+
+        if ($level !== null && $level !== '') {
+            // Match levels like "1. Junior" when filtering by "1"
+            $query->where('c.level', 'like', $level . '%');
+        }
+        if ($ctype !== null && $ctype !== '') {
+            // Allow partial contains match for types, e.g. entering "3.G" matches any containing it
+            $query->where('c.competency_type', 'like', '%' . $ctype . '%');
+        }
+
+        $query->select([
+            'c.id',
+            'c.competency_name',
+            'c.level',
+            'c.competency_type',
+            'c.description_025',
+            'c.description_0_to_05',
+            'c.description_075_to_1',
+            'c.description_above_expectations',
+            \DB::raw('SUM(CASE WHEN r.score IS NOT NULL AND r.score > 0 THEN 1 ELSE 0 END) as response_count'),
+            \DB::raw('AVG(NULLIF(CASE WHEN r.score IS NOT NULL AND r.score > 0 THEN r.score ELSE NULL END, NULL)) as avg_score'),
+        ])
+        ->groupBy('c.id')
+        ->orderBy('c.level')
+        ->orderBy('c.competency_name');
+
+        $results = $query->paginate($perPage);
+
+        return response()->json([
+            'data' => $results->items(),
+            'current_page' => $results->currentPage(),
+            'per_page' => $results->perPage(),
+            'total' => $results->total(),
+            'last_page' => $results->lastPage(),
+        ]);
     }
 }

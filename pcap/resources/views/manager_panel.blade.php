@@ -1247,6 +1247,9 @@
 
             <!-- Tabela z podsumowaniem całej organizacji -->
             <h3>Podsumowanie kompetencji w organizacji</h3>
+            <div class="form-group" style="margin:10px 0;">
+                <input type="text" id="hr-search" class="custom-input" placeholder="Wyszukaj po imieniu, nazwisku lub stanowisku..." style="max-width:420px; width:100%;">
+            </div>
             <table>
             <thead>
                 <tr>
@@ -1258,7 +1261,7 @@
                     <th>Poziom</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="hr-table-body">
                 @foreach($organizationEmployeesData as $emp)
                     <tr>
                         <td>{{ $emp['name'] }}</td>
@@ -1813,6 +1816,17 @@
             showTab(defaultTab);
 
             // Globalny nasłuchiwacz zdarzeń kliknięcia
+            // HR filtrowanie – po imieniu/nazwisku i stanowisku
+            $('#hr-search').on('input', function(){
+                const q = $(this).val().toLowerCase();
+                $('#hr-table-body tr').each(function(){
+                    const name = ($(this).find('td').eq(0).text() || '').toLowerCase();
+                    const job  = ($(this).find('td').eq(1).text() || '').toLowerCase();
+                    const match = name.indexOf(q) > -1 || job.indexOf(q) > -1;
+                    $(this).toggle(match);
+                });
+            });
+
             document.addEventListener('click', function(event) {
                 const target = event.target;
 

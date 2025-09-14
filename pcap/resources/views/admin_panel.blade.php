@@ -35,6 +35,9 @@
         <li class="nav-item">
             <a class="nav-link" id="dates-tab" data-toggle="tab" href="#dates" role="tab" aria-controls="dates" aria-selected="false">Zarządzanie Datami</a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link" id="competencies-tab" data-toggle="tab" href="#competencies" role="tab" aria-controls="competencies" aria-selected="false">Baza pytań</a>
+        </li>
     </ul>
 
     <!-- Zawartość zakładek -->
@@ -54,6 +57,7 @@
                         <th>Link do Edycji</th>
                         <th>Dział</th>
                         <th>Stanowisko</th>
+                        <th>Manager</th>
                         <th>Data przesłania</th>
                         <th>Ostatnia aktualizacja</th>
                         <th>Akcje</th>
@@ -73,6 +77,12 @@
                         </td>
                         <td>{{ $employee->department }}</td>
                         <td>{{ $employee->job_title }}</td>
+                        <td>
+                            @php
+                                $mgr = $employee->manager_username;
+                            @endphp
+                            {{ $mgr && isset($managerNameByUsername[$mgr]) ? $managerNameByUsername[$mgr] : ($mgr ?? '-') }}
+                        </td>
                         <td>{{ $employee->created_at->format('Y-m-d H:i') }}</td>
                         <td>{{ $employee->updated_at->format('Y-m-d H:i') }}</td>
                         <td>
@@ -115,6 +125,15 @@
                                 <div class="form-group">
                                     <label for="edit_job_title">Stanowisko:</label>
                                     <input type="text" class="form-control" id="edit_job_title" name="job_title" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="edit_manager_username">Manager:</label>
+                                    <select class="form-control" id="edit_manager_username" name="manager_username">
+                                        <option value="">— Brak —</option>
+                                        @foreach($users as $manager)
+                                            <option value="{{ $manager->name }}" data-username="{{ $manager->username }}">{{ $manager->name }} ({{ $manager->username }})</option>
+                                        @endforeach
+                                    </select>
                                 </div>
                             </div>
                             <div class="modal-footer">
@@ -195,6 +214,7 @@
                             <th>Email</th>
                             <th>Rola</th>
                             <th>Dział</th>
+                            <th>Akcje</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -204,10 +224,56 @@
                             <td>{{ $user->email }}</td>
                             <td>{{ $user->role }}</td>
                             <td>{{ $user->department }}</td>
+                            <td>
+                                <button class="btn btn-outline-secondary btn-sm edit-manager-button" data-id="{{ $user->id }}" type="button">
+                                    <i class="fas fa-pencil-alt"></i>
+                                </button>
+                            </td>
                         </tr>
                         @endforeach
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- Manager Edit Modal -->
+        <div class="modal fade" id="editManagerModal" tabindex="-1" aria-labelledby="editManagerModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <form method="POST" action="{{ route('admin.update_manager') }}">
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" name="user_id" id="manager_id_to_edit">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edytuj Managera</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Zamknij">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="form-group">
+                                <label for="edit_manager_role">Rola:</label>
+                                <select class="form-control" id="edit_manager_role" name="role" required>
+                                    @foreach($roles as $role)
+                                        <option value="{{ $role }}">{{ ucfirst($role) }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="edit_manager_department">Dział:</label>
+                                <select class="form-control" id="edit_manager_department" name="department" required>
+                                    @foreach($teams as $team)
+                                        <option value="{{ $team }}">{{ $team }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Anuluj</button>
+                            <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+                        </div>
+                    </div>
+                </form>
             </div>
         </div>
 
@@ -224,6 +290,81 @@
                     </div>
                     <button type="submit" class="btn btn-primary">Zapisz</button>
                 </form>
+            </div>
+        </div>
+
+        <!-- Zakładka Baza pytań (lazy) -->
+        <div class="tab-pane fade" id="competencies" role="tabpanel" aria-labelledby="competencies-tab">
+            <div class="mt-3">
+                <div class="d-flex" style="gap:10px; align-items:center; margin-bottom:10px;">
+                    <a href="{{ route('upload.excel') }}" class="btn btn-primary">Aktualizacja bazy pytań</a>
+                    <small class="text-muted">Dostęp tylko dla administracji</small>
+                </div>
+                <div class="d-flex align-items-end" style="gap:10px; flex-wrap:wrap;">
+                    <div>
+                        <label for="comp_department_filter" style="display:block; font-weight:600;">Filtr działu (opcjonalnie)</label>
+                        <select id="comp_department_filter" class="form-control" style="min-width:220px;">
+                            <option value="">— Wszystkie działy —</option>
+                            @foreach($teams as $team)
+                                <option value="{{ $team }}">{{ $team }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label for="comp_level_filter" style="display:block; font-weight:600;">Poziom</label>
+                        <select id="comp_level_filter" class="form-control">
+                            <option value="">— Wszystkie —</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="comp_type_filter" style="display:block; font-weight:600;">Typ</label>
+                        <input id="comp_type_filter" class="form-control" placeholder="np. 1., 2., 3.G" />
+                    </div>
+                    <div>
+                        <label for="comp_per_page" style="display:block; font-weight:600;">Na stronę</label>
+                        <select id="comp_per_page" class="form-control">
+                            <option value="10">10</option>
+                            <option value="20" selected>20</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                    <button id="comp_reload" class="btn btn-outline-secondary">Odśwież</button>
+                    <div id="comp_status" style="margin-left:auto;"></div>
+                </div>
+
+                <div class="table-responsive mt-3">
+                    <table class="table table-bordered table-sm" id="competencies_table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Kompetencja</th>
+                                <th>Poziom</th>
+                                <th>Typ</th>
+                                <th>Opis 0</th>
+                                <th>Opis 0,25</th>
+                                <th>Opis 0,5</th>
+                                <th>Opis 0,75–1</th>
+                                <th>Odpowiedzi</th>
+                                <th>Śr. ocena</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr><td colspan="10" class="text-center">Kliknij zakładkę, aby załadować dane…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-center mt-2" id="competencies_pagination" style="display:none;">
+                    <button class="btn btn-sm btn-outline-secondary" id="comp_prev">Poprzednia</button>
+                    <div id="comp_page_info"></div>
+                    <button class="btn btn-sm btn-outline-secondary" id="comp_next">Następna</button>
+                </div>
             </div>
         </div>
     </div> <!-- Zamknięcie div dla tab-content -->
@@ -284,6 +425,19 @@ $(document).ready(function() {
                 $('#employee_id_to_edit').val(data.id);
                 $('#edit_name').val(data.name);
                 $('#edit_job_title').val(data.job_title);
+                // Try to select by full name first
+                var $mgrSelect = $('#edit_manager_username');
+                var mgrValue = data.manager_username ?? '';
+                $mgrSelect.val(mgrValue);
+                // If no option with this full name, try mapping stored username to option's data-username
+                if (!$mgrSelect.val() && mgrValue) {
+                    var $optByUsername = $mgrSelect.find('option').filter(function(){
+                        return $(this).data('username') === mgrValue;
+                    }).first();
+                    if ($optByUsername.length) {
+                        $mgrSelect.val($optByUsername.val());
+                    }
+                }
                 // Show the modal
                 $('#editModal').modal('show');
             },
@@ -292,6 +446,99 @@ $(document).ready(function() {
             }
         });
     });
+
+    // Handle Manager Edit button click
+    $('.edit-manager-button').on('click', function() {
+        var managerId = $(this).data('id');
+        $.ajax({
+            url: '{{ url('/admin/manager') }}/' + managerId,
+            method: 'GET',
+            success: function(data) {
+                $('#manager_id_to_edit').val(data.id);
+                $('#edit_manager_role').val(data.role);
+                $('#edit_manager_department').val(data.department);
+                $('#editManagerModal').modal('show');
+            },
+            error: function() {
+                alert('Błąd podczas pobierania danych managera.');
+            }
+        });
+    });
+
+    // Lazy load for competencies tab
+    var compLoaded = false;
+    var compPage = 1;
+    function loadCompetencies(resetPage) {
+        if (resetPage) compPage = 1;
+        var perPage = $('#comp_per_page').val() || 20;
+        var department = $('#comp_department_filter').val() || '';
+        var level = $('#comp_level_filter').val() || '';
+        var ctype = $('#comp_type_filter').val() || '';
+        $('#comp_status').text('Ładowanie…');
+        $.ajax({
+            url: '{{ route('admin.competencies_summary') }}',
+            method: 'GET',
+            data: { page: compPage, per_page: perPage, department: department, level: level, competency_type: ctype },
+            success: function(resp){
+                var $tbody = $('#competencies_table tbody');
+                $tbody.empty();
+                if (!resp.data || resp.data.length === 0) {
+                    $tbody.append('<tr><td colspan="10" class="text-center">Brak danych</td></tr>');
+                } else {
+                    resp.data.forEach(function(row){
+                        var avg = (row.avg_score !== null && row.avg_score !== undefined) ? parseFloat(row.avg_score).toFixed(2) : 'N/D';
+                        var rcount = row.response_count ?? 0;
+                        function safe(s){ return s ? $('<div>').text(s).html() : ''; }
+                        $tbody.append(
+                            '<tr>'+
+                            '<td>'+row.id+'</td>'+
+                            '<td>'+safe(row.competency_name)+'</td>'+
+                            '<td>'+safe(row.level)+'</td>'+
+                            '<td>'+safe(row.competency_type)+'</td>'+
+                            '<td>'+safe('Nie dotyczy / brak oceny początkowo')+'</td>'+
+                            '<td>'+safe(row.description_025)+'</td>'+
+                            '<td>'+safe(row.description_0_to_05)+'</td>'+
+                            '<td>'+safe(row.description_075_to_1)+'</td>'+
+                            '<td>'+rcount+'</td>'+
+                            '<td>'+avg+'</td>'+
+                            '</tr>'
+                        );
+                    });
+                }
+                // Pagination controls
+                var $pag = $('#competencies_pagination');
+                if (resp.total > resp.per_page) {
+                    $pag.show();
+                    $('#comp_page_info').text('Strona '+resp.current_page+' z '+resp.last_page+' (łącznie: '+resp.total+')');
+                    $('#comp_prev').prop('disabled', resp.current_page <= 1);
+                    $('#comp_next').prop('disabled', resp.current_page >= resp.last_page);
+                } else {
+                    $pag.hide();
+                }
+                $('#comp_status').text('');
+            },
+            error: function(){
+                $('#comp_status').text('Błąd ładowania');
+            }
+        });
+    }
+
+    // Bootstrap tab shown event
+    $('a[data-toggle="tab"][href="#competencies"]').on('shown.bs.tab', function(){
+        if (!compLoaded) {
+            loadCompetencies(true);
+            compLoaded = true;
+        }
+    });
+    $('#comp_reload').on('click', function(){ loadCompetencies(true); });
+    $('#comp_per_page, #comp_department_filter, #comp_level_filter').on('change', function(){ loadCompetencies(true); });
+    var ctypeTimer = null;
+    $('#comp_type_filter').on('input', function(){
+        clearTimeout(ctypeTimer);
+        ctypeTimer = setTimeout(function(){ loadCompetencies(true); }, 300);
+    });
+    $('#comp_prev').on('click', function(){ if (compPage>1){ compPage--; loadCompetencies(false);} });
+    $('#comp_next').on('click', function(){ compPage++; loadCompetencies(false); });
 });
 </script>
 @endsection

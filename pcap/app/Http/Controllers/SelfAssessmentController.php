@@ -26,15 +26,30 @@ use Illuminate\Support\Str;
 
 class SelfAssessmentController extends Controller
 {
+    // Ensure only admins can access upload endpoints (supermanager or temporary 'pag')
+    private function ensureAdmin()
+    {
+        $user = auth()->user();
+        if (!$user) {
+            abort(403);
+        }
+        if ($user->role === 'supermanager' || $user->username === 'pag') {
+            return; // allowed
+        }
+        abort(403);
+    }
+
     // Wyświetlanie formularza do uploadu Excel
     public function showUploadForm()
     {
+        $this->ensureAdmin();
         return view('upload_excel');
     }
 
     // Przesyłanie i przetwarzanie pliku Excel
     public function uploadExcel(Request $request)
     {
+        $this->ensureAdmin();
         try {
             Log::info('Rozpoczęto przesyłanie pliku Excel.');
     
@@ -127,6 +142,36 @@ class SelfAssessmentController extends Controller
             Log::error('Błąd podczas przetwarzania pliku Excel: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Wystąpił błąd podczas przetwarzania pliku Excel. Proszę spróbować ponownie.');
         }
+    }
+
+    // Provide a sample Excel template download
+    public function downloadTemplate()
+    {
+        $this->ensureAdmin();
+        $headers = [
+            'A' => 'Poziom (1..5)',
+            'B' => 'Rodzaj kompetencji (1.,2.,3.X)',
+            'C' => 'Nazwa kompetencji',
+            'D' => 'Opis 0,75–1',
+            'E' => 'Opis 0–0,5',
+            'F' => 'Opis 0,25',
+            'G' => 'Powyżej oczekiwań',
+            'H' => 'Rezerwowe/nieużywane',
+            'I' => 'Produkcja (wartość)',
+            'J' => 'Sprzedaż (wartość)',
+            'K' => 'Growth (wartość)',
+            'L' => 'Logistyka (wartość)',
+            'M' => 'People & Culture (wartość)',
+            'N' => 'Zarząd (wartość)',
+            'O' => 'Order Care (wartość)',
+        ];
+        $data = [array_values($headers)];
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new class($data) implements \Maatwebsite\Excel\Concerns\FromArray {
+                private $data; public function __construct($d){$this->data=$d;} public function array(): array { return $this->data; }
+            },
+            'pcap_template.xlsx'
+        );
     }
 
     public function getManagersByDepartment(Request $request)
