@@ -604,6 +604,9 @@
         <button class="button-tab" data-tab="team">
             <i class="fas fa-users"></i> Cały zespół
         </button>
+        <button class="button-tab" data-tab="codes">
+            <i class="fas fa-key"></i> Kody dostępu
+        </button>
         @if($manager->role == 'supermanager')
             <button class="button-tab" data-tab="hr_individual">
                 <i class="fas fa-user-circle"></i> HR - Indywidualne
@@ -622,6 +625,21 @@
         @endif
     </div>
 
+    <!-- Cycle switcher -->
+    <div class="form-group" style="margin-top:10px;">
+        <label for="cycle-select">Cykl:</label>
+        <select id="cycle-select" class="custom-select" onchange="onCycleChange()">
+            @foreach(($cycles ?? []) as $c)
+                <option value="{{ $c->id }}" {{ (isset($selectedCycleId) && $selectedCycleId == $c->id) ? 'selected' : '' }}>
+                    {{ $c->label }} {{ $c->is_active ? '(aktywny)' : '' }}
+                </option>
+            @endforeach
+        </select>
+        @if(isset($selectedCycle) && !$isSelectedCycleActive)
+            <span style="color:#b00; font-size:12px;">Wybrany cykl jest historyczny – edycja zablokowana.</span>
+        @endif
+    </div>
+
 
 <!-- Zakładka Indywidualna -->
 <div id="individual-tab">
@@ -636,12 +654,12 @@
         </select>
 
         @if(isset($employee))
-        <a href="{{ route('manager.generate_pdf', ['employeeId' => $employee->id]) }}" target="_blank">
+        <a href="{{ route('manager.generate_pdf', ['employeeId' => $employee->id]) }}?cycle={{ $selectedCycleId }}" target="_blank">
             <button type="button">
                 PDF <i class="fas fa-download download-icon"></i>
             </button>
         </a>
-        <a href="{{ route('manager.generate_xls', ['employeeId' => $employee->id]) }}" target="_blank">
+        <a href="{{ route('manager.generate_xls', ['employeeId' => $employee->id]) }}?cycle={{ $selectedCycleId }}" target="_blank">
             <button type="button">
                 XLS <i class="fas fa-download download-icon"></i>
             </button>
@@ -682,6 +700,13 @@
 
 
     @if(isset($employee))
+        @if(session('generated_code') && session('generated_code_employee_id') == $employee->id)
+            <div style="margin:10px 0; padding:10px; background:#e6ffed; border:1px solid #b2f5bc;">
+                <strong>Nowy kod dostępu:</strong>
+                <span style="font-family:monospace;">{{ session('generated_code') }}</span>
+                <span style="color:#555;">(zapisz teraz – nie będzie już widoczny w całości)</span>
+            </div>
+        @endif
         <!-- Formularz wyników -->
         <form action="{{ route('manager.panel.update') }}" method="POST">
             @csrf
@@ -858,13 +883,96 @@
 
             <!-- Zapisz przyciski -->
             <div style="margin-top: 20px;">
-                <button type="submit">Zapisz zmiany</button>
+                <button type="submit" {{ (isset($isSelectedCycleActive) && !$isSelectedCycleActive) ? 'disabled title="Edycja zablokowana dla cyklu historycznego"' : '' }}>Zapisz zmiany</button>
+                @if(isset($isSelectedCycleActive) && $isSelectedCycleActive)
+                    <form action="{{ route('manager.generate_access_code', ['employeeId' => $employee->id]) }}" method="POST" style="display:inline-block; margin-left:10px;">
+                        @csrf
+                        <button type="submit" title="Wygeneruj kod dla aktywnego cyklu">Wygeneruj kod dostępu</button>
+                    </form>
+                @endif
             </div>
         </form>
     @else
         <p>Wybierz pracownika, aby zobaczyć wyniki.</p>
     @endif
 </div> <!-- Koniec zakładki Indywidualne -->
+
+<!-- Zakładka Kody dostępu -->
+<div id="codes-tab" style="display:none;">
+    <h3>Kody dostępu dla zespołu</h3>
+    @php
+        // Zależnie od roli, wybierz odpowiednią listę pracowników
+        $codesEmployees = collect();
+        if ($manager->role == 'supermanager') {
+            $codesEmployees = $allEmployees;
+        } elseif ($manager->role == 'head') {
+            $codesEmployees = $departmentEmployees;
+        } else {
+            $codesEmployees = $employees;
+        }
+    @endphp
+    <div class="form-group" style="margin:10px 0;">
+        <span style="font-size:12px;color:#555;">Cykl: {{ $selectedCycle->label ?? '-' }}. Generowanie dostępne tylko dla aktywnego cyklu.</span>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Imię i nazwisko</th>
+                <th>Stanowisko</th>
+                <th>Dział/Zespół</th>
+                <th>Ostatnie 4</th>
+                <th>Wygasa</th>
+                <th>Akcje</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach(($codesEmployees ?? collect()) as $emp)
+                @php
+                    $code = ($employeeAccessCodes ?? collect())->get($emp->id);
+                @endphp
+                <tr>
+                    <td>{{ $emp->name }}</td>
+                    <td>{{ $emp->job_title }}</td>
+                    <td>{{ $emp->department }}</td>
+                    <td>
+                        @if($code && $code->raw_last4)
+                            <span style="font-family:monospace;" title="Ostatnie 4">•••• {{ $code->raw_last4 }}</span>
+                            <button class="small-button" onclick="copyText('{{ $code->raw_last4 }}')" title="Kopiuj ostatnie 4">Kopiuj</button>
+                        @else
+                            —
+                        @endif
+                    </td>
+                    <td>
+                        @if($code && $code->expires_at)
+                            {{ optional($code->expires_at)->format('Y-m-d H:i') }}
+                        @else
+                            bez terminu
+                        @endif
+                    </td>
+                    <td>
+                        @if(isset($isSelectedCycleActive) && $isSelectedCycleActive)
+                            <form action="{{ route('manager.generate_access_code', ['employeeId' => $emp->id]) }}" method="POST" style="display:inline;">
+                                @csrf
+                                <button type="submit" class="small-button">{{ $code ? 'Regeneruj' : 'Generuj' }}</button>
+                            </form>
+                        @else
+                            <span style="font-size:12px;color:#999;" title="Tylko dla aktywnego cyklu">zablokowane</span>
+                        @endif
+                    </td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+
+    @if(session('generated_code'))
+        <div style="margin:10px 0; padding:10px; background:#e6ffed; border:1px solid #b2f5bc;">
+            <strong>Nowy kod (pełny, jednorazowy podgląd):</strong>
+            <span style="font-family:monospace;">{{ session('generated_code') }}</span>
+            <button class="small-button" onclick="copyText('{{ session('generated_code') }}')">Kopiuj</button>
+            <div style="font-size:12px;color:#555;">Kod nie będzie już widoczny w całości po odświeżeniu.</div>
+        </div>
+    @endif
+</div>
 
 @if($manager->role == 'supermanager')
 <!-- Zakładka HR - Indywidualne -->
@@ -880,12 +988,12 @@
         </select>
 
         @if(isset($employee))
-        <a href="{{ route('manager.generate_pdf', ['employeeId' => $employee->id]) }}" target="_blank">
+        <a href="{{ route('manager.generate_pdf', ['employeeId' => $employee->id]) }}?cycle={{ $selectedCycleId }}" target="_blank">
             <button type="button">
                 PDF <i class="fas fa-download download-icon"></i>
             </button>
         </a>
-        <a href="{{ route('manager.generate_xls', ['employeeId' => $employee->id]) }}" target="_blank">
+        <a href="{{ route('manager.generate_xls', ['employeeId' => $employee->id]) }}?cycle={{ $selectedCycleId }}" target="_blank">
             <button type="button">
                 XLS <i class="fas fa-download download-icon"></i>
             </button>
@@ -1081,7 +1189,7 @@
 
             <!-- Zapisz przyciski -->
             <div style="margin-top: 20px;">
-                <button type="submit">Zapisz zmiany</button>
+                <button type="submit" {{ (isset($isSelectedCycleActive) && !$isSelectedCycleActive) ? 'disabled title="Edycja zablokowana dla cyklu historycznego"' : '' }}>Zapisz zmiany</button>
             </div>
         </form>
     @else
@@ -1206,6 +1314,34 @@
                             <strong>{{ $levelName }}</strong>
                             <p>{{ $count }} {{ pluralForm($count, ['osoba', 'osoby', 'osób']) }}</p>
                         </div>
+
+                        <script>
+                            function onCycleChange(){
+                                const sel = document.getElementById('cycle-select');
+                                const cycle = sel ? sel.value : '';
+                                const url = new URL(window.location.href);
+                                if(cycle){ url.searchParams.set('cycle', cycle); }
+                                else { url.searchParams.delete('cycle'); }
+                                // Preserve selected employee if any
+                                const empSel = document.getElementById('employee-select');
+                                if(empSel && empSel.value){ url.searchParams.set('employee', empSel.value); }
+                                window.location.href = url.toString();
+                            }
+                            function filterByEmployee(){
+                                const empSel = document.getElementById('employee-select');
+                                const url = new URL(window.location.href);
+                                if(empSel && empSel.value){ url.searchParams.set('employee', empSel.value); }
+                                else { url.searchParams.delete('employee'); }
+                                // keep cycle
+                                const cycleSel = document.getElementById('cycle-select');
+                                if(cycleSel && cycleSel.value){ url.searchParams.set('cycle', cycleSel.value); }
+                                window.location.href = url.toString();
+                            }
+                            function filterByHREmployee(){
+                                // mirrors filterByEmployee for HR tab
+                                filterByEmployee();
+                            }
+                        </script>
                     </div>
                 @endforeach
 
@@ -1371,6 +1507,7 @@
                             <div class="download-buttons">
                                 <form action="{{ route('manager.download_team_report') }}" method="POST" style="display: inline;">
                                     @csrf
+                                    <input type="hidden" name="cycle" value="{{ $selectedCycleId }}">
                                     <input type="hidden" name="team_id" value="{{ $team->id }}">
                                     <button type="submit" name="format" value="pdf" class="small-button">
                                         PDF <i class="fas fa-download download-icon"></i>
@@ -1618,6 +1755,7 @@
             <div style="margin-bottom: 20px;">
                 <form action="{{ route('department.export') }}" method="GET">
                     @csrf
+                    <input type="hidden" name="cycle" value="{{ $selectedCycleId }}">
                     <button type="submit">
                         Pobierz XLS <i class="fas fa-download download-icon"></i>
                     </button>
@@ -1752,7 +1890,7 @@
         </div>
 
         @php
-        $tabIds = ['individual', 'team'];
+        $tabIds = ['individual', 'team', 'codes'];
         if ($manager->role == 'supermanager') {
             $tabIds[] = 'hr_individual';
             $tabIds[] = 'hr';
@@ -1922,6 +2060,20 @@
 
         function closeDefinitionModal() {
             document.getElementById('definitionModal').style.display = 'none';
+        }
+
+        function copyText(text) {
+            if (!navigator.clipboard) {
+                // Fallback
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); } catch(e) {}
+                document.body.removeChild(ta);
+                return;
+            }
+            navigator.clipboard.writeText(text);
         }
 
         // Funkcje obsługujące edycję wartości kompetencji

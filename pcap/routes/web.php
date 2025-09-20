@@ -6,7 +6,26 @@ use App\Http\Controllers\AdminPanelController;
 use App\Http\Controllers\ManagerController;
 use Illuminate\Support\Facades\Auth;
 
-// Nowa trasa główna
+// Global temporary maintenance gate (front + manager/admin panels)
+if (config('app.maintenance')) {
+    // Optional: allow a simple health endpoint for monitoring
+    Route::get('/health', function(){ return response('OK', 200); });
+
+    // Catch-all that shows maintenance page with 503 status
+    Route::any('/{any?}', function(){
+        return response()->view('maintenance', [], 503);
+    })->where('any', '.*');
+
+    // Stop registering other routes
+    return;
+}
+
+// Step0 (wybór ścieżki) oraz główne wejścia do procesu
+Route::get('/start', [SelfAssessmentController::class, 'startLanding'])->name('start.landing');
+Route::get('/start/veteran', [SelfAssessmentController::class, 'startVeteranForm'])->name('start.veteran.form');
+Route::post('/start/veteran', [SelfAssessmentController::class, 'startVeteranSubmit'])->name('start.veteran.submit');
+
+// Pozostawiamy dotychczasowy formularz krok 1 (Świeżak) pod '/'
 Route::get('/', [SelfAssessmentController::class, 'showStep1Form'])->name('self.assessment.step1'); // Pierwszy krok - dane osobowe
 
 // Opcja: Przekierowanie z /self-assessment do /
@@ -39,6 +58,10 @@ Route::middleware(['auth'])->group(function(){
 Route::get('/admin', [AdminPanelController::class, 'showAdminPanel'])->name('admin.panel');
 Route::delete('/admin/delete-employee', [AdminPanelController::class, 'deleteEmployee'])->name('admin.delete_employee');
 Route::post('/admin/update-dates', [AdminPanelController::class, 'updateDates'])->name('admin.update_dates');
+// Cycle management (admin)
+Route::post('/admin/cycles/start', [AdminPanelController::class, 'startCycle'])->name('admin.cycles.start');
+Route::post('/admin/cycles/{id}/activate', [AdminPanelController::class, 'activateCycle'])->name('admin.cycles.activate');
+Route::post('/admin/cycles/{id}/lock', [AdminPanelController::class, 'lockCycle'])->name('admin.cycles.lock');
 // Fetch employee data
 Route::get('/admin/employee/{id}', [AdminPanelController::class, 'getEmployee'])->name('admin.get_employee');
 // Update employee data
@@ -53,7 +76,9 @@ Route::get('/admin/competencies/summary', [AdminPanelController::class, 'compete
 
 
 // Manager panel
-Route::post('/manager-panel/update', [ManagerController::class, 'update'])->name('manager.panel.update');
+Route::post('/manager-panel/update', [ManagerController::class, 'update'])
+    ->middleware('enforce.active.cycle.manager')
+    ->name('manager.panel.update');
 
 Route::get('/manager-panel', [ManagerController::class, 'index'])
     ->name('manager_panel')
@@ -66,6 +91,11 @@ Route::get('/manager-panel/generate-pdf/{employeeId}', [ManagerController::class
 Route::get('/manager-panel/generate-xls/{employeeId}', [ManagerController::class, 'generateXls'])
     ->name('manager.generate_xls')
     ->middleware('manager');
+
+// Generate access code for an employee for the active cycle
+Route::post('/manager-panel/access-code/{employeeId}', [ManagerController::class, 'generateAccessCode'])
+    ->name('manager.generate_access_code')
+    ->middleware(['auth','manager']);
 
 Route::post('/manager/download-team-report', [ManagerController::class, 'downloadTeamReport'])->name('manager.download_team_report');
 Route::get('/department/export', [ManagerController::class, 'exportDepartment'])->name('department.export');

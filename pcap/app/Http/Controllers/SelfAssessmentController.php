@@ -26,6 +26,122 @@ use Illuminate\Support\Str;
 
 class SelfAssessmentController extends Controller
 {
+    // Helper: pobierz aktywny cykl
+    private function activeCycleId(): ?int
+    {
+        static $cached = null;
+        if ($cached !== null) return $cached;
+        $cached = \App\Models\AssessmentCycle::where('is_active', true)->value('id');
+        return $cached;
+    }
+
+    // STEP0 landing
+    public function startLanding()
+    {
+        $cycleId = $this->activeCycleId();
+        $cycle = null;
+        if ($cycleId) {
+            $cycle = \App\Models\AssessmentCycle::find($cycleId);
+        }
+        return view('self-assessment.start', [
+            'cycle' => $cycle,
+        ]);
+    }
+
+    // Formularz weterana (kod dostępu) – na razie placeholder (logika kodów w następnym kroku)
+    public function startVeteranForm()
+    {
+        $cycle = null;
+        if ($id = $this->activeCycleId()) {
+            $cycle = \App\Models\AssessmentCycle::find($id);
+        }
+        return view('self-assessment.veteran', [
+            'cycle' => $cycle,
+            'status' => session('veteran_status'),
+        ]);
+    }
+
+    // Obsługa submit weterana – tymczasowo tylko walidacja pustego pola i redirect (prawdziwa weryfikacja w zadaniu nr 5)
+    public function startVeteranSubmit(\Illuminate\Http\Request $request)
+    {
+        $request->validate([
+            'access_code' => 'required|string|max:60',
+        ], [
+            'access_code.required' => 'Podaj kod dostępu.'
+        ]);
+
+        $raw = trim($request->input('access_code'));
+        $cycleId = $this->activeCycleId();
+        if(!$cycleId){
+            return redirect()->route('start.veteran.form')->withErrors('Brak aktywnego cyklu.');
+        }
+
+        // Hash IP (anonimizacja)
+        $ip = $request->ip() ?: '0.0.0.0';
+        $ipHash = hash('sha256', $ip);
+
+        // Rate limiting attempts per IP per active cycle
+        $attempt = \App\Models\EmployeeCodeAttempt::firstOrCreate([
+            'cycle_id' => $cycleId,
+            'ip_hash'  => $ipHash,
+        ], [
+            'attempts' => 0,
+        ]);
+
+        if($attempt->locked_until && now()->lt($attempt->locked_until)){
+            $mins = $attempt->locked_until->diffInMinutes(now());
+            return redirect()->route('start.veteran.form')->withErrors("Zbyt wiele prób. Spróbuj ponownie za {$mins} min.");
+        }
+
+        // Szukamy dopasowania po raw_last4 (przyspieszenie) i później verify hash
+        $last4 = substr(preg_replace('/[^A-Za-z0-9]/','',$raw), -4);
+        $query = \App\Models\EmployeeCycleAccessCode::where('cycle_id',$cycleId);
+        if($last4){
+            $query->where('raw_last4',$last4);
+        }
+        $candidates = $query->get();
+        if($candidates->isEmpty()){
+            // fallback: pełne skanowanie (kosztowne tylko przy bardzo dużej skali – akceptowalne tutaj)
+            $candidates = \App\Models\EmployeeCycleAccessCode::where('cycle_id',$cycleId)->get();
+        }
+
+        $matched = null;
+        foreach($candidates as $code){
+            if(password_verify($raw, $code->code_hash)){
+                $matched = $code; break;
+            }
+        }
+
+        if(!$matched){
+            $attempt->attempts += 1;
+            // Lock after 3 attempts
+            if($attempt->attempts >= 3){
+                $attempt->locked_until = now()->addMinutes(15);
+                $attempt->attempts = 0; // reset after lock window starts
+            }
+            $attempt->save();
+            return redirect()->route('start.veteran.form')->withErrors('Nieprawidłowy kod lub wygasły.');
+        }
+
+        if($matched->expires_at && now()->gt($matched->expires_at)){
+            return redirect()->route('start.veteran.form')->withErrors('Kod wygasł.');
+        }
+
+        // Mamy poprawny kod — ustaw employee i przejdź do formularza samooceny (poziom 1)
+        $employee = $matched->employee; // istniejący rekord z poprzednich lat
+        if(!$employee){
+            return redirect()->route('start.veteran.form')->withErrors('Błąd powiązania pracownika z kodem.');
+        }
+
+        // Reset prób dla IP (sukces)
+        $attempt->attempts = 0; $attempt->locked_until = null; $attempt->save();
+
+        // Upewniamy się że istnieją rekordy w aktywnym cyklu (już sklonowane przy starcie cyklu)
+        // W razie gdyby brakowało – opcjonalnie można by je tu dogenerować (pomijamy – cykl start-cycle robi to hurtem)
+
+        return redirect()->route('self.assessment', ['level' => 1, 'uuid' => $employee->uuid]);
+    }
+
     // Ensure only admins can access upload endpoints (supermanager or temporary 'pag')
     private function ensureAdmin()
     {
@@ -354,16 +470,19 @@ public function showStep1Form()
         // Przypisanie poziomu do zmiennej $currentLevel
         $currentLevel = $level;
 
-        // Pobierz zapisane odpowiedzi z bazy danych dla tego pracownika i poziomu
+        $activeCycleId = $this->activeCycleId();
+        // Pobierz zapisane odpowiedzi z bazy danych dla tego pracownika i poziomu z aktywnego cyklu
         $results = Result::where('employee_id', $employee->id)
+            ->when($activeCycleId, fn($q)=>$q->where('cycle_id',$activeCycleId))
             ->whereHas('competency', function ($query) use ($level) {
                 $query->where('level', 'like', "{$level}%");
             })
-            ->with('competency')
+            ->with(['competency','parent'])
             ->get();
 
-        // Mapowanie wyników do $savedAnswers
+        // Mapowanie wyników do $savedAnswers + poprzedni cykl (parent)
         $savedAnswers = [];
+        $prevAnswers = [];
         foreach ($results as $result) {
             $savedAnswers['competency_id'][] = $result->competency_id;
             $savedAnswers['score'][$result->competency_id] = $result->score;
@@ -374,10 +493,23 @@ public function showStep1Form()
                 $savedAnswers['comments'][$result->competency_id] = $result->comments;
                 $savedAnswers['add_description'][$result->competency_id] = 1;
             }
+            if ($result->parent) {
+                $prevAnswers['score'][$result->competency_id] = $result->parent->score;
+                if ($result->parent->above_expectations) {
+                    $prevAnswers['above_expectations'][$result->competency_id] = 1;
+                }
+                if ($result->parent->comments) {
+                    $prevAnswers['comments'][$result->competency_id] = $result->parent->comments;
+                }
+                if ($result->parent->feedback_manager) {
+                    $prevAnswers['manager_feedback'][$result->competency_id] = $result->parent->feedback_manager;
+                }
+            }
         }
 
         // Przekazanie zmiennych do widoku
-        return view('self-assessment.form', compact('competencies', 'currentLevel', 'currentLevelName', 'savedAnswers', 'uuid', 'employee'));
+    $showPrev = true; // domyślnie pokażemy toggle, UI ukryje jeśli brak danych
+    return view('self-assessment.form', compact('competencies', 'currentLevel', 'currentLevelName', 'savedAnswers', 'prevAnswers', 'uuid', 'employee', 'showPrev'));
     }
 
     public function sendCopy(Request $request)
@@ -446,8 +578,10 @@ public function showStep1Form()
     }
 
     // Fetch the results of the user with necessary relations
+    $activeCycleId = $this->activeCycleId();
     $results = Result::where('employee_id', $employee->id)
-        ->with('competency.competencyTeamValues') // Eager load without filtering
+        ->when($activeCycleId, fn($q)=>$q->where('cycle_id',$activeCycleId))
+        ->with('competency.competencyTeamValues')
         ->get();
 
     // Generate the PDF
@@ -479,8 +613,10 @@ public function generateXls($uuid)
     }
 
     // Fetch the results of the user with necessary relations
+    $activeCycleId = $this->activeCycleId();
     $results = Result::where('employee_id', $employee->id)
-        ->with('competency.competencyTeamValues') // Eager load without filtering
+        ->when($activeCycleId, fn($q)=>$q->where('cycle_id',$activeCycleId))
+        ->with('competency.competencyTeamValues')
         ->get();
 
     // Export to Excel
@@ -521,12 +657,13 @@ public function generateXls($uuid)
         // Save the form data
         $competencyIds = $request->input('competency_id', []);
         $scores = $request->input('score', []);
-        $aboveExpectations = $request->input('above_expectations', []);
+    $aboveExpectations = $request->input('above_expectations', []);
         $comments = $request->input('comments', []);
     
+        $activeCycleId = $this->activeCycleId();
         // Iterate through competency IDs
         foreach ($competencyIds as $competencyId) {
-            $isAboveExpectations = isset($aboveExpectations[$competencyId]) ? 1 : 0;
+            $isAboveExpectations = intval($aboveExpectations[$competencyId] ?? 0) ? 1 : 0;
         
             // Jeśli above_expectations jest zaznaczone, ustaw score na 1
             if ($isAboveExpectations) {
@@ -538,10 +675,11 @@ public function generateXls($uuid)
                 [
                     'employee_id' => $employee->id,
                     'competency_id' => $competencyId,
+                    'cycle_id' => $activeCycleId,
                 ],
                 [
-                    'score' => $scores[$competencyId] ?? 0,
-                    'above_expectations' => isset($aboveExpectations[$competencyId]) ? 1 : 0,
+                    'score' => $scoreValue,
+                    'above_expectations' => $isAboveExpectations,
                     'comments' => $comments[$competencyId] ?? null,
                     'updated_at' => now(),
                 ]
@@ -625,6 +763,7 @@ public function generateXls($uuid)
                 [
                     'employee_id' => $employee->id,
                     'competency_id' => $competencyId,
+                    'cycle_id' => $this->activeCycleId(),
                 ],
                 [
                     'score' => $scoreValue,

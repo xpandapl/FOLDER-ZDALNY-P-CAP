@@ -57,6 +57,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Application Maintenance Toggle
+    |--------------------------------------------------------------------------
+    |
+    | Simple toggle to enable a temporary maintenance page without using
+    | artisan down/up. Set APP_MAINTENANCE=true in .env to enable.
+    |
+    */
+
+    'maintenance' => (bool) env('APP_MAINTENANCE', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

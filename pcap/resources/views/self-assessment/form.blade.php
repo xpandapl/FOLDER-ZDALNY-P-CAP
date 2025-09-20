@@ -83,11 +83,7 @@ body {
     background-color: #2196F3; /* Widoczny kolor dla competency */
 }
 
-.badge.level {
-    /*display: none; *//* Ukrycie badge dla poziomu */
-    background-color: lightgrey;
-    color:black;
-}
+.badge.level { background-color: #e0e0e0; color:#000; }
 
 .slider-container {
     display: flex;
@@ -400,6 +396,30 @@ button {
 .save-and-exit-button:hover {
     background-color: #1976d2;
 }
+
+/* Rating dots UI */
+.rating-dots .dots-wrap{display:flex;gap:14px;align-items:center;margin:10px 0}
+.rating-dots .dot{width:28px;height:28px;border-radius:50%;background:#ddd;border:2px solid #bdbdbd;cursor:pointer;position:relative}
+.rating-dots .dot.selected{background:#1976d2;border-color:#1565c0}
+.rating-dots .dot.prev::after{display:none}
+.show-prev .rating-dots .dot.prev::after{display:none}
+.rating-dots .dot.star{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;border:2px solid #bdbdbd;background:#ddd;color:#9e9e9e}
+.rating-dots .dot.star.selected{background:#ffd54f;border-color:#f9a825;color:#7a5900}
+.rating-dots .dot.star.prev{outline:2px dashed #f57f17}
+.rating-dots .dots-legend{display:flex;gap:28px;flex-wrap:wrap;color:#666;font-size:13px;margin-bottom:8px;margin-top:0}
+.rating-dots .dots-legend .legend-item.active{color:#1976d2;font-weight:600}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+.definition-bubble{background:#e7f3ff;border-left:4px solid #1e88e5;border-radius:6px;padding:12px;margin-top:10px}
+.definition-bubble .def-content{font-size:14px;color:#0d47a1}
+
+/* Previous-year definition bubble */
+.prev-definition-bubble{background:#fff8e1;border-left:4px solid #ffb300;border-radius:6px;padding:12px;margin-top:10px}
+.prev-definition-bubble .prev-def-content{font-size:14px;color:#5d4037}
+
+/* Show star on last-year selected dot (instead of star button) */
+.rating-dots .dot.prev.prev-star::before{content:'\2605'; /* ★ */ position:absolute; right:-8px; top:-10px; font-size:14px; color:#f9a825; display:none}
+.show-prev .rating-dots .dot.prev.prev-star::before{display:block}
 
 /* Mobile-specific styles */
 @media only screen and (max-width: 768px) {
@@ -744,6 +764,21 @@ let autosaveInterval = setInterval(function() {
             <div class="level-header">
                 Poziom: {{ $currentLevelName }}
             </div>
+
+            <!-- Toggle poprzedniego cyklu -->
+            @if(!empty($prevAnswers))
+            <div style="text-align:right;margin-bottom:10px;">
+                <label style="font-size:14px;color:#333;">
+                    <input type="checkbox" id="togglePrev" onchange="document.body.classList.toggle('show-prev', this.checked)"> Pokaż wyniki z poprzedniego cyklu
+                </label>
+                <style>
+                    .prev-badge{display:none;color:#555;font-size:12px;margin-left:8px}
+                    .show-prev .prev-badge{display:inline-block}
+                    .prev-value{display:none;color:#777;font-size:12px;margin-top:6px}
+                    .show-prev .prev-value{display:block}
+                </style>
+            </div>
+            @endif
             @if ($currentLevel > 1)
                 <button type="button" id="skipButton" class="skip-button">Pomiń resztę samooceny</button>
             @endif
@@ -812,6 +847,20 @@ let autosaveInterval = setInterval(function() {
 
                 <!-- Pętla wyświetlająca pytania -->
                 @foreach($competencies as $competency)
+                @php
+                    // Zbuduj dymek z opisem z zeszłego roku zgodnie z mapowaniem wartości -> tekst opisu
+                    $prevValGlobal = $prevAnswers['score'][$competency->id] ?? null;
+                    $prevTextGlobal = null;
+                    if ($prevValGlobal !== null) {
+                        if ((float)$prevValGlobal == 0) { $prevTextGlobal = 'Nie dotyczy / brak oceny początkowo'; }
+                        elseif ((float)$prevValGlobal == 0.25) { $prevTextGlobal = $competency->description_025; }
+                        elseif ((float)$prevValGlobal == 0.5) { $prevTextGlobal = $competency->description_0_to_05; }
+                        elseif ((float)$prevValGlobal >= 0.75) { $prevTextGlobal = $competency->description_075_to_1; }
+                    }
+                    if (!empty($prevAnswers['above_expectations'][$competency->id])) {
+                        $prevTextGlobal = $competency->description_above_expectations ?: $prevTextGlobal;
+                    }
+                @endphp
                 <div class="question"
                      data-description0to05="{{ $competency->description_0_to_05 }}"
                      data-description025="{{ $competency->description_025 }}"
@@ -821,55 +870,106 @@ let autosaveInterval = setInterval(function() {
 
                         <div class="question-header">
                             <div class="badge-container">
-                            <span class="badge competency {{ getCompetencyClass($competency->competency_type) }}">{{ $competency->competency_type }}</span>
-                                <!-- Badge level jest ukryty przez CSS -->
-                                <span class="badge level">Poziom {{ $competency->level }}</span>
+                                <span class="badge competency {{ getCompetencyClass($competency->competency_type) }}">{{ $competency->competency_type }}</span>
+                                <span class="badge level">Poziom {{ $currentLevel }}. {{ $currentLevelName }}</span>
                             </div>
                         </div>
-                        <label>{{ $competency->competency_name }}:</label>
-                        <div class="slider-container">
-                            <div class="slider-labels">
-                                <div class="slider-label">0</div>
-                                <div class="slider-label">0.25</div>
-                                <div class="slider-label">0.5</div>
-                                <div class="slider-label">0.75</div>
-                                <div class="slider-label">1</div>
-                            </div>
+                        <div style="font-weight:600;margin:6px 0 6px;">Jak oceniasz swoją kompetencję/cechę:</div>
+                        <label style="display:block;font-size:18px;font-weight:700;margin-bottom:8px;">{{ $competency->competency_name }}:
+                            @if(!empty($prevAnswers['score'][$competency->id]))
+                                <span class="prev-badge"><i class="fa fa-history"></i> Poprzednio: {{ $prevAnswers['score'][$competency->id] }}@if(!empty($prevAnswers['above_expectations'][$competency->id])) ⭐@endif</span>
+                            @endif
+                        </label>
+                        <div class="rating-dots" role="radiogroup" aria-label="Ocena">
                             <input type="hidden" name="competency_id[]" value="{{ $competency->id }}">
-                            <input type="range"
-    min="0" max="1" step="0.25"
-    value="{{ $savedAnswers['score'][$competency->id] ?? 0 }}"
-    class="slider"
-    name="score[{{ $competency->id }}]"
-    onchange="updateSliderValue(this)"
-    oninput="markSliderTouched(this)"
-    data-touched="{{ (isset($savedAnswers['score'][$competency->id]) && $savedAnswers['score'][$competency->id] != 0) ? 'true' : 'false' }}">
-
+                            @php
+                                $current = $savedAnswers['score'][$competency->id] ?? 0;
+                                $prev = $prevAnswers['score'][$competency->id] ?? null;
+                                $options = [
+                                    ['v'=>0, 'label'=>'Nie dotyczy'],
+                                    ['v'=>0.25, 'label'=>'Słabo'],
+                                    ['v'=>0.5, 'label'=>'Średnio'],
+                                    ['v'=>0.75, 'label'=>'Dobrze'],
+                                    ['v'=>1, 'label'=>'Bardzo dobrze'],
+                                ];
+                            @endphp
+                            <div class="dots-legend">
+                                @foreach($options as $opt)
+                                    @php $isSelected = ((string)$current === (string)$opt['v']); @endphp
+                                    <span class="legend-item {{ $isSelected ? 'active' : '' }}" data-value="{{ $opt['v'] }}">{{ $opt['label'] }}</span>
+                                @endforeach
+                                <span class="legend-item" data-star="1">Powyżej oczekiwań</span>
+                            </div>
+                            <div class="dots-wrap" style="margin-top:6px;">
+                                @foreach($options as $opt)
+                                    @php
+                                        $isSelected = ((string)$current === (string)$opt['v']);
+                                        $isPrev = ((string)$prev === (string)$opt['v']);
+                                        $prevHadStar = !empty($prevAnswers['above_expectations'][$competency->id]);
+                                        $prevStarOnThisDot = $isPrev && $prevHadStar; // gwiazdka na przycisku z oceną z zeszłego roku
+                                    @endphp
+                                    <button type="button" class="dot {{ $isSelected ? 'selected' : '' }} {{ $isPrev ? 'prev' : '' }} {{ $prevStarOnThisDot ? 'prev-star' : '' }}" data-value="{{ $opt['v'] }}" aria-pressed="{{ $isSelected ? 'true' : 'false' }}" title="{{ $opt['label'] }}">
+                                        <span class="sr-only">{{ $opt['label'] }}</span>
+                                    </button>
+                                @endforeach
+                                <!-- Above expectations star only reflects current selection visually (no prev-star here) -->
+                                <button type="button" class="dot star {{ !empty($savedAnswers['above_expectations'][$competency->id]) ? 'selected' : '' }}" data-star="1" title="Powyżej oczekiwań">{{ !empty($savedAnswers['above_expectations'][$competency->id]) ? '★' : '☆' }}</button>
+                                <input type="hidden" name="score[{{ $competency->id }}]" value="{{ $current }}" class="score-input">
+                                <input type="hidden" name="above_expectations[{{ $competency->id }}]" value="{{ !empty($savedAnswers['above_expectations'][$competency->id]) ? 1 : 0 }}" class="star-input">
+                            </div>
                         </div>
 
                         <!-- Opis suwaka -->
                         <div class="slider-description" style="display:none; margin-top:15px;"></div>
 
-                        <!-- Checkbox "Powyżej oczekiwań" -->
-                        <div class="above-expectations-container">
-                            <label class="toggle-checkbox">
-                            <input type="checkbox" name="above_expectations[{{ $competency->id }}]" onclick="toggleAboveExpectations(this)" {{ isset($savedAnswers['above_expectations'][$competency->id]) ? 'checked' : '' }}>
-                                <span class="custom-toggle"></span>
-                                <span class="label-text">Powyżej oczekiwań</span>
-                            </label>
+                        <!-- Definicja wybranego poziomu (dymek) -->
+                        <div class="definition-bubble" style="display:none;">
+                            <div style="font-weight:600;color:#1976d2;margin-bottom:6px;">Definicja wybranego poziomu kompetencji:</div>
+                            <div class="def-content"></div>
                         </div>
 
-                        <!-- Checkbox "Dodaj opis/argumentację" -->
+                        <!-- Checkbox "Dodaj uzasadnienie" -->
                         <div class="add-description-container">
-                        <input type="checkbox" name="add_description[{{ $competency->id }}]" onchange="toggleDescriptionInput(this)" {{ isset($savedAnswers['add_description'][$competency->id]) ? 'checked' : '' }}>
-                            <label>Dodaj opis/argumentację</label>
+                            <input type="checkbox" name="add_description[{{ $competency->id }}]" onchange="toggleDescriptionInput(this)" {{ isset($savedAnswers['add_description'][$competency->id]) ? 'checked' : '' }}>
+                            <label>Dodaj uzasadnienie</label>
                         </div>
+
+                        @if(!empty($prevTextGlobal))
+                            <!-- Dymek z opisem z poprzedniego roku, poniżej oceny/definicji i "Dodaj uzasadnienie" -->
+                            <div class="prev-definition-bubble prev-value">
+                                <div style="font-weight:600;color:#a15a00;margin-bottom:6px;">Jak opisaliśmy to poprzednio:</div>
+                                <div class="prev-def-content">{{ $prevTextGlobal }}</div>
+                            </div>
+                        @endif
+
+                        @php $hasPrev = !empty($prevAnswers['comments'][$competency->id]) || !empty($prevAnswers['manager_feedback'][$competency->id]); @endphp
 
                         <!-- Pole tekstowe na opis -->
                         <div class="textarea-description" style="display:none;">
                             <textarea name="comments[{{ $competency->id }}]" placeholder="Wpisz opis/argumentację...">{{ $savedAnswers['comments'][$competency->id] ?? '' }}</textarea>
-
                         </div>
+                        @if(!empty($prevTextGlobal))
+                            <!-- Dymek z opisem z poprzedniego roku, poniżej pola tekstowego -->
+                            <div class="prev-definition-bubble prev-value" style="margin-top:8px;">
+                                <div style="font-weight:600;color:#a15a00;margin-bottom:6px;">Jak opisaliśmy to poprzednio:</div>
+                                <div class="prev-def-content">{{ $prevTextGlobal }}</div>
+                            </div>
+                        @endif
+                        <!-- Poprzedni komentarz (read-only box below textarea) -->
+                        @if($hasPrev)
+                        <div class="prev-value" style="margin-top:10px;">
+                            @if(!empty($prevAnswers['comments'][$competency->id]))
+                                <div style="font-weight:600;margin-bottom:6px;">Co napisałeś/aś poprzednim razem:</div>
+                                <div class="prev-comment" style="white-space:pre-wrap;">{{ $prevAnswers['comments'][$competency->id] }}</div>
+                            @endif
+                            @if(!empty($prevAnswers['manager_feedback'][$competency->id]))
+                                <div class="prev-manager" style="white-space:pre-wrap;margin-top:12px;">
+                                    <a href="#" class="toggle-manager" style="color:#1976d2;text-decoration:underline;" onclick="this.nextElementSibling.style.display = (this.nextElementSibling.style.display==='none'||!this.nextElementSibling.style.display)?'block':'none';return false;">Jakiej odpowiedzi udzielił manager ></a>
+                                    <div class="manager-feedback" style="display:none;margin-top:6px;">{{ $prevAnswers['manager_feedback'][$competency->id] }}</div>
+                                </div>
+                            @endif
+                        </div>
+                        @endif
                     </div>
                 @endforeach
 
@@ -896,6 +996,74 @@ let autosaveInterval = setInterval(function() {
         alert("Link został skopiowany do schowka.");
     }
     </script>
+<script>
+// Handle rating dots interactions
+document.querySelectorAll('.question').forEach(function(q){
+    const wrap = q.querySelector('.rating-dots'); if(!wrap) return;
+    const scoreInput = q.querySelector('.score-input');
+    const starInput = q.querySelector('.star-input');
+    const defBubble = q.querySelector('.definition-bubble');
+    const defContent = q.querySelector('.definition-bubble .def-content');
+
+    function updateDefinition(val){
+        const d0 = q.getAttribute('data-description0to05') || '';
+        const d025 = q.getAttribute('data-description025') || '';
+        const d075 = q.getAttribute('data-description075to1') || '';
+        const dAbove = q.getAttribute('data-description-above-expectations') || '';
+        let text = '';
+        if (parseFloat(val) >= 0.75) text = d075; else if (parseFloat(val) >= 0.25) text = d025; else text = d0;
+        if (parseInt(starInput.value)) text = dAbove || text;
+        if (text){ defBubble.style.display='block'; defContent.textContent = text; } else { defBubble.style.display='none'; }
+    }
+
+    wrap.querySelectorAll('.dot').forEach(function(dot){
+        dot.addEventListener('click', function(){
+            if (dot.classList.contains('star')){
+                // toggle star
+                const val = starInput.value === '1' ? '0' : '1';
+                starInput.value = val;
+                dot.classList.toggle('selected', val === '1');
+                    dot.setAttribute('aria-pressed', val === '1' ? 'true' : 'false');
+                    // change icon
+                    dot.textContent = (val === '1') ? '★' : '☆';
+                    if (val === '1') scoreInput.value = '1'; // star enforces 1.0
+                    // Update legend active for 1.0
+                    const legends = q.querySelectorAll('.dots-legend .legend-item');
+                    legends.forEach(l=>l.classList.toggle('active', l.getAttribute('data-value')==='1'));
+                updateDefinition(scoreInput.value);
+                return;
+            }
+            // select score dot
+            const value = this.getAttribute('data-value');
+            scoreInput.value = value;
+            wrap.querySelectorAll('.dot').forEach(d=>{ if(!d.classList.contains('star')) d.classList.remove('selected'); });
+                this.classList.add('selected');
+                // set aria
+                wrap.querySelectorAll('.dot').forEach(d=>{ if(!d.classList.contains('star')) d.setAttribute('aria-pressed','false'); });
+                this.setAttribute('aria-pressed','true');
+            // If not star, ensure star remains as it was; definition updates accordingly
+                const legends = q.querySelectorAll('.dots-legend .legend-item');
+                legends.forEach(l=>l.classList.toggle('active', l.getAttribute('data-value')===value));
+            updateDefinition(value);
+        });
+    });
+
+    // Init bubble
+    updateDefinition(scoreInput.value || '0');
+        // Init star icon and aria
+        const starBtn = wrap.querySelector('.dot.star');
+        if (starBtn){
+            const isOn = starInput.value === '1';
+            starBtn.textContent = isOn ? '★' : '☆';
+            starBtn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+        }
+});
+
+// Toggle manager feedback disclosure
+document.querySelectorAll('.prev-manager .toggle-manager').forEach(function(a){
+    a.addEventListener('click', function(e){ e.preventDefault(); const box = this.nextElementSibling; box.style.display = (box.style.display==='none'||!box.style.display)?'block':'none'; });
+});
+</script>
 </body>
 
 

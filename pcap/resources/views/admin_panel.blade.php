@@ -38,6 +38,9 @@
         <li class="nav-item">
             <a class="nav-link" id="competencies-tab" data-toggle="tab" href="#competencies" role="tab" aria-controls="competencies" aria-selected="false">Baza pytań</a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link" id="cycles-tab" data-toggle="tab" href="#cycles" role="tab" aria-controls="cycles" aria-selected="false">Cykl ocen</a>
+        </li>
     </ul>
 
     <!-- Zawartość zakładek -->
@@ -365,6 +368,88 @@
                     <div id="comp_page_info"></div>
                     <button class="btn btn-sm btn-outline-secondary" id="comp_next">Następna</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Zakładka Cykl ocen -->
+        <div class="tab-pane fade" id="cycles" role="tabpanel" aria-labelledby="cycles-tab">
+            <div class="mt-3">
+                <h2>Cykl ocen</h2>
+
+                <h5 class="mt-3">Istniejące cykle</h5>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Rok</th>
+                                <th>Okres</th>
+                                <th>Etykieta</th>
+                                <th>Status</th>
+                                <th>Zablokowano</th>
+                                <th>Akcje</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse(($cycles ?? collect()) as $c)
+                                <tr>
+                                    <td>{{ $c->id }}</td>
+                                    <td>{{ $c->year }}</td>
+                                    <td>{{ $c->period ?? '—' }}</td>
+                                    <td>{{ $c->label }}</td>
+                                    <td>
+                                        @if($c->is_active)
+                                            <span class="badge badge-success">aktywny</span>
+                                        @else
+                                            <span class="badge badge-secondary">historyczny</span>
+                                        @endif
+                                    </td>
+                                    <td>{{ $c->locked_at ? \Carbon\Carbon::parse($c->locked_at)->format('Y-m-d H:i') : '—' }}</td>
+                                    <td style="white-space:nowrap;">
+                                        @if(!$c->is_active)
+                                            <form method="POST" action="{{ route('admin.cycles.activate', ['id' => $c->id]) }}" style="display:inline-block;">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-outline-primary">Ustaw jako aktywny</button>
+                                            </form>
+                                        @endif
+                                        @if(!$c->locked_at)
+                                            <form method="POST" action="{{ route('admin.cycles.lock', ['id' => $c->id]) }}" style="display:inline-block; margin-left:6px;">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-outline-warning">Zablokuj</button>
+                                            </form>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="7" class="text-center">Brak cykli</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+
+                <h5 class="mt-4">Nowy cykl</h5>
+                <form method="POST" action="{{ route('admin.cycles.start') }}" class="row g-3" style="max-width:680px;">
+                    @csrf
+                    <div class="col-md-3">
+                        <label for="cycle_year" class="form-label">Rok</label>
+                        <input id="cycle_year" type="number" class="form-control" name="year" value="{{ now()->year }}" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="cycle_period" class="form-label">Okres</label>
+                        <input id="cycle_period" type="text" class="form-control" name="period" placeholder="np. H1/H2" />
+                    </div>
+                    <div class="col-md-6">
+                        <label for="cycle_label" class="form-label">Etykieta (opcjonalnie)</label>
+                        <input id="cycle_label" type="text" class="form-control" name="label" placeholder="np. 2025 H1" />
+                    </div>
+                    <div class="col-12 form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="cycle_activate" name="activate" value="1">
+                        <label class="form-check-label" for="cycle_activate">Ustaw jako aktywny (poprzedni aktywny zostanie zablokowany)</label>
+                    </div>
+                    <div class="col-12 mt-2">
+                        <button type="submit" class="btn btn-success">Utwórz cykl</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div> <!-- Zamknięcie div dla tab-content -->

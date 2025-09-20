@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use App\Models\AssessmentCycle;
 use Carbon\Carbon;
 
 class AdminPanelController extends Controller
@@ -55,8 +57,70 @@ class AdminPanelController extends Controller
         }
         $teams = \App\Models\Team::pluck('name');
     $roles = ['manager', 'head', 'supermanager'];
+    $cycles = AssessmentCycle::orderByDesc('year')->orderByDesc('period')->get();
 
-    return view('admin_panel', compact('employees', 'users', 'blockDate', 'teams', 'managerNameByUsername', 'roles'));
+    return view('admin_panel', compact('employees', 'users', 'blockDate', 'teams', 'managerNameByUsername', 'roles', 'cycles'));
+    }
+
+    // UI: start new cycle (optionally mark active). Cloning handled via CLI if needed.
+    public function startCycle(Request $request)
+    {
+        $validated = $request->validate([
+            'year' => 'required|integer|min:2000|max:2100',
+            'period' => 'nullable|string|max:20',
+            'label' => 'nullable|string|max:100',
+            'activate' => 'sometimes|boolean',
+        ]);
+
+        DB::transaction(function () use ($validated) {
+            $activate = (bool)($validated['activate'] ?? false);
+
+            if ($activate) {
+                // Deactivate and lock previous active cycle(s)
+                AssessmentCycle::where('is_active', true)->get()->each(function($c){
+                    $c->is_active = false;
+                    if (!$c->locked_at) { $c->locked_at = now(); }
+                    $c->save();
+                });
+            }
+
+            AssessmentCycle::create([
+                'year' => $validated['year'],
+                'period' => $validated['period'] ?? null,
+                'label' => $validated['label'] ?? ($validated['year'].($validated['period']?(' H'.$validated['period']):'')),
+                'is_active' => $activate,
+            ]);
+        });
+
+        return redirect()->route('admin.panel')->with('success', 'Nowy cykl został utworzony'.(($request->boolean('activate'))?' i ustawiony jako aktywny.':'.'));
+    }
+
+    // UI: activate a cycle and lock the previously active one
+    public function activateCycle($id)
+    {
+        DB::transaction(function () use ($id) {
+            AssessmentCycle::where('is_active', true)->get()->each(function($c){
+                $c->is_active = false;
+                if (!$c->locked_at) { $c->locked_at = now(); }
+                $c->save();
+            });
+            $target = AssessmentCycle::findOrFail($id);
+            $target->is_active = true;
+            // keep locked_at null for active
+            $target->locked_at = null;
+            $target->save();
+        });
+
+        return redirect()->route('admin.panel')->with('success', 'Cykl został ustawiony jako aktywny.');
+    }
+
+    // UI: lock a specific cycle (prevents edits, informational)
+    public function lockCycle($id)
+    {
+        $cycle = AssessmentCycle::findOrFail($id);
+        $cycle->locked_at = now();
+        $cycle->save();
+        return redirect()->route('admin.panel')->with('success', 'Cykl został zablokowany do edycji.');
     }
 
     public function updateDates(Request $request)

@@ -12,6 +12,7 @@ class Result extends Model
     protected $fillable = [
         'employee_id',
         'competency_id',
+        'cycle_id',
         'score',
         'above_expectations',
         'comments',
@@ -36,5 +37,20 @@ class Result extends Model
     public function employee()
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function cycle()
+    {
+        return $this->belongsTo(AssessmentCycle::class, 'cycle_id');
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(Result::class, 'parent_result_id');
+    }
+
+    public function children()
+    {
+        return $this->hasMany(Result::class, 'parent_result_id');
     }
 }

@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Log;
 use App\Models\Team;
 use App\Models\EmployeeCompetencyValue;
 use Illuminate\Support\Facades\Auth;
+use App\Models\AssessmentCycle;
+use App\Models\EmployeeCycleAccessCode;
 
 
 class ManagerController extends Controller
@@ -28,6 +30,33 @@ class ManagerController extends Controller
         5 => "5. Manager"
     ];
     
+    // Active cycle helper
+    private function activeCycleId(): ?int
+    {
+        static $cached = null;
+        if ($cached !== null) return $cached;
+        $cached = AssessmentCycle::where('is_active', true)->value('id');
+        return $cached;
+    }
+
+    // Selected cycle: query ?cycle -> session -> active
+    private function selectedCycleId(Request $request): ?int
+    {
+        $fromQuery = $request->query('cycle');
+        if ($fromQuery) {
+            $cycle = AssessmentCycle::find($fromQuery);
+            if ($cycle) {
+                session(['manager_selected_cycle' => $cycle->id]);
+                return (int)$cycle->id;
+            }
+        }
+        $fromSession = session('manager_selected_cycle');
+        if ($fromSession && AssessmentCycle::find($fromSession)) {
+            return (int)$fromSession;
+        }
+        return $this->activeCycleId();
+    }
+
     public function index(Request $request)
 {
     $manager = auth()->user();
@@ -44,6 +73,12 @@ class ManagerController extends Controller
         5 => '5. Manager'
     ];
 
+    // Cycles
+    $selectedCycleId = $this->selectedCycleId($request);
+    $selectedCycle = $selectedCycleId ? AssessmentCycle::find($selectedCycleId) : null;
+    $isSelectedCycleActive = $selectedCycle ? (bool)$selectedCycle->is_active : false;
+    $cycles = AssessmentCycle::orderByDesc('year')->orderByDesc('period')->get();
+
     // Get the employee ID from the request (if selected)
     $employeeId = $request->input('employee');
 
@@ -52,9 +87,10 @@ class ManagerController extends Controller
         'team:id,name', // Only load team name and ID
         'team.competencyTeamValues:id,team_id,competency_id,value', // Preload team competency values to avoid N+1 in getCompetencyValue
         'overriddenCompetencyValues:id,employee_id,competency_id,value', // Preload overridden values
-        'results' => function ($query) {
+        'results' => function ($query) use ($selectedCycleId) {
             // Load only the fields used in calculations
-            $query->select('id', 'employee_id', 'competency_id', 'score', 'score_manager');
+            $query->select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'cycle_id')
+                  ->when($selectedCycleId, function($q) use ($selectedCycleId){ $q->where('cycle_id', $selectedCycleId); });
         },
         'results.competency' => function ($query) {
             // Only fields required for grouping by level
@@ -70,8 +106,9 @@ class ManagerController extends Controller
                 'team:id,name',
                 'team.competencyTeamValues:id,team_id,competency_id,value',
                 'overriddenCompetencyValues:id,employee_id,competency_id,value',
-                'results' => function ($q) {
-                    $q->select('id','employee_id','competency_id','score','score_manager');
+                'results' => function ($q) use ($selectedCycleId) {
+                    $q->select('id','employee_id','competency_id','score','score_manager','cycle_id')
+                      ->when($selectedCycleId, function($qq) use ($selectedCycleId){ $qq->where('cycle_id', $selectedCycleId); });
                 },
                 'results.competency' => function ($q) {
                     $q->select('id','level');
@@ -87,8 +124,9 @@ class ManagerController extends Controller
                 'team:id,name',
                 'team.competencyTeamValues:id,team_id,competency_id,value',
                 'overriddenCompetencyValues:id,employee_id,competency_id,value',
-                'results' => function ($q) {
-                    $q->select('id','employee_id','competency_id','score','score_manager');
+                'results' => function ($q) use ($selectedCycleId) {
+                    $q->select('id','employee_id','competency_id','score','score_manager','cycle_id')
+                      ->when($selectedCycleId, function($qq) use ($selectedCycleId){ $qq->where('cycle_id', $selectedCycleId); });
                 },
                 'results.competency' => function ($q) {
                     $q->select('id','level');
@@ -105,6 +143,7 @@ class ManagerController extends Controller
     $results = collect(); // Empty collection
     $levelSummaries = [];
     $overriddenValues = collect(); // Initialize here to ensure it's always defined
+    $accessCode = null; // existing access code for selected employee + cycle
 
     if ($employeeId) {
         $employee = Employee::with(['team', 'results.competency.competencyTeamValues'])->find($employeeId);
@@ -116,7 +155,9 @@ class ManagerController extends Controller
             ($manager->role == 'head' && $employee->department == $manager->department)
         )) {
             // Access allowed
-            $results = $employee->results()->with('competency.competencyTeamValues')->get();
+            $results = $employee->results()
+                ->when($selectedCycleId, function($q) use ($selectedCycleId){ $q->where('cycle_id', $selectedCycleId); })
+                ->with('competency.competencyTeamValues')->get();
 
             // Initialize level summaries
             $levelSummaries = [];
@@ -166,6 +207,13 @@ class ManagerController extends Controller
             $overriddenValues = EmployeeCompetencyValue::where('employee_id', $employee->id)
                 ->pluck('value', 'competency_id');
 
+            // Fetch existing access code for this employee and selected cycle
+            if ($selectedCycleId) {
+                $accessCode = EmployeeCycleAccessCode::where('employee_id', $employee->id)
+                    ->where('cycle_id', $selectedCycleId)
+                    ->first();
+            }
+
         } else {
             // Unauthorized access
             abort(403, 'Nie masz dostępu do tego pracownika.');
@@ -188,8 +236,10 @@ class ManagerController extends Controller
         // Prepare HR data
         if ($manager->role == 'supermanager') {
             // Load minimal employee data with results_count instead of full results
-            $teams = Team::with(['employees' => function($q){
-                $q->select('id','department')->withCount('results');
+            $teams = Team::with(['employees' => function($q) use ($selectedCycleId){
+                $q->select('id','department')->withCount(['results' => function($qq) use ($selectedCycleId){
+                    $qq->when($selectedCycleId, function($qqq) use ($selectedCycleId){ $qqq->where('cycle_id', $selectedCycleId); });
+                }]);
             }])->get();
 
             foreach ($teams as $team) {
@@ -209,8 +259,10 @@ class ManagerController extends Controller
             $departmentEmployeesData = $this->prepareEmployeesData($departmentEmployees, $levelNames);
         
             // Przygotuj podsumowanie dla działu (podobnie jak dla HR)
-            $teamsInDepartment = Team::with(['employees' => function($q){
-                    $q->select('id','department')->withCount('results');
+            $teamsInDepartment = Team::with(['employees' => function($q) use ($selectedCycleId){
+                    $q->select('id','department')->withCount(['results' => function($qq) use ($selectedCycleId){
+                        $qq->when($selectedCycleId, function($qqq) use ($selectedCycleId){ $qqq->where('cycle_id', $selectedCycleId); });
+                    }]);
                 }])
                 ->whereHas('employees', function ($query) use ($manager) {
                     $query->where('department', $manager->department);
@@ -235,6 +287,22 @@ class ManagerController extends Controller
         // Fetch all teams
         $teams = Team::all();
 
+        // Build a map of access codes for the selected cycle for all relevant employees
+        $allRelevantEmployeeIds = collect()
+            ->merge($employees->pluck('id'))
+            ->merge(($allEmployees ?? collect())->pluck('id'))
+            ->merge(($departmentEmployees ?? collect())->pluck('id'))
+            ->unique()
+            ->values();
+
+        $employeeAccessCodes = collect();
+        if ($selectedCycleId && $allRelevantEmployeeIds->isNotEmpty()) {
+            $employeeAccessCodes = EmployeeCycleAccessCode::whereIn('employee_id', $allRelevantEmployeeIds)
+                ->where('cycle_id', $selectedCycleId)
+                ->get()
+                ->keyBy('employee_id');
+        }
+
         // Pass variables to the view
         return view('manager_panel', compact(
             'employees',
@@ -251,9 +319,78 @@ class ManagerController extends Controller
             'hrData',
             'manager',
             'overriddenValues',
-            'teams'
+            'teams',
+            'cycles',
+            'selectedCycleId',
+            'selectedCycle',
+            'isSelectedCycleActive',
+            'employeeAccessCodes'
         ));
         
+    }
+
+    // Generate or regenerate an access code for active cycle; show full code once
+    public function generateAccessCode(Request $request, $employeeId)
+    {
+        $manager = auth()->user();
+        $employee = Employee::with('team')->findOrFail($employeeId);
+
+        // Access check
+        if (!($manager->role == 'supermanager' ||
+            $employee->manager_username == $manager->name ||
+            ($manager->role == 'head' && $employee->department == $manager->department))) {
+            abort(403);
+        }
+
+        // Must be active cycle
+        $cycleId = $this->activeCycleId();
+        if (!$cycleId) {
+            return redirect()->back()->with('error', 'Brak aktywnego cyklu.');
+        }
+
+        // Generate readable code; allow optional length and ttl
+        $length = (int)($request->input('length', 12));
+        if ($length < 8) $length = 12;
+        $ttl = $request->input('ttl'); // minutes (optional)
+
+        $code = $this->generateHumanCode($length);
+        $normalized = preg_replace('/[^A-Za-z0-9]/','',$code);
+        $last4 = substr($normalized, -4);
+
+        $payload = [
+            'code_hash' => password_hash($code, PASSWORD_BCRYPT),
+            'raw_last4' => $last4,
+            'expires_at' => $ttl ? now()->addMinutes((int)$ttl) : null,
+        ];
+
+        $existing = EmployeeCycleAccessCode::where('employee_id',$employee->id)
+            ->where('cycle_id',$cycleId)
+            ->first();
+        if ($existing) {
+            $existing->update($payload);
+        } else {
+            EmployeeCycleAccessCode::create(array_merge($payload, [
+                'employee_id' => $employee->id,
+                'cycle_id' => $cycleId,
+            ]));
+        }
+
+        return redirect()->back()->with([
+            'generated_code' => $code,
+            'generated_code_employee_id' => $employee->id,
+        ]);
+    }
+
+    // Same generator as in console command (subset)
+    private function generateHumanCode(int $length): string
+    {
+        $alphabet = str_split('ABCDEFGHJKMNPQRSTUVWXYZ23456789');
+        $raw = '';
+        while (strlen($raw) < $length) {
+            $raw .= $alphabet[random_int(0, count($alphabet)-1)];
+        }
+        $raw = substr($raw, 0, $length);
+        return strtoupper(implode('-', str_split($raw, 4)));
     }
 
     public function exportDepartment(Request $request)
@@ -266,8 +403,17 @@ class ManagerController extends Controller
 
         $levelNames = $this->levelNames;
 
+        // Cycle-aware filtering
+        $cycleId = $request->query('cycle') ?: $this->activeCycleId();
+
         // Fetch the department employees data
-        $departmentEmployees = Employee::with(['team', 'results.competency.competencyTeamValues'])
+        $departmentEmployees = Employee::with([
+                'team',
+                'results' => function ($q) use ($cycleId) {
+                    $q->when($cycleId, function($qq) use ($cycleId){ $qq->where('cycle_id', $cycleId); });
+                },
+                'results.competency.competencyTeamValues'
+            ])
             ->where('department', $manager->department)
             ->get();
 
@@ -299,6 +445,9 @@ class ManagerController extends Controller
         }
 
         // Generate and download the Excel file
+        $date = now()->format('Y-m-d_H-i');
+        $cycle = $cycleId ? AssessmentCycle::find($cycleId) : null;
+        $cycleSuffix = $cycle ? ('_' . $cycle->label) : '';
         return Excel::download(
             new class($data) implements \Maatwebsite\Excel\Concerns\FromArray {
                 private $data;
@@ -313,7 +462,7 @@ class ManagerController extends Controller
                     return $this->data;
                 }
             },
-            'raport_dział_' . $manager->department . '.xlsx'
+            'P-CAP Raport Dział-' . $date . '_' . str_replace(' ', '_', $manager->department) . $cycleSuffix . '.xlsx'
         );
     }
 
@@ -442,8 +591,17 @@ class ManagerController extends Controller
     
         $team = Team::findOrFail($teamId);
     
+        // Cycle-aware
+        $cycleId = $request->query('cycle') ?: $this->activeCycleId();
+
         // Fetch employees of the team based on department
-        $employees = Employee::with(['results', 'team'])
+        $employees = Employee::with([
+                'team',
+                'results' => function ($q) use ($cycleId) {
+                    $q->when($cycleId, function($qq) use ($cycleId){ $qq->where('cycle_id', $cycleId); });
+                },
+                'results.competency'
+            ])
             ->where('department', $team->name)
             ->get();
     
@@ -458,7 +616,10 @@ class ManagerController extends Controller
                 'levelNames' => $this->levelNames
             ])->setPaper('a4', 'landscape');
     
-            return $pdf->download('raport_' . $team->name . '.pdf');
+            $date = now()->format('Y-m-d_H-i');
+            $cycle = $cycleId ? AssessmentCycle::find($cycleId) : null;
+            $cycleSuffix = $cycle ? ('_' . $cycle->label) : '';
+            return $pdf->download('P-CAP Raport Zespół-' . $date . '_' . str_replace(' ', '_', $team->name) . $cycleSuffix . '.pdf');
         } elseif ($format === 'xls') {
             // Prepare data for Excel
             // Najpierw definiujemy nagłówki
@@ -496,7 +657,9 @@ class ManagerController extends Controller
             // Eksport do Excela
             $date = now()->format('Y-m-d_H-i');
             $teamName = str_replace(' ', '_', $team->name);
-            $filename = "P-CAP Raport Full-{$date}_{$teamName}.xlsx";
+            $cycle = $cycleId ? AssessmentCycle::find($cycleId) : null;
+            $cycleSuffix = $cycle ? ('_' . $cycle->label) : '';
+            $filename = "P-CAP Raport Zespół-{$date}_{$teamName}{$cycleSuffix}.xlsx";
             return Excel::download(
                 new TeamReportExport($data, $headers),
                 $filename
@@ -507,13 +670,24 @@ class ManagerController extends Controller
 
     public function update(Request $request)
     {
+        // Only allow updates for results in the active cycle
+        $activeCycleId = $this->activeCycleId();
+        if (!$activeCycleId) {
+            return redirect()->back()->with('error', 'Brak aktywnego cyklu. Zapis zablokowany.');
+        }
         // Update manager's assessments (handle empty submissions safely)
         $scores = (array) $request->input('score_manager', []);
         $feedbacks = (array) $request->input('feedback_manager', []);
+        $skipped = 0;
         foreach ($scores as $resultId => $scoreManager) {
             $result = Result::find($resultId);
 
             if ($result) {
+                if ((int)($result->cycle_id ?? 0) !== (int)$activeCycleId) {
+                    // Skip updates to historical cycles
+                    $skipped++;
+                    continue;
+                }
                 if ($scoreManager === 'above_expectations') {
                     $result->score_manager = 1.0;
                     $result->above_expectations_manager = 1;
@@ -556,8 +730,11 @@ class ManagerController extends Controller
             );
         }
 
-        // Redirect back to the manager panel with the employee parameter
-        return redirect()->action([ManagerController::class, 'index'], ['employee' => $employeeId])->with('success', 'Oceny zostały zaktualizowane.');
+        // Redirect back to the manager panel with the employee parameter and cycle context
+        $msg = $skipped > 0
+            ? 'Oceny zostały zaktualizowane dla aktywnego cyklu. Zmiany w cyklach historycznych zostały zablokowane.'
+            : 'Oceny zostały zaktualizowane.';
+        return redirect()->action([ManagerController::class, 'index'], ['employee' => $employeeId, 'cycle' => $activeCycleId])->with('success', $msg);
     }
 
     private function determineHighestLevel($percJunior, $percSpecialist, $percSenior, $percSupervisor, $percManager)
@@ -633,7 +810,6 @@ class ManagerController extends Controller
     
     
 
-
     public function generatePdf($employeeId)
     {
         $manager = auth()->user();
@@ -647,11 +823,12 @@ class ManagerController extends Controller
             ($manager->role == 'head' && $employee->department == $manager->department))) {
             abort(403);
         }
-    
 
-        // Fetch employee results with competency relationship (without constraints)
+        // Cycle-aware results
+        $cycleId = request()->query('cycle') ?: $this->activeCycleId();
         $results = Result::where('employee_id', $employeeId)
-            ->with('competency') // Load competency without constraints
+            ->when($cycleId, function($q) use ($cycleId){ $q->where('cycle_id', $cycleId); })
+            ->with('competency')
             ->get();
 
         // Generate PDF
@@ -660,17 +837,19 @@ class ManagerController extends Controller
 
         $date = now()->format('Y-m-d_H-i');
         $name = str_replace(' ', '_', $employee->name);
-        $filename = "P-CAP Raport Full-{$date}_{$name}.pdf";
+        $cycle = $cycleId ? AssessmentCycle::find($cycleId) : null;
+        $cycleSuffix = $cycle ? ('_'.$cycle->label) : '';
+        $filename = "P-CAP Raport Full-{$date}_{$name}{$cycleSuffix}.pdf";
         return $pdf->download($filename);
     }
 
     public function generateXls($employeeId)
     {
         $manager = auth()->user();
-    
+
         // Fetch employee with team relationship
         $employee = Employee::with('team')->findOrFail($employeeId);
-    
+
         // Check if manager has access to this employee
         if (!($manager->role == 'supermanager' ||
             $employee->manager_username == $manager->name ||
@@ -678,9 +857,10 @@ class ManagerController extends Controller
             abort(403);
         }
 
-    
-        // Fetch results with necessary relationships
+        // Fetch results with necessary relationships (cycle-aware)
+        $cycleId = request()->query('cycle') ?: $this->activeCycleId();
         $results = Result::where('employee_id', $employeeId)
+            ->when($cycleId, function($q) use ($cycleId){ $q->where('cycle_id', $cycleId); })
             ->with([
                 'competency' => function ($query) use ($employee) {
                     $query->with(['competencyTeamValues' => function ($q) use ($employee) {
@@ -692,7 +872,7 @@ class ManagerController extends Controller
             ->sortBy(function ($result) {
                 return $result->competency->level;
             });
-    
+
         // Prepare data for Excel
         $data = [];
         // Add headers
@@ -709,20 +889,20 @@ class ManagerController extends Controller
             'Feedback od managera',
             'Punkty uzyskane',
         ];
-    
+
         // Initialize variables
         $currentLevel = null;
         $levelEarnedPoints = 0;
         $levelPossiblePoints = 0;
-    
+
         // Inicjalizacja sum ogólnych
         $totalEarnedPoints = 0;
         $totalPossiblePoints = 0;
-    
+
         foreach ($results as $result) {
             $competency = $result->competency;
             $competencyLevel = $competency->level;
-    
+
             // If we're starting a new level
             if ($currentLevel !== $competencyLevel) {
                 // If not the first level, add the summary row for the previous level
@@ -743,33 +923,33 @@ class ManagerController extends Controller
                 $levelPossiblePoints = 0;
                 // Update current level
                 $currentLevel = $competencyLevel;
-    
+
                 // Add a row indicating the new level
                 $data[] = ['', '', '', '', '', '', '', '', '', 'Poziom: ' . $currentLevel, ''];
             }
-    
+
             // Get competency value
             $competencyValue = $competency->getValueForTeam($employee->team->id);
-    
+
             // Use manager's score if available, otherwise employee's score
             $score = $result->score_manager !== null ? $result->score_manager : $result->score;
-    
+
             // Jeśli ocena > 0, uwzględnij w obliczeniach
             if ($score > 0) {
                 $earnedPoints = $competencyValue * $score;
                 $levelEarnedPoints += $earnedPoints;
                 $levelPossiblePoints += $competencyValue;
-    
+
                 // Akumuluj sumy ogólne
                 $totalEarnedPoints += $earnedPoints;
                 $totalPossiblePoints += $competencyValue;
             } else {
                 $earnedPoints = 'N/D';
             }
-    
+
             // Przygotuj wyświetlaną ocenę użytkownika
             $displayScoreUser = $result->score > 0 ? $result->score : 'N/D';
-    
+
             // Przygotuj wyświetlaną ocenę managera
             if ($result->score_manager !== null) {
                 if ($result->score_manager > 0) {
@@ -782,7 +962,7 @@ class ManagerController extends Controller
             } else {
                 $displayScoreManager = '';
             }
-    
+
             // Add data row
             $data[] = [
                 $competency->competency_name,
@@ -798,7 +978,7 @@ class ManagerController extends Controller
                 is_numeric($earnedPoints) ? $earnedPoints : $earnedPoints,
             ];
         }
-    
+
         // After the loop, add summary for the last level
         if ($currentLevel !== null) {
             // Calculate percentage for the last level
@@ -810,7 +990,7 @@ class ManagerController extends Controller
             $data[] = ['', '', '', '', '', '', '', '', '', 'Punkty uzyskane', $levelEarnedPoints];
             $data[] = ['', '', '', '', '', '', '', '', '', 'Procent uzyskany', is_numeric($percentage) ? number_format($percentage, 2) . '%' : $percentage];
         }
-    
+
         // Opcjonalnie, dodaj podsumowanie ogólne
         $data[] = ['', '', '', '', '', '', '', '', '', '', '']; // Pusta linia
         $data[] = ['', '', '', '', '', '', '', '', '', 'Podsumowanie ogólne', ''];
@@ -818,28 +998,21 @@ class ManagerController extends Controller
         $data[] = ['', '', '', '', '', '', '', '', '', 'Punkty uzyskane', $totalEarnedPoints];
         $totalPercentage = $totalPossiblePoints > 0 ? ($totalEarnedPoints / $totalPossiblePoints) * 100 : 'N/D';
         $data[] = ['', '', '', '', '', '', '', '', '', 'Ogólny procent uzyskany', is_numeric($totalPercentage) ? number_format($totalPercentage, 2) . '%' : $totalPercentage];
-    
-        // Use an anonymous class to export data
 
+        // Export
         $date = now()->format('Y-m-d_H-i');
         $name = str_replace(' ', '_', $employee->name);
-        $filename = "P-CAP Raport Full-{$date}_{$name}.xlsx";
+        $cycle = $cycleId ? AssessmentCycle::find($cycleId) : null;
+        $cycleSuffix = $cycle ? ('_'.$cycle->label) : '';
+        $filename = "P-CAP Raport Full-{$date}_{$name}{$cycleSuffix}.xlsx";
         return Excel::download(
             new class($data) implements \Maatwebsite\Excel\Concerns\FromArray {
                 private $data;
-    
-                public function __construct(array $data)
-                {
-                    $this->data = $data;
-                }
-    
-                public function array(): array
-                {
-                    return $this->data;
-                }
+                public function __construct(array $data) { $this->data = $data; }
+                public function array(): array { return $this->data; }
             },
-
             $filename
         );
-    }    
+    }
+
 }
