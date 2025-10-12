@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Formularz samooceny P-CAP</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
 body {
@@ -16,14 +19,14 @@ body {
     justify-content: center;
     align-items: flex-start;
     width: 100%;
-}
-
-.container-wrapper {
-    display: flex;
-    justify-content: center;
-    width: 100%;
-}
-
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+        background-color: var(--bg);
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        width: 100%;
 .container {
     background-color: white;
     padding: 20px;
@@ -32,6 +35,23 @@ body {
     max-width: 800px;
     width: 100%;
     display: flex;
+    .container-wrapper {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+    }
+    :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --text: #1f2937; /* gray-800 */
+        --muted: #6b7280; /* gray-500 */
+        --primary: #2563eb; /* blue-600 */
+        --primary-600: #1d4ed8; /* blue-700 */
+        --ring: rgba(37, 99, 235, 0.15);
+        --accent: #10b981; /* emerald-500 */
+        --warning: #f59e0b; /* amber-500 */
+        --danger: #ef4444; /* red-500 */
+        --border: #e5e7eb; /* gray-200 */
     flex-direction: column;
     align-items: stretch;
     gap: 20px;
@@ -53,75 +73,192 @@ body {
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     width: 100%;
     box-sizing: border-box;
-    display: block;
 }
-
-.question-header {
-    font-size: 18px;
-    font-weight: bold;
-    margin-bottom: 15px;
-    color: #333;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.badge-container {
-    display: flex;
-    gap: 10px;
-}
-
-.badge {
-    display: inline-block;
-    padding: 5px 10px;
-    border-radius: 12px;
-    color: white;
-    font-size: 14px;
-}
-
-.badge.competency {
-    background-color: #2196F3; /* Widoczny kolor dla competency */
-}
-
-.badge.level { background-color: #e0e0e0; color:#000; }
-
-.slider-container {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    width: 100%;
-    position: relative;
-}
-
-.slider {
-    -webkit-appearance: none;
-    width: 100%;
-    height: 8px;
-    border-radius: 5px;
-    background: #d3d3d3;
-    outline: none;
-    transition: opacity .2s;
-}
-
-.slider:hover {
+                    .rating-grid {
+                        display: grid;
+                        grid-template-columns: repeat(6, 1fr);
+                        gap: 10px 0;
+                        width: 100%;
+                        padding: 8px 8px 12px 8px;
+                    }
+                    .rating-col {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                    }
+                    .rating-label {
+                        font-size: 14px;
+                        color: #333;
+                        text-align: center;
+                        margin-bottom: 4px;
+                        line-height: 1.35;
+                        min-height: 52px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 0 2px;
+                    }
+                    .rating-label.active { color: #1976d2; font-weight: 600; }
+                            margin: 0;
+                            padding: 20px;
+                    .rating-dots { padding-top: 8px; padding-bottom: 10px; margin-top: 6px; margin-bottom: 8px; }
+                    .question { margin-bottom: 28px; }
+                    .definition-bubble, .prev-definition-bubble { margin-top: 12px; }
+                    .add-description-container { margin-top: 10px; }
+                    .textarea-description { margin-top: 10px !important; }
+                    .legend-item {
+                        font-size: 14px;
+                        color: #333;
+                        word-break: break-word;
+                        white-space: normal;
+                        text-align: center;
+                        padding: 0 2px;
+                            --bg: #f8fafc;
+                            --card: #ffffff;
+                            --text: #1f2937; /* gray-800 */
+                            --muted: #6b7280; /* gray-500 */
+                            --primary: #2563eb; /* blue-600 */
+                            --primary-600: #1d4ed8; /* blue-700 */
+                            --ring: rgba(37, 99, 235, 0.15);
+                            --accent: #10b981; /* emerald-500 */
+                            --warning: #f59e0b; /* amber-500 */
+                            --danger: #ef4444; /* red-500 */
+                            --border: #e5e7eb; /* gray-200 */
+                        border: 2px solid #1976d2;
+                        background: #fff;
+                        margin: 0 auto;
+                            background-color: var(--card);
+                            padding: 20px 24px;
+                            border-radius: 12px;
+                            border: 1px solid var(--border);
+                            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+                            max-width: 900px;
+                            width: 100%;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: stretch;
+                            gap: 20px;
+                        color: #fff;
+                        box-shadow: 0 0 0 2px #1976d233;
+                    }
+                            font-size: 22px;
+                            font-weight: 700;
+                            text-align: center;
+                            margin-bottom: 8px;
+                            color: var(--text);
+                        background: #fbc02d;
+                        color: #fff;
+                    }
+                            background-color: var(--card);
+                            padding: 18px 16px;
+                            margin-bottom: 22px;
+                            border-radius: 12px;
+                            border: 1px solid var(--border);
+                            box-shadow: 0 3px 8px rgba(15, 23, 42, 0.06);
+                            width: 100%;
+                            box-sizing: border-box;
+                            position: relative;
+                        }
+                        .modal {
+                            width: 24px;
+                            z-index: 1400; /* ponad topbar (1200) i panel ustawień (1300) */
+                            font-size: 16px;
+                        }
+                        .rating-label { min-height: 58px; line-height: 1.38; }
+                    }
+                    .dot {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 50%;
+                        border: 2px solid #1976d2;
+                        background: #fff;
+                        margin: 0 auto;
+                            font-size: 16px;
+                            font-weight: 700;
+                            margin-bottom: 10px;
+                            color: var(--text);
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                    }
+                    .dot.selected {
+                        background: #1976d2;
+                            display: inline-block;
+                            padding: 4px 10px;
+                            border-radius: 999px;
+                            color: #0b1b33;
+                            font-size: 12px;
+                            border: 1px solid var(--border);
+                            background: #f3f4f6;
+                        color: #fbc02d;
+                    }
+                    .dot.star.selected {
+                            background-color: #e8f0fe;
+                            border-color: #dbeafe;
+                            color: #1e40af;
+                        color: #fff;
+                    }
+                    @media (max-width: 700px) {
+                            background-color: #eef2ff;
+                            border-color: #e5e7eb;
+                            color:#312e81;
+                            max-width: 60px;
+                        }
+                        .legend-item {
+                            width: 28px;
+                            height: 28px;
+                            border-radius: 50%;
+                            border: 2px solid var(--primary);
+                            background: #fff;
+                            margin: 0 auto;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 18px;
+                            cursor: pointer;
+                            transition: box-shadow 0.2s, transform .05s ease-in-out;
+                            position: relative;
+        outline: none;
+        transition: opacity .2s;
+                            background: var(--primary);
+                            color: #fff;
+                            box-shadow: 0 0 0 3px var(--ring);
     opacity: 1;
 }
-
-.slider-labels {
+                            border-color: var(--warning);
+                            color: var(--warning);
     display: flex;
     justify-content: space-between;
-    width: 100%;
-    color: #666;
+                            background: var(--warning);
+                            color: #fff;
     font-size: 14px;
     margin-top: 10px;
-}
-
-.toggle-checkbox {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    text-align: center;
-}
+                            border-radius: 10px;
+                            border: 1px solid var(--border);
+                            padding: 10px 16px;
+                            font-weight: 600;
+                            transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
+                        }
+                        .skip-button { background-color: #fff; color: #b91c1c; border-color: #fecaca; }
+                        .skip-button:hover { background-color: #fee2e2; }
+                        .back-button { background-color: #fff; color: var(--text); }
+                        .back-button:hover { background-color: #f3f4f6; }
+                        .save-button { background-color: var(--primary); border-color: var(--primary); color: #fff; }
+                        .save-button:hover { background-color: var(--primary-600); border-color: var(--primary-600); }
+                        .cancel-button { background-color: #fff; color: #b91c1c; border-color: #fecaca; }
+                        .cancel-button:hover { background-color: #fee2e2; }
+                        .copy-button { background-color: #fff; color: var(--text); }
+                        .copy-button:hover { background-color: #f3f4f6; }
+                        .modal-content {
+                            background-color: var(--card);
+                            padding: 24px;
+                            border-radius: 14px;
+                            width: min(520px, 92vw);
+                            text-align: center;
+                            border: 1px solid var(--border);
+                            box-shadow: 0 16px 40px rgba(15,23,42,.18);
 
 .custom-toggle {
     width: 20px;
@@ -381,7 +518,8 @@ button {
     font-size: 14px;
 }
 
-.save-and-exit-button {
+/* Default: keep neutral; scope special look to header and user-card separately */
+.user-card .save-and-exit-button {
     background-color: #2196F3;
     color: white;
     padding: 8px 10px;
@@ -393,7 +531,7 @@ button {
     width: 100%;
 }
 
-.save-and-exit-button:hover {
+.user-card .save-and-exit-button:hover {
     background-color: #1976d2;
 }
 
@@ -410,11 +548,11 @@ button {
 .rating-dots .dots-legend .legend-item.active{color:#1976d2;font-weight:600}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
-.definition-bubble{background:#e7f3ff;border-left:4px solid #1e88e5;border-radius:6px;padding:12px;margin-top:10px}
+.definition-bubble{background:#e7f3ff;border-left:none;border-radius:6px;padding:12px;margin-top:10px}
 .definition-bubble .def-content{font-size:14px;color:#0d47a1}
 
 /* Previous-year definition bubble */
-.prev-definition-bubble{background:#fff8e1;border-left:4px solid #ffb300;border-radius:6px;padding:12px;margin-top:10px}
+.prev-definition-bubble{background:#fff8e1;border-left:none;border-radius:6px;padding:12px;margin-top:10px}
 .prev-definition-bubble .prev-def-content{font-size:14px;color:#5d4037}
 
 /* Show star on last-year selected dot (instead of star button) */
@@ -475,6 +613,243 @@ button {
 
 
 
+</style>
+
+<!-- Scoped modern/fixed styles to override any broken rules above without touching them -->
+<style>
+body.assessment-fix {
+    font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
+    background-color: #f8fafc;
+    color: #1f2937;
+}
+/* Make outer container airy; individual question cards carry borders/shadows */
+body.assessment-fix .container {
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    max-width: 840px;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+}
+body.assessment-fix .level-header { color: #1f2937; font-weight: 700; margin-bottom: 8px; }
+body.assessment-fix .form-header { display:flex; justify-content: space-between; align-items:center; gap:12px; margin-bottom:16px; }
+body.assessment-fix .assessment-flow { display:flex; justify-content: center; align-items:center; gap:16px; width:100%; }
+body.assessment-fix .assessment-flow .flow-left { display:flex; flex-direction:column; gap:8px; min-width:0; align-items:center; }
+body.assessment-fix .assessment-flow .flow-right { flex:0 0 auto; display:flex; align-items:center; gap:10px; }
+body.assessment-fix .flow-info { color:#1f2937; font-weight:600; font-size:14px; }
+body.assessment-fix .steps { display:flex; align-items:center; gap:10px; justify-content:center; }
+body.assessment-fix .step { position:relative; display:flex; align-items:center; gap:10px; }
+body.assessment-fix .step .ring { width:30px; height:30px; border-radius:50%; background: conic-gradient(#e5e7eb 0, #e5e7eb 360deg); display:grid; place-items:center; box-shadow: inset 0 0 0 3px #fff, 0 0 0 1px #e5e7eb; }
+body.assessment-fix .step.current .ring { background: conic-gradient(#2563eb 0deg, #e5e7eb 0deg); box-shadow: inset 0 0 0 3px #fff, 0 0 0 1px #2563eb; }
+body.assessment-fix .step.done .ring { background:#2563eb; box-shadow: inset 0 0 0 3px #fff, 0 0 0 1px #2563eb; }
+body.assessment-fix .ring-text { font-size:10px; font-weight:700; color:#111827; mix-blend-mode:normal; }
+body.assessment-fix .step.done .ring-text { color:#fff; }
+body.assessment-fix .step-label { font-size:11px; color:#374151; font-weight:600; }
+body.assessment-fix .step.current .step-label { color:#1f2937; }
+body.assessment-fix .connector { width:32px; height:2px; background:#e5e7eb; border-radius:2px; }
+body.assessment-fix .step.done + .connector { background:#2563eb; }
+@media (max-width: 820px) {
+    body.assessment-fix .flow-info { display:none; }
+    /* tighter spacing for mobile */
+    body.assessment-fix .steps { gap:3px; }
+    body.assessment-fix .step { gap:3px; }
+    body.assessment-fix .connector { width:10px; }
+    body.assessment-fix .step .ring { width:20px; height:20px; }
+    body.assessment-fix .ring-text { font-size:8px; }
+    /* On very small screens show numbers 1..5 instead of labels */
+    body.assessment-fix .step-label { position: relative; color: transparent !important; max-width: 22px; }
+    /* Ensure the current step label also hides (override stronger selector above) */
+    body.assessment-fix .step.current .step-label { color: transparent !important; }
+    body.assessment-fix .step-label::after { content: attr(data-num); position:absolute; inset:0; color:#374151; font-weight:700; text-align:center; font-size:11px; }
+}
+
+/* Fixed top header */
+body.assessment-fix .assessment-topbar { position: fixed; top: var(--gt-offset, 0px); left: 0; right: 0; background: #ffffffcc; backdrop-filter: saturate(150%) blur(6px); border-bottom:1px solid #e5e7eb; z-index: 1200; }
+body.assessment-fix .assessment-topbar .inner { max-width: 1100px; margin: 0 auto; padding: 10px 16px; }
+@media (max-width: 700px){
+    body.assessment-fix .assessment-topbar .topbar-row{ flex-wrap: wrap; gap:8px; }
+    body.assessment-fix .assessment-topbar .topbar-row > .user-summary{ flex:1 1 60%; min-width:220px; }
+    body.assessment-fix .assessment-topbar .topbar-row > div:last-child{ flex:1 1 40%; display:flex; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
+}
+@media (max-width: 480px){
+    body.assessment-fix #skipButton{ display:none !important; }
+}
+/* Dynamic topbar height variable (updated via JS) */
+:root { --topbar-h: 66px; }
+/* Offset main content to avoid overlap with fixed header */
+body.assessment-fix .container-wrapper { padding-top: calc(var(--topbar-h, 66px) + var(--gt-offset, 0px)); }
+/* Remove previously reserved space for floating user card */
+@media (min-width: 1200px){ body.assessment-fix .container { padding-right: 0; } }
+/* Step label ellipsis for long names */
+body.assessment-fix .step-label { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Language selector and text size switcher (legacy inline in header; now inside settings panel) */
+body.assessment-fix .topbar-controls { display:flex; align-items:center; gap:10px; margin-right:10px; }
+body.assessment-fix .lang-select { appearance:none; border:1px solid #e5e7eb; background:#fff; border-radius:8px; padding:6px 8px; font-size:12px; color:#111827; }
+body.assessment-fix .textsize-switch { display:flex; align-items:center; gap:6px; border:1px solid #e5e7eb; border-radius:999px; padding:4px 6px; background:#fff; }
+body.assessment-fix .ts-btn { border:0; background:transparent; color:#374151; font-weight:700; padding:4px 6px; border-radius:6px; cursor:pointer; }
+body.assessment-fix .ts-btn[aria-pressed="true"], body.assessment-fix .ts-btn.active { background:#eef2ff; color:#1f2937; }
+/* Save and exit button in header */
+body.assessment-fix .save-and-exit-button { background-color: var(--primary); border: 1px solid var(--primary); color:#fff; border-radius:10px; padding:8px 12px; font-weight:600; cursor:pointer; }
+/* Ensure header Save button is always visible */
+body.assessment-fix .assessment-topbar .save-and-exit-button { display: inline-flex !important; align-items: center; }
+body.assessment-fix .save-and-exit-button:hover { background-color: var(--primary-600); border-color: var(--primary-600); }
+/* Settings dropdown */
+body.assessment-fix .settings-container { position: relative; }
+body.assessment-fix .settings-button { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; border:1px solid #e5e7eb; background:#fff; color:#374151; cursor:pointer; }
+body.assessment-fix .settings-button:hover { background:#f3f4f6; }
+body.assessment-fix .settings-button i { font-size:16px; color:#6b7280; }
+body.assessment-fix .settings-panel { position:absolute; right:0; top:42px; background:#fff; border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,.16); padding:10px 12px; width:320px; display:none; z-index:1300; }
+body.assessment-fix .settings-panel.open { display:block; }
+/* Settings toolbar (horizontal) */
+body.assessment-fix .settings-toolbar { display:flex; align-items:center; gap:10px; justify-content:space-between; flex-wrap:wrap; }
+body.assessment-fix .settings-toolbar .settings-label { font-size:12px; color:#6b7280; font-weight:600; }
+/* Language flags group */
+body.assessment-fix .settings-toolbar .lang-flags { display:inline-flex; align-items:center; gap:8px; }
+body.assessment-fix .settings-toolbar .lang-flag { display:inline-flex; align-items:center; justify-content:center; width:36px; height:32px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; font-size:16px; line-height:1; }
+body.assessment-fix .settings-toolbar .lang-flag:hover { background:#f3f4f6; }
+body.assessment-fix .settings-toolbar .lang-flag.active { background:#eef2ff; border-color:#c7d2fe; }
+/* Hidden select kept for integration */
+body.assessment-fix .settings-toolbar .lang-select { display:none; }
+body.assessment-fix .settings-toolbar .settings-divider { width:1px; height:22px; background:#e5e7eb; }
+body.assessment-fix .settings-toolbar .textsize-switch { display:inline-flex; gap:6px; border:0; padding:0; background:transparent; }
+body.assessment-fix .settings-toolbar .ts-btn { min-width:42px; height:32px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; justify-content:center; }
+body.assessment-fix .settings-toolbar .ts-btn:hover { background:#f3f4f6; }
+/* Text size icons (SVG, not translatable) */
+body.assessment-fix .ts-icon { display:block; color:#374151; }
+body.assessment-fix .ts-icon-sm { width:16px; height:16px; }
+body.assessment-fix .ts-icon-md { width:18px; height:18px; }
+body.assessment-fix .ts-icon-lg { width:20px; height:20px; }
+/* Text scaling */
+body.assessment-fix.text-lg { font-size: 17px; }
+body.assessment-fix.text-xl { font-size: 19px; }
+/* Ensure form elements scale comfortably */
+body.assessment-fix.text-lg .textarea-description textarea { min-height: 150px; }
+body.assessment-fix.text-xl .textarea-description textarea { min-height: 160px; }
+
+/* Accessibility: scale key text blocks when user chooses larger text */
+/* Competency name (question label) overrides inline px */
+body.assessment-fix.text-lg .question > label { font-size: 20px !important; line-height: 1.35 !important; }
+body.assessment-fix.text-xl .question > label { font-size: 22px !important; line-height: 1.35 !important; }
+/* Subheaders and assessment labels */
+body.assessment-fix.text-lg .assessment-subheader { font-size: 15px !important; }
+body.assessment-fix.text-xl .assessment-subheader { font-size: 16px !important; }
+body.assessment-fix.text-lg .assessment-label { font-size: 15px !important; }
+body.assessment-fix.text-xl .assessment-label { font-size: 16px !important; }
+/* Rating labels */
+body.assessment-fix.text-lg .rating-label { font-size: 14px !important; }
+body.assessment-fix.text-xl .rating-label { font-size: 15px !important; }
+/* Definition bubble */
+body.assessment-fix.text-lg .definition-bubble > div:first-child { font-size: 15px !important; }
+body.assessment-fix.text-xl .definition-bubble > div:first-child { font-size: 16px !important; }
+body.assessment-fix.text-lg .definition-bubble .def-content { font-size: 16px !important; line-height: 1.6 !important; }
+body.assessment-fix.text-xl .definition-bubble .def-content { font-size: 18px !important; line-height: 1.65 !important; }
+/* Badges */
+body.assessment-fix.text-lg .badge { font-size: 13px !important; }
+body.assessment-fix.text-xl .badge { font-size: 14px !important; }
+/* Topbar text */
+body.assessment-fix.text-lg .flow-info { font-size: 15px !important; }
+body.assessment-fix.text-xl .flow-info { font-size: 16px !important; }
+body.assessment-fix.text-lg .step-label { font-size: 12px !important; }
+body.assessment-fix.text-xl .step-label { font-size: 13px !important; }
+
+/* Note: nie ukrywamy na siłę banera Google Translate, zamiast tego mądrze odsuwamy header i content dynamicznie JS-em. */
+body.assessment-fix .question {
+    background-color: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 3px 8px rgba(15, 23, 42, 0.06);
+    padding: 18px 16px;
+    margin-bottom: 24px;
+    position: relative;
+}
+body.assessment-fix .question::before { display: none !important; }
+body.assessment-fix .question-header { color:#1f2937; font-weight:700; margin-bottom:10px; }
+body.assessment-fix .assessment-subheader { color:#6b7280; font-weight:500; margin:6px 0 4px; font-size:13px; text-align:left; }
+body.assessment-fix .assessment-label { color:#111827; font-weight:500; font-size:14px; }
+/* Left-align primary texts for readability */
+body.assessment-fix .question > label { display:block; font-weight:600; color:#111827; text-align:left; margin-bottom:6px; }
+body.assessment-fix .definition-bubble, body.assessment-fix .prev-definition-bubble { text-align:left; }
+body.assessment-fix .badge { display:inline-block; padding:4px 10px; border-radius:999px; border:1px solid #e5e7eb; background:#f3f4f6; font-size:12px; color:#0b1b33; }
+body.assessment-fix .badge.competency { background:#e8f0fe; border-color:#dbeafe; color:#1e40af; }
+body.assessment-fix .badge.level { background:#eef2ff; border-color:#e5e7eb; color:#312e81; }
+/* Gentle left color bar per category */
+body.assessment-fix .question{ border-left:4px solid #e5e7eb; padding-left:20px; }
+body.assessment-fix .question .badge-container{ display:flex; gap:8px; align-items:center; justify-content:flex-start; }
+body.assessment-fix .assessment-subheader{ text-align:left; }
+body.assessment-fix label{ text-align:left; display:block; }
+/* Balance inner padding in cards */
+body.assessment-fix .question{ padding-right:20px; }
+body.assessment-fix .question.osobiste{ border-left-color:#bfdbfe; }
+body.assessment-fix .question.spoleczne{ border-left-color:#bbf7d0; }
+body.assessment-fix .question.liderskie{ border-left-color:#e9d5ff; }
+body.assessment-fix .question.zawodowe-logistics{ border-left-color:#fed7aa; }
+body.assessment-fix .question.zawodowe-growth{ border-left-color:#a7f3d0; }
+body.assessment-fix .question.zawodowe-inne{ border-left-color:#fecaca; }
+
+/* Rating grid */
+body.assessment-fix .rating-dots { padding-top: 8px; padding-bottom: 8px; }
+body.assessment-fix .rating-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:10px 0; width:100%; padding: 4px 8px; }
+body.assessment-fix .rating-col { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+body.assessment-fix .rating-label { font-size:13px; line-height:1.3; min-height:42px; text-align:center; display:flex; align-items:center; justify-content:center; color:#374151; padding:0 4px; font-weight:400; }
+body.assessment-fix .rating-label.active { color:#2563eb; font-weight:500; }
+body.assessment-fix .dot { width:28px; height:28px; border-radius:50%; border:2px solid #2563eb; background:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer; transition: box-shadow .2s; }
+body.assessment-fix .dot.selected { background:#2563eb; color:#fff; box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+body.assessment-fix .dot.star { border-color:#f59e0b; color:#f59e0b; }
+body.assessment-fix .dot.star.selected { background:#f59e0b; color:#fff; }
+
+/* Text areas and bubbles */
+body.assessment-fix .definition-bubble, body.assessment-fix .prev-definition-bubble { background:#eef2ff; border:1px solid #c7d2fe; color:#111827; border-radius:10px; padding:12px 14px; }
+body.assessment-fix .definition-bubble > div:first-child { font-size:13px; font-weight:700; color:#1d4ed8; }
+body.assessment-fix .definition-bubble .def-content { font-size:14px; font-weight:400; line-height:1.55; color:#111827; }
+body.assessment-fix .textarea-description textarea { border:1px solid #e5e7eb; border-radius:8px; padding:12px; outline:none; min-height:140px; resize: vertical; width:100%; box-sizing:border-box; font-size:15px; line-height:1.55; font-family: 'Segoe UI', Roboto, Inter, sans-serif; color:#111827; }
+body.assessment-fix .textarea-description textarea:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+body.assessment-fix .textarea-description textarea::placeholder { color:#6b7280; font-style:italic; }
+body.assessment-fix .textarea-description { margin-top: 10px; }
+
+/* Buttons */
+body.assessment-fix .skip-button, body.assessment-fix .back-button, body.assessment-fix .save-button, body.assessment-fix .cancel-button, body.assessment-fix .copy-button { border-radius:10px; border:1px solid #e5e7eb; padding:10px 16px; font-weight:600; }
+body.assessment-fix .save-button { background:#2563eb; color:#fff; border-color:#2563eb; }
+body.assessment-fix .save-button:hover { background:#1d4ed8; border-color:#1d4ed8; }
+body.assessment-fix .back-button { background:#fff; color:#111827; }
+body.assessment-fix .back-button:hover { background:#f3f4f6; }
+body.assessment-fix .skip-button { background:#fff; color:#991b1b; border-color:#fecaca; }
+body.assessment-fix .skip-button:hover { background:#fee2e2; }
+/* Prevent skip button from stretching full height in any flex context */
+body.assessment-fix .skip-button { display:inline-flex; flex:0 0 auto; align-self:center; height:auto; max-height:none; width:auto; }
+
+/* Modal */
+body.assessment-fix .modal-content { background:#fff; border:1px solid #e5e7eb; border-radius:14px; width:min(520px,92vw); box-shadow: 0 16px 40px rgba(15,23,42,.18); }
+
+/* Restore floating user card on desktop */
+body.assessment-fix .user-card { position: fixed; top: calc(var(--gt-offset, 0px) + var(--topbar-h, 66px) + 10px); right: 10px; background: #fff; border:1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 8px 24px rgba(15,23,42,.12); width: 220px; z-index: 1000; padding:12px; }
+body.assessment-fix .user-card .save-and-exit-button { display:block; width:100%; margin-top:8px; background:#2563eb; color:#fff; border-color:#2563eb; border-radius:10px; padding:8px 10px; font-size:14px; }
+body.assessment-fix .user-card .save-and-exit-button:hover { background:#1d4ed8; }
+/* Align add-description checkbox to the left */
+body.assessment-fix .add-description-container { display:flex; align-items:center; justify-content:flex-start; gap:8px; margin-top:8px; }
+
+@media (max-width: 700px){
+  body.assessment-fix .rating-label { min-height:56px; }
+  body.assessment-fix .dot { width:24px; height:24px; font-size:16px; }
+}
+/* Remove legacy right offset for floating user card to keep container centered */
+/* (user card is fixed and shouldn't influence container centering) */
+
+    /* Mobile layout: stack rating options vertically with labels to the right */
+    @media (max-width: 640px){
+        body.assessment-fix .rating-grid { display:flex; flex-direction:column; gap:10px; padding: 4px 4px; }
+        body.assessment-fix .rating-col { flex-direction:row; align-items:center; justify-content:flex-start; gap:12px; padding:10px 8px; border-bottom:1px solid #e5e7eb; cursor:pointer; border-radius:8px; }
+        body.assessment-fix .rating-col:last-child { border-bottom:none; }
+        body.assessment-fix .rating-col:hover { background:#f9fafb; }
+        body.assessment-fix .rating-col.active { background:#f3f4f6; }
+        body.assessment-fix .rating-col .dot { order:1; width:30px; height:30px; font-size:16px; }
+        body.assessment-fix .rating-col .rating-label { order:2; min-height:auto; text-align:left; justify-content:flex-start; padding:0; font-size:14px; }
+        /* Slightly increase touch targets */
+        body.assessment-fix.text-lg .rating-col .dot { width:32px; height:32px; }
+        body.assessment-fix.text-xl .rating-col .dot { width:34px; height:34px; }
+    }
 </style>
 
 <script>
@@ -608,125 +983,106 @@ button {
         }
 
     document.addEventListener("DOMContentLoaded", function() {
-            // Inicjalizacja suwaków i opisów
-            document.querySelectorAll('.slider').forEach(slider => {
-                // Nie wywołuj updateSliderValue na starcie!
-            });
-
-            document.querySelectorAll('input[name^="above_expectations"]').forEach(checkbox => {
-                if (checkbox.checked) {
-                    toggleAboveExpectations(checkbox);
-                }
-            });
-
-            // Inicjalizacja checkboxów "Dodaj opis/argumentację"
-            document.querySelectorAll('input[name^="add_description"]').forEach(checkbox => {
-                toggleDescriptionInput(checkbox);
-            });
-
-            var skipButton = document.getElementById("skipButton");
-            if (skipButton) {
-                var skipModal = document.getElementById("skipModal");
-                var confirmSkip = document.getElementById("confirmSkip");
-                var cancelSkip = document.getElementById("cancelSkip");
-
-                // Wyświetlanie okna modalnego po kliknięciu "Pomiń resztę samooceny"
-                skipButton.addEventListener("click", function() {
-                    skipModal.style.display = "flex";
-                });
-
-                // Potwierdzenie pominięcia - przekierowanie do zakończenia samooceny
-                var uuid = "{{ $uuid }}";
-
-                confirmSkip.addEventListener("click", function() {
-                    window.location.href = "/self-assessment/complete/" + uuid;
-                });
-
-                // Anulowanie pominięcia - ukrywanie modala
-                cancelSkip.addEventListener("click", function() {
-                    skipModal.style.display = "none";
-                });
+        // Compute dynamic topbar height and set CSS var
+        function setTopbarHeightVar(){
+            var header = document.querySelector('.assessment-topbar');
+            if (header){
+                var h = header.offsetHeight || 66;
+                document.documentElement.style.setProperty('--topbar-h', h + 'px');
             }
+        }
+        setTopbarHeightVar();
+        window.addEventListener('resize', function(){ setTimeout(setTopbarHeightVar, 150); });
 
-            // Modal close button
-            var closeModalButton = document.getElementById("closeModal");
-            if (closeModalButton) {
-                closeModalButton.addEventListener("click", function() {
-                    document.getElementById("saveModal").style.display = "none";
-                });
-            }
-        });
-        document.addEventListener("DOMContentLoaded", function () {
-            const userCard = document.querySelector(".user-card");
+        // User card expand/collapse
+        const userCard = document.querySelector(".user-card");
+        if (userCard) {
             const userIcon = userCard.querySelector(".user-icon");
-
-            // Toggle expanded state on click
             userIcon.addEventListener("click", function () {
                 userCard.classList.toggle("expanded");
             });
-        });
-        document.addEventListener("DOMContentLoaded", function() {
-    document.querySelectorAll('.slider').forEach(slider => {
-        if (parseFloat(slider.value) !== 0) {
-            updateSliderValue(slider);
         }
-    });
 
-    document.querySelectorAll('input[name^="above_expectations"]').forEach(checkbox => {
-        if (checkbox.checked) {
-            toggleAboveExpectations(checkbox);
+        // Settings menu (gear icon)
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsPanel = document.getElementById('settingsPanel');
+        if (settingsBtn && settingsPanel){
+            function closeSettings(){
+                settingsPanel.classList.remove('open');
+                settingsBtn.setAttribute('aria-expanded','false');
+            }
+            function openSettings(){
+                settingsPanel.classList.add('open');
+                settingsBtn.setAttribute('aria-expanded','true');
+            }
+            settingsBtn.addEventListener('click', function(e){
+                e.stopPropagation();
+                if (settingsPanel.classList.contains('open')) closeSettings(); else openSettings();
+            });
+            document.addEventListener('click', function(e){
+                if (!settingsPanel.contains(e.target) && e.target !== settingsBtn){ closeSettings(); }
+            });
+            document.addEventListener('keydown', function(e){ if (e.key === 'Escape'){ closeSettings(); } });
         }
+
+        // Language flags hookup
+        (function(){
+            var langSelect = document.getElementById('langSelect');
+            var flagButtons = Array.prototype.slice.call(document.querySelectorAll('.lang-flag'));
+            function setActiveFlag(code){
+                flagButtons.forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-lang') === code); });
+            }
+            flagButtons.forEach(function(btn){
+                btn.addEventListener('click', function(){
+                    var code = this.getAttribute('data-lang');
+                    if (langSelect){ langSelect.value = code; var ev = new Event('change'); langSelect.dispatchEvent(ev); }
+                    try { if (typeof setLanguage === 'function'){ setLanguage(code); } } catch(e){}
+                    setActiveFlag(code);
+                });
+            });
+            // Initialize active based on saved or current select
+            var savedLang = (function(){ try { return localStorage.getItem('ui_language'); } catch(e){ return null; } })();
+            var initial = savedLang || (langSelect ? langSelect.value : 'pl');
+            setActiveFlag(initial);
+        })();
+
+        // Modal logic
+        var skipButton = document.getElementById("skipButton");
+        if (skipButton) {
+            var skipModal = document.getElementById("skipModal");
+            var confirmSkip = document.getElementById("confirmSkip");
+            var cancelSkip = document.getElementById("cancelSkip");
+            skipButton.addEventListener("click", function() {
+                skipModal.style.display = "flex";
+            });
+            var uuid = "{{ $uuid }}";
+            confirmSkip.addEventListener("click", function() {
+                window.location.href = "/self-assessment/complete/" + uuid;
+            });
+            cancelSkip.addEventListener("click", function() {
+                skipModal.style.display = "none";
+            });
+        }
+        var closeModalButton = document.getElementById("closeModal");
+        if (closeModalButton) {
+            closeModalButton.addEventListener("click", function() {
+                document.getElementById("saveModal").style.display = "none";
+            });
+        }
+
+        // Checkbox "Dodaj uzasadnienie" logic
+        document.querySelectorAll('input[name^="add_description"]').forEach(checkbox => {
+            toggleDescriptionInput(checkbox);
+        });
     });
 
-    // Inicjalizacja checkboxów "Dodaj opis/argumentację"
-    document.querySelectorAll('input[name^="add_description"]').forEach(checkbox => {
-        toggleDescriptionInput(checkbox);
-    });
-
-    var skipButton = document.getElementById("skipButton");
-    if (skipButton) {
-        var skipModal = document.getElementById("skipModal");
-        var confirmSkip = document.getElementById("confirmSkip");
-        var cancelSkip = document.getElementById("cancelSkip");
-
-        // Wyświetlanie okna modalnego po kliknięciu "Pomiń resztę samooceny"
-        skipButton.addEventListener("click", function() {
-            skipModal.style.display = "flex";
-        });
-
-        // Potwierdzenie pominięcia - przekierowanie do zakończenia samooceny
-        var uuid = "{{ $uuid }}";
-
-        confirmSkip.addEventListener("click", function() {
-            window.location.href = "/self-assessment/complete/" + uuid;
-        });
-
-        // Anulowanie pominięcia - ukrywanie modala
-        cancelSkip.addEventListener("click", function() {
-            skipModal.style.display = "none";
-        });
-    }
-
-    // Modal close button
-    var closeModalButton = document.getElementById("closeModal");
-    if (closeModalButton) {
-        closeModalButton.addEventListener("click", function() {
-            document.getElementById("saveModal").style.display = "none";
-        });
-    }
-});
 
 
-function markSliderTouched(slider) {
-    slider.dataset.touched = "true";
-}
 
 let autosaveInterval = setInterval(function() {
     let form = document.getElementById('assessmentForm');
     if (!form) return;
-
     let formData = new FormData(form);
-
     fetch('{{ route('self_assessment.autosave') }}', {
         method: 'POST',
         headers: {
@@ -745,25 +1101,130 @@ let autosaveInterval = setInterval(function() {
 </script>
 
 </head>
-<body>
-    <div class="container-wrapper">
-        <div class="user-card">
-            <div class="user-icon">
-                <i class="fas fa-user"></i>
+<body class="assessment-fix">
+    @php
+        // Opcjonalnie: przekaż z backendu tablicę $levelNames[1..6] z pełnymi nazwami poziomów.
+        // Jeśli brak, użyj prostych fallbacków "Poziom {i}".
+        $hasLevelNames = isset($levelNames) && is_array($levelNames);
+    @endphp
+    <!-- Stały nagłówek strony z przepływem poziomów i przyciskiem Pomiń -->
+    <header class="assessment-topbar" role="banner">
+        <div class="inner">
+            <!-- Row 1: User summary + actions + settings -->
+            <div class="topbar-row" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+                <div class="user-summary" style="display:flex; align-items:center; gap:10px; min-width:0;">
+                    <div class="user-chip" style="display:flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid #e5e7eb; border-radius:999px; background:#fff;">
+                        <i class="fas fa-user" aria-hidden="true" style="color:#6b7280"></i>
+                        <span style="font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:240px;">{{ $employee->name }}</span>
+                        <span class="muted" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px;">{{ $employee->department }}</span>
+                        @if(!empty($employee->manager_username))
+                            <span class="muted" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;">
+                                <i class="fas fa-user-tie" aria-hidden="true"></i> {{ $employee->manager_username }}
+                            </span>
+                        @endif
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                    @if ($currentLevel > 1)
+                        <button type="button" id="skipButton" class="skip-button">Pomiń resztę samooceny</button>
+                    @endif
+                    <button type="submit" form="assessmentForm" name="save_and_exit" class="save-and-exit-button" style="margin:0;">Zapisz i dokończ później</button>
+                    <div class="topbar-controls" aria-label="Ustawienia">
+                        <div class="settings-container">
+                            <button type="button" id="settingsBtn" class="settings-button" aria-haspopup="true" aria-expanded="false" title="Ustawienia">
+                                <i class="fas fa-cog" aria-hidden="true"></i>
+                            </button>
+                            <div id="settingsPanel" class="settings-panel" role="dialog" aria-label="Ustawienia">
+                                <div class="settings-toolbar">
+                                    <span class="settings-label">Język:</span>
+                                    <div class="lang-flags notranslate" role="group" aria-label="Język" translate="no">
+                                        <button type="button" class="lang-flag notranslate" data-lang="pl" title="Polski" aria-label="Polski">🇵🇱</button>
+                                        <button type="button" class="lang-flag notranslate" data-lang="en" title="English" aria-label="English">🇬🇧</button>
+                                        <button type="button" class="lang-flag notranslate" data-lang="uk" title="Українська" aria-label="Українська">🇺🇦</button>
+                                        <button type="button" class="lang-flag notranslate" data-lang="es" title="Español" aria-label="Español">🇪🇸</button>
+                                        <button type="button" class="lang-flag notranslate" data-lang="pt" title="Português" aria-label="Português">🇵🇹</button>
+                                        <button type="button" class="lang-flag notranslate" data-lang="fr" title="Français" aria-label="Français">🇫🇷</button>
+                                    </div>
+                                    <select id="langSelect" class="lang-select" title="Język" aria-hidden="true">
+                                        <option value="pl">PL</option>
+                                        <option value="en">EN</option>
+                                        <option value="uk">UK</option>
+                                        <option value="es">ES</option>
+                                        <option value="pt">PT</option>
+                                        <option value="fr">FR</option>
+                                    </select>
+                                    <div class="settings-divider" aria-hidden="true"></div>
+                                    <span class="settings-label">Wielkość tekstu:</span>
+                                    <div class="textsize-switch" role="group" aria-label="Wielkość tekstu">
+                                        <button type="button" class="ts-btn notranslate" data-size="base" title="Normalny tekst" aria-label="Normalny tekst">
+                                            <svg class="ts-icon ts-icon-sm" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                                <path d="M4 17h2.5l1-3h9l1 3H20L13.5 5h-3L4 17Zm4.5-5L12 6.5 15.5 12h-7Z" fill="#374151"/>
+                                            </svg>
+                                        </button>
+                                        <button type="button" class="ts-btn notranslate" data-size="lg" title="Duży tekst" aria-label="Duży tekst">
+                                            <svg class="ts-icon ts-icon-md" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                                <path d="M4 18h3l1.2-3.6h7.6L17 18h3L14.5 4h-5L4 18Zm5.2-6L12 6.8 14.8 12h-5.6Z" fill="#374151"/>
+                                            </svg>
+                                        </button>
+                                        <button type="button" class="ts-btn notranslate" data-size="xl" title="Bardzo duży tekst" aria-label="Bardzo duży tekst">
+                                            <svg class="ts-icon ts-icon-lg" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                                <path d="M4 19h3.5l1.4-4.2h6.2L16.5 19H20L14.5 3h-5L4 19Zm6.4-7L12 7.2 13.6 12h-3.2Z" fill="#374151"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <!-- Ukryty kontener Google Translate (wymagany przez skrypt) -->
+                                <div id="google_translate_element" style="display:none"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="user-details">
-                <p>{{ $employee->name }}</p>
-                <p>{{ $employee->department }}</p>
+
+            <!-- Row 2: Level flow centered -->
+            <div class="assessment-flow" aria-label="Postęp poziomów" style="margin-top:6px;">
+                <div class="flow-left" style="width:100%;">
+                    @php $totalLevels = $hasLevelNames ? count($levelNames) : 5; @endphp
+                    <div class="flow-info">Poziom {{ min($currentLevel, $totalLevels) }} z {{ $totalLevels }} • {{ $currentLevelName }}</div>
+                    <div class="steps" role="list">
+                        @for ($i = 1; $i <= $totalLevels; $i++)
+                            @php
+                                $isCurrent = ($i == $currentLevel);
+                                $isDone = ($i < $currentLevel);
+                                $fullName = $hasLevelNames && !empty($levelNames[$i]) ? $levelNames[$i] : 'Poziom ' . $i;
+                            @endphp
+                            <div 
+                                class="step {{ $isCurrent ? 'current' : '' }} {{ $isDone ? 'done' : '' }}" 
+                                role="listitem" 
+                                aria-current="{{ $isCurrent ? 'step' : 'false' }}"
+                            >
+                                <div class="ring" data-step="{{ $i }}" title="{{ $isCurrent ? '0% uzupełnione' : ($isDone ? '100% uzupełnione' : '0% uzupełnione') }}">
+                                    <span class="ring-text">{{ $isCurrent ? '0' : ($isDone ? '100' : '') }}</span>
+                                </div>
+                                @php
+                                    $short = match($i){
+                                        1 => 'Jr',
+                                        2 => 'Spec',
+                                        3 => 'Sr',
+                                        4 => 'Sup',
+                                        5 => 'Mgr',
+                                        default => 'L'.$i,
+                                    };
+                                @endphp
+                                <div class="step-label" title="{{ $fullName }}" data-short="{{ $short }}" data-num="{{ $i }}">{{ $fullName }}</div>
+                            </div>
+                            @if ($i < $totalLevels)
+                                <div class="connector" aria-hidden="true"></div>
+                            @endif
+                        @endfor
+                    </div>
+                </div>
+                <div class="flow-right" style="display:none"></div>
             </div>
-        <button type="submit" form="assessmentForm" name="save_and_exit" class="save-and-exit-button">Zapisz i dokończ później</button>
         </div>
-
-
+    </header>
+    <div class="container-wrapper">
         <div class="container">
-            <!-- Wyświetlenie nagłówka poziomu -->
-            <div class="level-header">
-                Poziom: {{ $currentLevelName }}
-            </div>
 
             <!-- Toggle poprzedniego cyklu -->
             @if(!empty($prevAnswers))
@@ -776,12 +1237,88 @@ let autosaveInterval = setInterval(function() {
                     .show-prev .prev-badge{display:inline-block}
                     .prev-value{display:none;color:#777;font-size:12px;margin-top:6px}
                     .show-prev .prev-value{display:block}
+                    /* Improved rating dots and labels layout */
+                    .rating-dots {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        margin-bottom: 10px;
+                    }
+                    .dots-wrap {
+                        display: flex;
+                        flex-direction: row;
+                        justify-content: space-between;
+                        gap: 24px;
+                        margin-top: 6px;
+                        margin-bottom: 4px;
+                    }
+                    .dot {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 50%;
+                        border: 2px solid #1976d2;
+                        background: #fff;
+                        margin: 0 auto;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 20px;
+                        cursor: pointer;
+                        transition: box-shadow 0.2s;
+                        position: relative;
+                    }
+                    .dot.selected {
+                        background: #1976d2;
+                        color: #fff;
+                        box-shadow: 0 0 0 2px #1976d233;
+                    }
+                    .dot.star {
+                        border-color: #fbc02d;
+                        color: #fbc02d;
+                    }
+                    .dot.star.selected {
+                        background: #fbc02d;
+                        color: #fff;
+                    }
+                    .dots-legend {
+                        display: flex;
+                        flex-direction: row;
+                        justify-content: space-between;
+                        gap: 24px;
+                        margin-bottom: 2px;
+                        margin-top: 2px;
+                    }
+                    .legend-item {
+                        font-size: 14px;
+                        color: #333;
+                        text-align: center;
+                        width: 70px;
+                        min-width: 60px;
+                        max-width: 90px;
+                        word-break: break-word;
+                        white-space: normal;
+                        display: inline-block;
+                    }
+                    @media (max-width: 700px) {
+                        .dots-wrap, .dots-legend {
+                            gap: 8px;
+                        }
+                        .legend-item {
+                            font-size: 12px;
+                            width: 48px;
+                            min-width: 40px;
+                            max-width: 60px;
+                        }
+                        .dot {
+                            width: 24px;
+                            height: 24px;
+                            font-size: 16px;
+                        }
+                    }
                 </style>
             </div>
             @endif
-            @if ($currentLevel > 1)
-                <button type="button" id="skipButton" class="skip-button">Pomiń resztę samooceny</button>
-            @endif
+            
 
             <!-- Modal -->
             <div id="skipModal" class="modal" style="display:none;">
@@ -861,20 +1398,29 @@ let autosaveInterval = setInterval(function() {
                         $prevTextGlobal = $competency->description_above_expectations ?: $prevTextGlobal;
                     }
                 @endphp
-                <div class="question"
-                     data-description0to05="{{ $competency->description_0_to_05 }}"
-                     data-description025="{{ $competency->description_025 }}"
-                     data-description075to1="{{ $competency->description_075_to_1 }}"
-                     data-description-above-expectations="{{ $competency->description_above_expectations }}"
-                     data-competency-type="{{ $competency->competency_type }}">
+            @php
+                // Precompute values for initial state and data attributes
+                $current = $savedAnswers['score'][$competency->id] ?? 0;
+                $prev = $prevAnswers['score'][$competency->id] ?? null;
+                $isAboveSelectedInit = !empty($savedAnswers['above_expectations'][$competency->id]);
+            @endphp
+             <div class="question"
+                    data-description0to05="{{ $competency->description_0_to_05 }}"
+                    data-description025="{{ $competency->description_025 }}"
+                    data-description075to1="{{ $competency->description_075_to_1 }}"
+                    data-description-above-expectations="{{ $competency->description_above_expectations }}"
+                data-competency-type="{{ $competency->competency_type }}"
+                data-level="{{ $currentLevel }}"
+                data-score="{{ $current }}"
+                data-star="{{ $isAboveSelectedInit ? 1 : 0 }}">
 
                         <div class="question-header">
                             <div class="badge-container">
-                                <span class="badge competency {{ getCompetencyClass($competency->competency_type) }}">{{ $competency->competency_type }}</span>
-                                <span class="badge level">Poziom {{ $currentLevel }}. {{ $currentLevelName }}</span>
+                                <span class="badge competency {{ getCompetencyClass($competency->competency_type) }}">{{ preg_replace('/^(\d+\.|3\.(L\.|G\.))\s*/', '', $competency->competency_type) }}</span>
+                                <span class="badge level">{{ preg_replace('/^(Poziom\s+\d+\.\s*|\d+\.\s*)/','', $currentLevelName) }}</span>
                             </div>
                         </div>
-                        <div style="font-weight:600;margin:6px 0 6px;">Jak oceniasz swoją kompetencję/cechę:</div>
+                        <div class="assessment-subheader">Jak oceniasz swoją kompetencję/cechę:</div>
                         <label style="display:block;font-size:18px;font-weight:700;margin-bottom:8px;">{{ $competency->competency_name }}:
                             @if(!empty($prevAnswers['score'][$competency->id]))
                                 <span class="prev-badge"><i class="fa fa-history"></i> Poprzednio: {{ $prevAnswers['score'][$competency->id] }}@if(!empty($prevAnswers['above_expectations'][$competency->id])) ⭐@endif</span>
@@ -883,8 +1429,6 @@ let autosaveInterval = setInterval(function() {
                         <div class="rating-dots" role="radiogroup" aria-label="Ocena">
                             <input type="hidden" name="competency_id[]" value="{{ $competency->id }}">
                             @php
-                                $current = $savedAnswers['score'][$competency->id] ?? 0;
-                                $prev = $prevAnswers['score'][$competency->id] ?? null;
                                 $options = [
                                     ['v'=>0, 'label'=>'Nie dotyczy'],
                                     ['v'=>0.25, 'label'=>'Słabo'],
@@ -893,29 +1437,30 @@ let autosaveInterval = setInterval(function() {
                                     ['v'=>1, 'label'=>'Bardzo dobrze'],
                                 ];
                             @endphp
-                            <div class="dots-legend">
-                                @foreach($options as $opt)
-                                    @php $isSelected = ((string)$current === (string)$opt['v']); @endphp
-                                    <span class="legend-item {{ $isSelected ? 'active' : '' }}" data-value="{{ $opt['v'] }}">{{ $opt['label'] }}</span>
-                                @endforeach
-                                <span class="legend-item" data-star="1">Powyżej oczekiwań</span>
-                            </div>
-                            <div class="dots-wrap" style="margin-top:6px;">
+                            <div class="rating-grid">
                                 @foreach($options as $opt)
                                     @php
-                                        $isSelected = ((string)$current === (string)$opt['v']);
+                                        $isSelected = (!$isAboveSelectedInit) && ((string)$current === (string)$opt['v']);
                                         $isPrev = ((string)$prev === (string)$opt['v']);
                                         $prevHadStar = !empty($prevAnswers['above_expectations'][$competency->id]);
-                                        $prevStarOnThisDot = $isPrev && $prevHadStar; // gwiazdka na przycisku z oceną z zeszłego roku
+                                        $prevStarOnThisDot = $isPrev && $prevHadStar;
                                     @endphp
-                                    <button type="button" class="dot {{ $isSelected ? 'selected' : '' }} {{ $isPrev ? 'prev' : '' }} {{ $prevStarOnThisDot ? 'prev-star' : '' }}" data-value="{{ $opt['v'] }}" aria-pressed="{{ $isSelected ? 'true' : 'false' }}" title="{{ $opt['label'] }}">
-                                        <span class="sr-only">{{ $opt['label'] }}</span>
-                                    </button>
+                                    <div class="rating-col">
+                                        <div class="rating-label {{ $isSelected ? 'active' : '' }}" data-value="{{ $opt['v'] }}">{{ $opt['label'] }}</div>
+                                        <button type="button" class="dot {{ $isSelected ? 'selected' : '' }} {{ $isPrev ? 'prev' : '' }} {{ $prevStarOnThisDot ? 'prev-star' : '' }}" data-value="{{ $opt['v'] }}" aria-pressed="{{ $isSelected ? 'true' : 'false' }}" title="{{ $opt['label'] }}">
+                                            <span class="sr-only">{{ $opt['label'] }}</span>
+                                        </button>
+                                    </div>
                                 @endforeach
-                                <!-- Above expectations star only reflects current selection visually (no prev-star here) -->
-                                <button type="button" class="dot star {{ !empty($savedAnswers['above_expectations'][$competency->id]) ? 'selected' : '' }}" data-star="1" title="Powyżej oczekiwań">{{ !empty($savedAnswers['above_expectations'][$competency->id]) ? '★' : '☆' }}</button>
+                                @php $isAboveSelected = $isAboveSelectedInit; @endphp
+                                <div class="rating-col">
+                                    <div class="rating-label {{ $isAboveSelected ? 'active' : '' }}" data-above="1">Powyżej oczekiwań</div>
+                                    <button type="button" class="dot {{ $isAboveSelected ? 'selected' : '' }}" data-value="1" data-above="1" aria-pressed="{{ $isAboveSelected ? 'true' : 'false' }}" title="Powyżej oczekiwań">
+                                        <span class="sr-only">Powyżej oczekiwań</span>
+                                    </button>
+                                </div>
                                 <input type="hidden" name="score[{{ $competency->id }}]" value="{{ $current }}" class="score-input">
-                                <input type="hidden" name="above_expectations[{{ $competency->id }}]" value="{{ !empty($savedAnswers['above_expectations'][$competency->id]) ? 1 : 0 }}" class="star-input">
+                                <input type="hidden" name="above_expectations[{{ $competency->id }}]" value="{{ $isAboveSelected ? 1 : 0 }}" class="star-input">
                             </div>
                         </div>
 
@@ -930,8 +1475,8 @@ let autosaveInterval = setInterval(function() {
 
                         <!-- Checkbox "Dodaj uzasadnienie" -->
                         <div class="add-description-container">
-                            <input type="checkbox" name="add_description[{{ $competency->id }}]" onchange="toggleDescriptionInput(this)" {{ isset($savedAnswers['add_description'][$competency->id]) ? 'checked' : '' }}>
-                            <label>Dodaj uzasadnienie</label>
+                            <input id="adddesc-{{ $competency->id }}" type="checkbox" name="add_description[{{ $competency->id }}]" onchange="toggleDescriptionInput(this)" {{ isset($savedAnswers['add_description'][$competency->id]) ? 'checked' : '' }}>
+                            <label for="adddesc-{{ $competency->id }}" class="assessment-label">Dodaj uzasadnienie</label>
                         </div>
 
                         @if(!empty($prevTextGlobal))
@@ -995,6 +1540,27 @@ let autosaveInterval = setInterval(function() {
 
         alert("Link został skopiowany do schowka.");
     }
+
+    // Apply category class to question containers and clean labels
+    document.querySelectorAll('.question').forEach(function(q){
+        var type = (q.getAttribute('data-competency-type')||'')+'';
+        var cls = '';
+        if (type.indexOf('1. Osobiste')!==-1) cls = 'osobiste';
+        else if (type.indexOf('2. Społeczne')!==-1) cls = 'spoleczne';
+        else if (type.indexOf('4. Liderskie')!==-1) cls = 'liderskie';
+        else if (type.indexOf('3.L.')!==-1) cls = 'zawodowe-logistics';
+        else if (type.indexOf('3.G.')!==-1) cls = 'zawodowe-growth';
+        else if (type.indexOf('3.')!==-1) cls = 'zawodowe-inne';
+        if (cls) q.classList.add(cls);
+        var badge = q.querySelector('.badge.competency');
+        if (badge){ badge.textContent = type.replace(/^\d+\.?\s*/,'').replace(/^3\.(L\.|G\.)\s*/,''); }
+        var levelBadge = q.querySelector('.badge.level');
+        if (levelBadge){
+            levelBadge.textContent = levelBadge.textContent
+                .replace(/Poziom\s+\d+\.\s*/,'Poziom ')
+                .replace(/^Poziom\s+\d+\.?\s*/,'Poziom ');
+        }
+    });
     </script>
 <script>
 // Handle rating dots interactions
@@ -1004,6 +1570,7 @@ document.querySelectorAll('.question').forEach(function(q){
     const starInput = q.querySelector('.star-input');
     const defBubble = q.querySelector('.definition-bubble');
     const defContent = q.querySelector('.definition-bubble .def-content');
+    const addDescCheckbox = q.querySelector('input[name^="add_description"]');
 
     function updateDefinition(val){
         const d0 = q.getAttribute('data-description0to05') || '';
@@ -1018,51 +1585,312 @@ document.querySelectorAll('.question').forEach(function(q){
 
     wrap.querySelectorAll('.dot').forEach(function(dot){
         dot.addEventListener('click', function(){
-            if (dot.classList.contains('star')){
-                // toggle star
-                const val = starInput.value === '1' ? '0' : '1';
-                starInput.value = val;
-                dot.classList.toggle('selected', val === '1');
-                    dot.setAttribute('aria-pressed', val === '1' ? 'true' : 'false');
-                    // change icon
-                    dot.textContent = (val === '1') ? '★' : '☆';
-                    if (val === '1') scoreInput.value = '1'; // star enforces 1.0
-                    // Update legend active for 1.0
-                    const legends = q.querySelectorAll('.dots-legend .legend-item');
-                    legends.forEach(l=>l.classList.toggle('active', l.getAttribute('data-value')==='1'));
-                updateDefinition(scoreInput.value);
-                return;
-            }
-            // select score dot
-            const value = this.getAttribute('data-value');
+            const value = this.getAttribute('data-value') || '0';
+            const isAbove = this.getAttribute('data-above') === '1';
             scoreInput.value = value;
-            wrap.querySelectorAll('.dot').forEach(d=>{ if(!d.classList.contains('star')) d.classList.remove('selected'); });
-                this.classList.add('selected');
-                // set aria
-                wrap.querySelectorAll('.dot').forEach(d=>{ if(!d.classList.contains('star')) d.setAttribute('aria-pressed','false'); });
-                this.setAttribute('aria-pressed','true');
-            // If not star, ensure star remains as it was; definition updates accordingly
-                const legends = q.querySelectorAll('.dots-legend .legend-item');
-                legends.forEach(l=>l.classList.toggle('active', l.getAttribute('data-value')===value));
+            // deselect all dots
+            wrap.querySelectorAll('.dot').forEach(d=>{ d.classList.remove('selected'); d.setAttribute('aria-pressed','false'); });
+            this.classList.add('selected');
+            this.setAttribute('aria-pressed','true');
+            // set above_expectations flag
+            starInput.value = isAbove ? '1' : '0';
+            // Update label active
+            const legends = q.querySelectorAll('.rating-label');
+            legends.forEach(l=>{
+                const v = l.getAttribute('data-value');
+                const lAbove = l.getAttribute('data-above') === '1';
+                l.classList.toggle('active', (isAbove && lAbove) || (!isAbove && v === value));
+            });
+            // Handle 'Dodaj uzasadnienie' behavior
+            const textarea = q.querySelector('.textarea-description textarea');
+            if (addDescCheckbox) {
+                if (isAbove) {
+                    // Force-check and disable when 'Powyżej oczekiwań'
+                    if (!addDescCheckbox.checked) {
+                        addDescCheckbox.checked = true;
+                        toggleDescriptionInput(addDescCheckbox);
+                    }
+                    addDescCheckbox.disabled = true;
+                } else {
+                    // Re-enable checkbox; auto-uncheck if textarea empty
+                    addDescCheckbox.disabled = false;
+                    const isEmpty = !textarea || textarea.value.trim() === '';
+                    if (isEmpty && addDescCheckbox.checked) {
+                        addDescCheckbox.checked = false;
+                        toggleDescriptionInput(addDescCheckbox);
+                    }
+                }
+            }
             updateDefinition(value);
+            // Update active row highlight
+            wrap.querySelectorAll('.rating-col').forEach(function(c){ c.classList.remove('active'); });
+            this.closest('.rating-col')?.classList.add('active');
+            try { updateHeaderProgress(); } catch(e) {}
         });
     });
 
-    // Init bubble
+    // Make entire rating row clickable on mobile and highlight active row
+    wrap.querySelectorAll('.rating-col').forEach(function(col){
+        col.addEventListener('click', function(e){
+            // Avoid double-handling when actual dot was clicked
+            if (e.target && e.target.classList && e.target.classList.contains('dot')) return;
+            const dot = col.querySelector('.dot');
+            if (dot) dot.click();
+        });
+    });
+
+    // Init bubble and selection state
+    // Initialize from data attributes first to avoid any accidental defaults
+    const initScore = (q.getAttribute('data-score') || scoreInput.value || '0').toString();
+    const initStar = q.getAttribute('data-star') === '1' || starInput.value === '1';
+    scoreInput.value = initScore;
+    starInput.value = initStar ? '1' : '0';
     updateDefinition(scoreInput.value || '0');
-        // Init star icon and aria
-        const starBtn = wrap.querySelector('.dot.star');
-        if (starBtn){
-            const isOn = starInput.value === '1';
-            starBtn.textContent = isOn ? '★' : '☆';
-            starBtn.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+    if (initStar){
+        // Explicitly select the "Powyżej oczekiwań" dot
+        const aboveBtn = wrap.querySelector('.dot[data-above="1"]');
+        if (aboveBtn){
+            // Clear any other accidental selections first
+            wrap.querySelectorAll('.dot').forEach(d=>{ d.classList.remove('selected'); d.setAttribute('aria-pressed','false'); });
+            aboveBtn.classList.add('selected');
+            aboveBtn.setAttribute('aria-pressed','true');
+            const legends = q.querySelectorAll('.rating-label');
+            legends.forEach(l=>{
+                const lAbove = l.getAttribute('data-above') === '1';
+                l.classList.toggle('active', lAbove);
+            });
+            if (addDescCheckbox) {
+                if (!addDescCheckbox.checked) {
+                    addDescCheckbox.checked = true;
+                    toggleDescriptionInput(addDescCheckbox);
+                }
+                // Disable checkbox while 'Powyżej oczekiwań' is active
+                addDescCheckbox.disabled = true;
+            }
         }
+    } else {
+        // Not above-expectations: ensure star is NOT selected and select saved score (or 0)
+        const aboveBtn = wrap.querySelector('.dot[data-above="1"]');
+        if (aboveBtn){
+            aboveBtn.classList.remove('selected');
+            aboveBtn.setAttribute('aria-pressed','false');
+        }
+        // Select the dot matching saved score (server-rendered may already do this, but enforce it defensively)
+        const targetVal = (scoreInput.value || '0').toString();
+        let targetDot = wrap.querySelector(`.dot[data-value="${targetVal}"]:not([data-above="1"])`);
+        if (!targetDot) {
+            // Fallback to 0 (Nie dotyczy)
+            targetDot = wrap.querySelector('.dot[data-value="0"]');
+            if (targetDot) scoreInput.value = '0';
+        }
+        if (targetDot) {
+            wrap.querySelectorAll('.dot').forEach(d=>{ d.classList.remove('selected'); d.setAttribute('aria-pressed','false'); });
+            targetDot.classList.add('selected');
+            targetDot.setAttribute('aria-pressed','true');
+        }
+        // Sync active legend labels
+        const legends = q.querySelectorAll('.rating-label');
+        legends.forEach(l=>{
+            const v = l.getAttribute('data-value');
+            const lAbove = l.getAttribute('data-above') === '1';
+            l.classList.toggle('active', (!lAbove && v === (scoreInput.value || '0')));
+        });
+        // Ensure checkbox is enabled when not 'Powyżej oczekiwań'
+        if (addDescCheckbox) addDescCheckbox.disabled = false;
+    }
+    // After initializing selections, update header once in case of pre-filled values
+    try { updateHeaderProgress(); } catch(e) {}
+    // Highlight active row initially for this question
+    (function(){
+        const selectedDot = wrap.querySelector('.dot.selected');
+        wrap.querySelectorAll('.rating-col').forEach(function(c){ c.classList.remove('active'); });
+        if (selectedDot){ selectedDot.closest('.rating-col')?.classList.add('active'); }
+    })();
+});
+
+// Header progress computation: current level ring shows percentage of answered questions
+function updateHeaderProgress() {
+    var hiddenLevel = document.querySelector('input[name="current_level"]');
+    var currentLevel = hiddenLevel ? parseInt(hiddenLevel.value || '1', 10) : 1;
+    var questions = document.querySelectorAll('.question');
+    var total = 0, answered = 0;
+    questions.forEach(function(q){
+        // Count only questions for current level using data-level to avoid parsing text
+        var qLevel = parseInt(q.getAttribute('data-level') || '0', 10);
+        if (qLevel !== currentLevel) return;
+        total++;
+        var selected = q.querySelector('.rating-dots .dot.selected');
+        if (selected) {
+            var isAbove = selected.getAttribute('data-above') === '1';
+            var val = parseFloat(selected.getAttribute('data-value') || '0');
+            // Count only answers other than 'Nie dotyczy' (0) or explicitly 'Powyżej oczekiwań'
+            if (isAbove || val > 0) answered++;
+        }
+    });
+    var pct = total > 0 ? Math.round((answered/total)*100) : 0;
+    var currentStep = document.querySelector('.steps .step.current');
+    if (currentStep){
+        var ring = currentStep.querySelector('.ring');
+        var text = currentStep.querySelector('.ring-text');
+        if (ring){
+            ring.style.background = 'conic-gradient(#2563eb ' + pct + '%, #e5e7eb 0)';
+            ring.title = pct + '% uzupełnione';
+        }
+        if (text){ text.textContent = String(pct); }
+    }
+}
+
+// Initial header update after DOM ready (in case no interactions yet)
+document.addEventListener('DOMContentLoaded', function(){
+    try { updateHeaderProgress(); } catch(e) {}
 });
 
 // Toggle manager feedback disclosure
 document.querySelectorAll('.prev-manager .toggle-manager').forEach(function(a){
     a.addEventListener('click', function(e){ e.preventDefault(); const box = this.nextElementSibling; box.style.display = (box.style.display==='none'||!box.style.display)?'block':'none'; });
 });
+
+// --- Language: Google Translate integration with custom selector ---
+function googleTranslateElementInit(){
+    new google.translate.TranslateElement({pageLanguage:'pl', includedLanguages:'en,uk,es,pt,fr,pl', autoDisplay:false}, 'google_translate_element');
+}
+(function loadGTranslate(){
+    var s = document.createElement('script');
+    s.src = '//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+    document.head.appendChild(s);
+})();
+
+// Cookie helpers for Google Translate
+function setCookie(name, value, days, domain){
+    var d = new Date();
+    d.setTime(d.getTime() + ((days||365)*24*60*60*1000));
+    var expires = '; expires=' + d.toUTCString();
+    var path = '; path=/';
+    var dm = domain ? '; domain=' + domain : '';
+    document.cookie = name + '=' + encodeURIComponent(value) + expires + path + dm;
+}
+function getCookie(name){
+    var m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/([.$?*|{}()\[\]\\\/\+^])/g,'\\$1') + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+}
+function setGoogTransCookie(lang){
+    var val = '/pl/' + lang;
+    var host = location.hostname;
+    setCookie('googtrans', val, 365);
+    setCookie('googtrans', val, 365, '.' + host);
+}
+function translationAppliedTo(lang){
+    var c = getCookie('googtrans');
+    var htmlCls = document.documentElement.className || '';
+    return (c && c.indexOf('/pl/' + lang) !== -1) || /translated-/.test(htmlCls);
+}
+function reinitTranslateGadget(cb){
+    try {
+        var container = document.getElementById('google_translate_element');
+        if (container) container.innerHTML = '';
+        googleTranslateElementInit();
+        var tries = 0;
+        (function wait(){
+            var sel = document.querySelector('select.goog-te-combo');
+            if (sel || tries++ > 20) return cb && cb(sel);
+            setTimeout(wait, 100);
+        })();
+    } catch(e){ cb && cb(null); }
+}
+// Helper: programmatically set Google Translate language by simulating change with fallbacks
+function setLanguage(lang){
+    // Try direct select change first
+    var select = document.querySelector('select.goog-te-combo');
+    if (select){
+        select.value = lang;
+        select.dispatchEvent(new Event('change'));
+    }
+    // Also set the googtrans cookie to enforce state
+    setGoogTransCookie(lang);
+    // After a short delay, verify application; if not applied, re-init gadget and retry; final fallback reload
+    setTimeout(function(){
+        if (!translationAppliedTo(lang)){
+            reinitTranslateGadget(function(sel){
+                if (sel){
+                    sel.value = lang;
+                    sel.dispatchEvent(new Event('change'));
+                }
+                setTimeout(function(){
+                    if (!translationAppliedTo(lang)){
+                        // Last resort: reload to let Google apply cookie state
+                        location.reload();
+                    }
+                }, 900);
+            });
+        }
+    }, 700);
+}
+
+// Hook custom language selector
+document.addEventListener('DOMContentLoaded', function(){
+    var langSelect = document.getElementById('langSelect');
+    if (langSelect){
+        // Load saved language
+        var savedLang = localStorage.getItem('ui_lang');
+        if (savedLang){ langSelect.value = savedLang; setTimeout(function(){ setLanguage(savedLang); }, 800); }
+        langSelect.addEventListener('change', function(){
+            localStorage.setItem('ui_lang', this.value);
+            setLanguage(this.value);
+            setTimeout(updateGtOffset, 800);
+        });
+    }
+});
+
+// --- Text size switcher ---
+function applyTextSize(size){
+    document.body.classList.remove('text-lg','text-xl');
+    if (size === 'lg') document.body.classList.add('text-lg');
+    if (size === 'xl') document.body.classList.add('text-xl');
+    // Toggle pressed states
+    document.querySelectorAll('.ts-btn').forEach(function(b){
+        b.setAttribute('aria-pressed', b.getAttribute('data-size') === size ? 'true' : 'false');
+    });
+}
+document.addEventListener('DOMContentLoaded', function(){
+    var savedSize = localStorage.getItem('ui_text_size') || 'base';
+    applyTextSize(savedSize);
+    document.querySelectorAll('.ts-btn').forEach(function(btn){
+        btn.addEventListener('click', function(){
+            var size = this.getAttribute('data-size');
+            localStorage.setItem('ui_text_size', size);
+            applyTextSize(size);
+        });
+    });
+    // Initial offset fix (if Google banner is injected late)
+    setTimeout(updateGtOffset, 800);
+    window.addEventListener('resize', function(){ setTimeout(updateGtOffset, 200); });
+});
+
+// Compute and set CSS var for Google Translate banner height
+function updateGtOffset(){
+    try {
+        var h = 0;
+        // 1) Google często daje body { top: Xpx } – zbierz to jako źródło prawdy
+        var bodyTop = parseInt(getComputedStyle(document.body).top || '0', 10);
+        if (!isNaN(bodyTop) && bodyTop > 0) { h = bodyTop; }
+        // 2) Dodatkowo sprawdź iframe banera (gdy obecny)
+        var frame = document.querySelector('.goog-te-banner-frame');
+        if (frame && frame.offsetHeight) {
+            h = Math.max(h, frame.offsetHeight);
+        }
+        document.documentElement.style.setProperty('--gt-offset', (h||0) + 'px');
+    } catch(e) {
+        document.documentElement.style.setProperty('--gt-offset', '0px');
+    }
+}
+
+// Obserwuj zmiany w DOM (Google wstrzykuje/usuwa baner dynamicznie)
+(function observeGt(){
+    var timeout;
+    function debounced(){ clearTimeout(timeout); timeout = setTimeout(updateGtOffset, 100); }
+    var mo = new MutationObserver(debounced);
+    mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+})();
 </script>
 </body>
 

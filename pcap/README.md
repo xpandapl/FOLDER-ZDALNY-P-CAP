@@ -21,6 +21,20 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## P-CAP levels configuration
+
+This project centralizes assessment levels in `config/levels.php`:
+
+- `active` (self-assessment UI): 1–5 → Junior, Specjalista, Senior, Supervisor, Manager
+- `manager` (dashboard/export labels): `1. Junior` … `5. Manager`
+- `max`: 5
+
+Note: level 6 (“Head of”) is retired and intentionally hidden across forms, dashboards, and exports. Historical data remains in the database, but current views and reports filter out level 6.
+
+Re-enable level 6 (if business rules change):
+- Extend `config/levels.php` to include level 6 and update `max` to 6.
+- Remove safeguards that filter out level 6 in exports/controllers if you want it visible again.
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.

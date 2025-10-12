@@ -78,7 +78,7 @@
           <span class="pill">Stabilność</span>
           <span class="pill">Nowe funkcje</span>
         </div>
-        <p class="hint">Szacowany koniec prac: do 21 września. Wprowadzanie danych w tym czasie może nie zostać zapisane.</p>
+        <p class="hint">Szacowany koniec prac: do 30 października. Wprowadzanie danych w tym czasie może nie zostać zapisane.</p>
       </div>
     </div>
   </div>

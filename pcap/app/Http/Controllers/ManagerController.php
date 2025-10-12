@@ -22,13 +22,19 @@ use App\Models\EmployeeCycleAccessCode;
 
 class ManagerController extends Controller
 {
-    private $levelNames = [
-        1 => "1. Junior",
-        2 => "2. Specjalista",
-        3 => "3. Senior",
-        4 => "4. Supervisor",
-        5 => "5. Manager"
-    ];
+    private $levelNames;
+
+    public function __construct()
+    {
+        // Load manager labels from config (defaults to 1–5)
+        $this->levelNames = config('levels.manager', [
+            1 => '1. Junior',
+            2 => '2. Specjalista',
+            3 => '3. Senior',
+            4 => '4. Supervisor',
+            5 => '5. Manager',
+        ]);
+    }
     
     // Active cycle helper
     private function activeCycleId(): ?int
@@ -65,13 +71,7 @@ class ManagerController extends Controller
         abort(403, 'Użytkownik nie jest zalogowany.');
     }
 
-    $levelNames = [
-        1 => '1. Junior',
-        2 => '2. Specjalista',
-        3 => '3. Senior',
-        4 => '4. Supervisor',
-        5 => '5. Manager'
-    ];
+    $levelNames = $this->levelNames;
 
     // Cycles
     $selectedCycleId = $this->selectedCycleId($request);
@@ -607,6 +607,21 @@ class ManagerController extends Controller
     
         // Prepare data
         $employeesData = $this->prepareEmployeesData($employees, $this->levelNames);
+        // Defensively sanitize against legacy level 6 (Head of)
+        $allowedLevelKeys = array_values($this->levelNames); // e.g., ['1. Junior', ..., '5. Manager']
+        $allowedMap = array_fill_keys($allowedLevelKeys, true);
+        foreach ($employeesData as &$empData) {
+            if (isset($empData['levelPercentagesManager']) && is_array($empData['levelPercentagesManager'])) {
+                $empData['levelPercentagesManager'] = array_intersect_key($empData['levelPercentagesManager'], $allowedMap);
+            }
+            if (!empty($empData['highestLevelManager'])) {
+                $hl = (string)$empData['highestLevelManager'];
+                if (strpos($hl, '6') === 0 || stripos($hl, 'Head of') !== false) {
+                    $empData['highestLevelManager'] = '5. Manager';
+                }
+            }
+        }
+        unset($empData);
     
         if ($format === 'pdf') {
             // Generate PDF
@@ -829,7 +844,12 @@ class ManagerController extends Controller
         $results = Result::where('employee_id', $employeeId)
             ->when($cycleId, function($q) use ($cycleId){ $q->where('cycle_id', $cycleId); })
             ->with('competency')
-            ->get();
+            ->get()
+            // Pomijamy wyniki dla wycofanego poziomu 6 (Head of)
+            ->filter(function($r){
+                $lvl = trim((string)($r->competency->level ?? ''));
+                return strpos($lvl, '6') !== 0;
+            });
 
         // Generate PDF
         $pdf = PDF::loadView('pdf.employee_report', compact('employee', 'results'))
@@ -871,6 +891,11 @@ class ManagerController extends Controller
             ->get()
             ->sortBy(function ($result) {
                 return $result->competency->level;
+            })
+            // Pomijamy poziom 6 (Head of)
+            ->filter(function($r){
+                $lvl = trim((string)($r->competency->level ?? ''));
+                return strpos($lvl, '6') !== 0;
             });
 
         // Prepare data for Excel

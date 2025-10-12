@@ -1299,9 +1299,6 @@
                         } elseif (strpos($levelName, '5. Manager') !== false) {
                             $iconClass = 'fas fa-user-cog';
                             $iconColor = '#F44336';
-                        } elseif (strpos($levelName, '6. Head of') !== false) {
-                            $iconClass = 'fas fa-user-shield';
-                            $iconColor = '#795548';
                         }
 
                         // Ustal kolor ikony na podstawie wartości liczby
@@ -1467,8 +1464,6 @@
                             $iconClass = 'fas fa-chalkboard-teacher';
                         } elseif($levelName == 'Manager') {
                             $iconClass = 'fas fa-user-cog';
-                        } elseif($levelName == 'Head of') {
-                            $iconClass = 'fas fa-user-shield';
                         } else {
                             $iconClass = 'fas fa-briefcase';
                         }
@@ -1845,8 +1840,6 @@
                             $iconClass = 'fas fa-chalkboard-teacher';
                         } elseif($levelName == 'Manager') {
                             $iconClass = 'fas fa-user-cog';
-                        } elseif($levelName == 'Head of') {
-                            $iconClass = 'fas fa-user-shield';
                         } else {
                             $iconClass = 'fas fa-briefcase';
                         }

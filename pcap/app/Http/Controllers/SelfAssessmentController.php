@@ -435,6 +435,14 @@ public function showStep1Form()
         $department = $employee->department;
         $departmentCode = isset($departmentCodes[$department]) ? $departmentCodes[$department] : null;
 
+        // Upewnij się, że poziom mieści się w aktywnych zakresach zgodnie z konfiguracją
+        $maxLevel = (int) config('levels.max', 5);
+        if ($level < 1) { $level = 1; }
+        if ($level > $maxLevel) {
+            // Przekieruj bezpiecznie do maksymalnego poziomu, aby nie wyświetlać wycofanego poziomu
+            return redirect()->route('self.assessment', ['level' => $maxLevel, 'uuid' => $uuid]);
+        }
+
         // Pobranie kompetencji dla danego poziomu i działu
         $competencies = DB::table('competencies')
             ->where('level', 'like', "{$level}%")
@@ -454,15 +462,14 @@ public function showStep1Form()
             return redirect()->back()->with('error', "Brak pytań dla poziomu: {$level}");
         }
 
-        // Definicja nazw poziomów
-        $levelNames = [
+        // Definicja nazw aktywnych poziomów z konfiguracji
+        $levelNames = config('levels.active', [
             1 => 'Junior',
             2 => 'Specjalista',
             3 => 'Senior',
             4 => 'Supervisor',
             5 => 'Manager',
-            6 => 'Head of'
-        ];
+        ]);
 
         // Ustawienie nazwy aktualnego poziomu
         $currentLevelName = $levelNames[$level] ?? 'Poziom nieznany';
@@ -509,7 +516,7 @@ public function showStep1Form()
 
         // Przekazanie zmiennych do widoku
     $showPrev = true; // domyślnie pokażemy toggle, UI ukryje jeśli brak danych
-    return view('self-assessment.form', compact('competencies', 'currentLevel', 'currentLevelName', 'savedAnswers', 'prevAnswers', 'uuid', 'employee', 'showPrev'));
+    return view('self-assessment.form', compact('competencies', 'currentLevel', 'currentLevelName', 'levelNames', 'savedAnswers', 'prevAnswers', 'uuid', 'employee', 'showPrev'));
     }
 
     public function sendCopy(Request $request)

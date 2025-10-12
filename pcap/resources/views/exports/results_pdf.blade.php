@@ -54,6 +54,10 @@
             @foreach($results->sortBy('competency.level') as $result)
                 @php
                     $resultLevel = trim($result->competency->level);
+                    // Pomijamy wycofany poziom 6 (Head of) w bieżących raportach
+                    if (strpos($resultLevel, '6') === 0) {
+                        continue;
+                    }
                 @endphp
                 @if($currentLevel != $resultLevel)
                     @if($currentLevel != null)
