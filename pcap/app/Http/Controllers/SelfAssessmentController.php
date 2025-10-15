@@ -652,19 +652,16 @@ public function generateXls($uuid)
             return redirect()->route('self.assessment.step1')->with('error', 'Nie znaleziono danych użytkownika.');
         }
     
-        if ($request->has('back')) {
-            // User clicked "Back"
-            $previousLevel = $currentLevel - 1;
-            if ($previousLevel < 1) {
-                $previousLevel = 1;
-            }
-            return redirect()->route('self.assessment', ['level' => $previousLevel, 'uuid' => $uuid]);
-        }
-    
-        // Save the form data
+    // Determine which action was requested (prefer explicit hidden field 'action')
+    $action = strtolower($request->input('action', ''));
+    $goBack = $action === 'back' || $request->has('back');
+    $saveAndExit = $action === 'save_and_exit' || $request->has('save_and_exit');
+    $submit = $action === 'submit' || $request->has('submit');
+
+        // Save the form data (ALWAYS save before redirecting, including when going Back)
         $competencyIds = $request->input('competency_id', []);
         $scores = $request->input('score', []);
-    $aboveExpectations = $request->input('above_expectations', []);
+        $aboveExpectations = $request->input('above_expectations', []);
         $comments = $request->input('comments', []);
     
         $activeCycleId = $this->activeCycleId();
@@ -692,18 +689,25 @@ public function generateXls($uuid)
                 ]
             );
         }
-    
-        if ($request->has('save_and_exit')) {
+
+        // Redirect according to requested action
+        if ($saveAndExit) {
             // User clicked "Save and finish later"
             // Save data and redirect back to the same form with modal
             return redirect()->route('self.assessment', ['level' => $currentLevel, 'uuid' => $uuid])->with('show_modal', true);
-        } elseif ($request->has('submit')) {
+        } elseif ($submit) {
             // User clicked "Submit"
             return redirect()->route('self.assessment.complete', ['uuid' => $uuid]);
         } else {
-            // User clicked "Next"
-            $nextLevel = $currentLevel + 1;
-            return redirect()->route('self.assessment', ['level' => $nextLevel, 'uuid' => $uuid]);
+            // User clicked either "Back" or "Next"
+            if ($goBack) {
+                $previousLevel = $currentLevel - 1;
+                if ($previousLevel < 1) { $previousLevel = 1; }
+                return redirect()->route('self.assessment', ['level' => $previousLevel, 'uuid' => $uuid]);
+            } else {
+                $nextLevel = $currentLevel + 1;
+                return redirect()->route('self.assessment', ['level' => $nextLevel, 'uuid' => $uuid]);
+            }
         }
     }
     
@@ -763,7 +767,9 @@ public function generateXls($uuid)
         $comments = $request->input('comments', []);
 
         foreach ($competencyIds as $competencyId) {
-            $isAboveExpectations = isset($aboveExpectations[$competencyId]) ? 1 : 0;
+            // IMPORTANT: do not use isset() here; inputs exist for every competency with value "0" when not selected
+            // Using isset would incorrectly set all items to 1. Respect the actual submitted value 0/1.
+            $isAboveExpectations = intval($aboveExpectations[$competencyId] ?? 0) ? 1 : 0;
             $scoreValue = $isAboveExpectations ? 1 : ($scores[$competencyId] ?? 0);
 
             \App\Models\Result::updateOrCreate(

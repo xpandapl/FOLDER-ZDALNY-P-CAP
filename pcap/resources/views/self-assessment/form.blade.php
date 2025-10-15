@@ -161,11 +161,7 @@ body {
                             box-sizing: border-box;
                             position: relative;
                         }
-                        .modal {
-                            width: 24px;
-                            z-index: 1400; /* ponad topbar (1200) i panel ustawień (1300) */
-                            font-size: 16px;
-                        }
+                        /* removed legacy .modal rule to avoid conflicting sizing */
                         .rating-label { min-height: 58px; line-height: 1.38; }
                     }
                     .dot {
@@ -641,8 +637,8 @@ body.assessment-fix .assessment-flow .flow-right { flex:0 0 auto; display:flex; 
 body.assessment-fix .flow-info { color:#1f2937; font-weight:600; font-size:14px; }
 body.assessment-fix .steps { display:flex; align-items:center; gap:10px; justify-content:center; }
 body.assessment-fix .step { position:relative; display:flex; align-items:center; gap:10px; }
-body.assessment-fix .step .ring { width:30px; height:30px; border-radius:50%; background: conic-gradient(#e5e7eb 0, #e5e7eb 360deg); display:grid; place-items:center; box-shadow: inset 0 0 0 3px #fff, 0 0 0 1px #e5e7eb; }
-body.assessment-fix .step.current .ring { background: conic-gradient(#2563eb 0deg, #e5e7eb 0deg); box-shadow: inset 0 0 0 3px #fff, 0 0 0 1px #2563eb; }
+body.assessment-fix .step .ring { width:30px; height:30px; border-radius:50%; background: conic-gradient(#e5e7eb 0 360deg); display:grid; place-items:center; box-shadow: inset 0 0 0 3px #fff, 0 0 0 1px #e5e7eb; }
+body.assessment-fix .step.current .ring { background: conic-gradient(#2563eb 0deg, #e5e7eb 0 360deg); box-shadow: inset 0 0 0 3px #fff, 0 0 0 1px #2563eb; }
 body.assessment-fix .step.done .ring { background:#2563eb; box-shadow: inset 0 0 0 3px #fff, 0 0 0 1px #2563eb; }
 body.assessment-fix .ring-text { font-size:10px; font-weight:700; color:#111827; mix-blend-mode:normal; }
 body.assessment-fix .step.done .ring-text { color:#fff; }
@@ -739,8 +735,8 @@ body.assessment-fix.text-xl .assessment-subheader { font-size: 16px !important; 
 body.assessment-fix.text-lg .assessment-label { font-size: 15px !important; }
 body.assessment-fix.text-xl .assessment-label { font-size: 16px !important; }
 /* Rating labels */
-body.assessment-fix.text-lg .rating-label { font-size: 14px !important; }
-body.assessment-fix.text-xl .rating-label { font-size: 15px !important; }
+body.assessment-fix.text-lg .rating-label { font-size: 14px !important; min-height:52px !important; align-items:flex-end !important; }
+body.assessment-fix.text-xl .rating-label { font-size: 15px !important; min-height:56px !important; align-items:flex-end !important; }
 /* Definition bubble */
 body.assessment-fix.text-lg .definition-bubble > div:first-child { font-size: 15px !important; }
 body.assessment-fix.text-xl .definition-bubble > div:first-child { font-size: 16px !important; }
@@ -793,7 +789,8 @@ body.assessment-fix .question.zawodowe-inne{ border-left-color:#fecaca; }
 body.assessment-fix .rating-dots { padding-top: 8px; padding-bottom: 8px; }
 body.assessment-fix .rating-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:10px 0; width:100%; padding: 4px 8px; }
 body.assessment-fix .rating-col { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
-body.assessment-fix .rating-label { font-size:13px; line-height:1.3; min-height:42px; text-align:center; display:flex; align-items:center; justify-content:center; color:#374151; padding:0 4px; font-weight:400; }
+/* Bottom-align labels so 1-line and 2-line look even */
+body.assessment-fix .rating-label { font-size:13px; line-height:1.3; min-height:48px; text-align:center; display:flex; align-items:flex-end; justify-content:center; color:#374151; padding:0 4px; font-weight:400; }
 body.assessment-fix .rating-label.active { color:#2563eb; font-weight:500; }
 body.assessment-fix .dot { width:28px; height:28px; border-radius:50%; border:2px solid #2563eb; background:#fff; display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer; transition: box-shadow .2s; }
 body.assessment-fix .dot.selected { background:#2563eb; color:#fff; box-shadow:0 0 0 3px rgba(37,99,235,.15); }
@@ -822,6 +819,24 @@ body.assessment-fix .skip-button { display:inline-flex; flex:0 0 auto; align-sel
 
 /* Modal */
 body.assessment-fix .modal-content { background:#fff; border:1px solid #e5e7eb; border-radius:14px; width:min(520px,92vw); box-shadow: 0 16px 40px rgba(15,23,42,.18); }
+/* Strong, centered modal overlay to ensure correct positioning */
+body.assessment-fix .modal { position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important; display: none; align-items: center; justify-content: center; background: rgba(17,24,39,.55); z-index: 1400; padding: 16px; }
+body.assessment-fix .modal[style*="display:flex"] { align-items: center; justify-content: center; }
+/* Stable content size */
+body.assessment-fix .modal .modal-content { width: min(520px, 92vw); max-height: 80vh; min-height: 200px; overflow: auto; background:#fff; color:#111827; }
+body.assessment-fix .modal .modal-content h3 { font-size: 22px; font-weight: 700; color:#111827; margin: 0 0 8px; }
+body.assessment-fix .modal .modal-content p { color:#111827; font-weight: 400 !important; font-size: 16px; line-height: 1.5; margin: 8px 0 16px; }
+/* Primary confirm button in modal */
+body.assessment-fix .confirm-button { background:#2563eb; color:#fff; border:1px solid #2563eb; border-radius:10px; padding:10px 16px; font-weight:600; }
+body.assessment-fix .confirm-button:hover { background:#1d4ed8; border-color:#1d4ed8; }
+
+/* --- Submit/loading state --- */
+.btn-spinner{display:inline-block;width:16px;height:16px;border:2px solid #fff;border-top-color:transparent;border-right-color:transparent;border-radius:50%;vertical-align:-3px;margin-right:8px;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.is-loading{opacity:.7; pointer-events:none}
+.submit-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(255,255,255,.55);z-index:2000}
+.submit-overlay .box{background:#111827;color:#fff;padding:12px 16px;border-radius:10px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.submit-overlay .box .spinner{width:18px;height:18px;border:2px solid #fff;border-top-color:transparent;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
 
 /* Restore floating user card on desktop */
 body.assessment-fix .user-card { position: fixed; top: calc(var(--gt-offset, 0px) + var(--topbar-h, 66px) + 10px); right: 10px; background: #fff; border:1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 8px 24px rgba(15,23,42,.12); width: 220px; z-index: 1000; padding:12px; }
@@ -970,6 +985,8 @@ body.assessment-fix .add-description-container { display:flex; align-items:cente
             commentContainer.style.display = 'none';
             commentContainer.querySelector('textarea').required = false;
         }
+        // trigger autosave after user toggles requirement
+        try { triggerAutosaveDebounced(); } catch(e) {}
     }
 
     function copyLink() {
@@ -1054,6 +1071,9 @@ body.assessment-fix .add-description-container { display:flex; align-items:cente
             var cancelSkip = document.getElementById("cancelSkip");
             skipButton.addEventListener("click", function() {
                 skipModal.style.display = "flex";
+                // focus the dialog for accessibility
+                var mc = skipModal.querySelector('.modal-content');
+                if (mc) mc.focus();
             });
             var uuid = "{{ $uuid }}";
             confirmSkip.addEventListener("click", function() {
@@ -1061,6 +1081,10 @@ body.assessment-fix .add-description-container { display:flex; align-items:cente
             });
             cancelSkip.addEventListener("click", function() {
                 skipModal.style.display = "none";
+            });
+            // close when clicking backdrop
+            skipModal.addEventListener('click', function(e){
+                if (e.target === skipModal) { skipModal.style.display = 'none'; }
             });
         }
         var closeModalButton = document.getElementById("closeModal");
@@ -1079,25 +1103,24 @@ body.assessment-fix .add-description-container { display:flex; align-items:cente
 
 
 
-let autosaveInterval = setInterval(function() {
-    let form = document.getElementById('assessmentForm');
-    if (!form) return;
-    let formData = new FormData(form);
-    fetch('{{ route('self_assessment.autosave') }}', {
+// --- Autosave helpers ---
+function autosaveNow(){
+    const form = document.getElementById('assessmentForm');
+    if (!form) return Promise.resolve();
+    const formData = new FormData(form);
+    return fetch('{{ route('self_assessment.autosave') }}', {
         method: 'POST',
-        headers: {
-            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-        },
+        headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
         body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Możesz dodać powiadomienie o autozapisie, np. console.log('Autozapis OK');
-    })
-    .catch(error => {
-        // Możesz dodać obsługę błędów, np. console.error('Autozapis error', error);
-    });
-}, 60000); // co 60 sekund
+    }).then(r=>{ try { return r.json(); } catch(e){ return null; } }).catch(()=>null);
+}
+let __autosaveTimer;
+function triggerAutosaveDebounced(delay){
+    clearTimeout(__autosaveTimer);
+    __autosaveTimer = setTimeout(function(){ autosaveNow(); }, typeof delay==='number'? delay : 1000);
+}
+// Safety net: periodic autosave every 60s
+let autosaveInterval = setInterval(autosaveNow, 60000);
 </script>
 
 </head>
@@ -1224,6 +1247,10 @@ let autosaveInterval = setInterval(function() {
         </div>
     </header>
     <div class="container-wrapper">
+        <!-- Global submit overlay -->
+        <div id="submitOverlay" class="submit-overlay" role="status" aria-live="polite" aria-label="Trwa zapisywanie">
+            <div class="box"><div class="spinner" aria-hidden="true"></div><div id="submitOverlayText">Zapisywanie…</div></div>
+        </div>
         <div class="container">
 
             <!-- Toggle poprzedniego cyklu -->
@@ -1321,18 +1348,22 @@ let autosaveInterval = setInterval(function() {
             
 
             <!-- Modal -->
-            <div id="skipModal" class="modal" style="display:none;">
-                <div class="modal-content">
+            <div id="skipModal" class="modal" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="skipModalTitle">
+                <div class="modal-content" tabindex="-1">
+                    <h3 id="skipModalTitle" style="margin-top:0;margin-bottom:10px;">Potwierdź pominięcie</h3>
                     <p>Pominięcie dalszej oceny oznacza, że nie chcesz oceniać się na tym oraz wyższych poziomach i to jest w porządku. Potwierdź tylko, czy to jest to, co miałeś na myśli.</p>
-                    <button id="confirmSkip" class="confirm-button">Tak, pomiń pozostałe pytania</button>
-                    <button id="cancelSkip" class="cancel-button">Wróć</button>
+                    <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:10px;">
+                        <button id="confirmSkip" class="confirm-button" type="button">Tak, pomiń pozostałe pytania</button>
+                        <button id="cancelSkip" class="cancel-button" type="button">Wróć</button>
+                    </div>
                 </div>
             </div>
 
             @if(session('show_modal'))
             <!-- Modal -->
-            <div id="saveModal" class="modal" style="display:flex;">
-                <div class="modal-content">
+            <div id="saveModal" class="modal" style="display:flex;" role="dialog" aria-modal="true" aria-labelledby="saveModalTitle">
+                <div class="modal-content" tabindex="-1">
+                    <h3 id="saveModalTitle" style="margin-top:0;margin-bottom:10px;">Zapisano postęp</h3>
                     <p>Twoja dotychczasowa samoocena została zapisana. Aby wrócić później do edycji tego formularza, użyj tego linku:</p>
                     <div class="edit-link-wrapper">
                         <input type="text" id="editLinkModal" value="{{ route('form.edit', ['uuid' => $uuid]) }}" readonly>
@@ -1358,6 +1389,7 @@ let autosaveInterval = setInterval(function() {
                 <input type="hidden" name="current_level" value="{{ $currentLevel }}">
                 <input type="hidden" name="employee_id" value="{{ $employee->id }}">
                 <input type="hidden" name="uuid" value="{{ $uuid }}">
+                <input type="hidden" name="action" id="formAction" value="">
 
 
 
@@ -1402,6 +1434,7 @@ let autosaveInterval = setInterval(function() {
                 // Precompute values for initial state and data attributes
                 $current = $savedAnswers['score'][$competency->id] ?? 0;
                 $prev = $prevAnswers['score'][$competency->id] ?? null;
+                $hasCommentInit = !empty($savedAnswers['comments'][$competency->id]);
                 $isAboveSelectedInit = !empty($savedAnswers['above_expectations'][$competency->id]);
             @endphp
              <div class="question"
@@ -1412,7 +1445,8 @@ let autosaveInterval = setInterval(function() {
                 data-competency-type="{{ $competency->competency_type }}"
                 data-level="{{ $currentLevel }}"
                 data-score="{{ $current }}"
-                data-star="{{ $isAboveSelectedInit ? 1 : 0 }}">
+                data-star="{{ $isAboveSelectedInit ? 1 : 0 }}"
+                data-comment="{{ $hasCommentInit ? 1 : 0 }}">
 
                         <div class="question-header">
                             <div class="badge-container">
@@ -1431,15 +1465,16 @@ let autosaveInterval = setInterval(function() {
                             @php
                                 $options = [
                                     ['v'=>0, 'label'=>'Nie dotyczy'],
-                                    ['v'=>0.25, 'label'=>'Słabo'],
-                                    ['v'=>0.5, 'label'=>'Średnio'],
-                                    ['v'=>0.75, 'label'=>'Dobrze'],
-                                    ['v'=>1, 'label'=>'Bardzo dobrze'],
+                                    ['v'=>0.25, 'label'=>'Poniżej oczekiwań'],
+                                    ['v'=>0.5, 'label'=>'Wymaga rozwoju'],
+                                    ['v'=>0.75, 'label'=>'Blisko oczekiwań'],
+                                    ['v'=>1, 'label'=>'Spełnia oczekiwania'],
                                 ];
                             @endphp
                             <div class="rating-grid">
                                 @foreach($options as $opt)
                                     @php
+                                        // Preselect from saved score; on a new form $current = 0, so 'Nie dotyczy' will be selected by default
                                         $isSelected = (!$isAboveSelectedInit) && ((string)$current === (string)$opt['v']);
                                         $isPrev = ((string)$prev === (string)$opt['v']);
                                         $prevHadStar = !empty($prevAnswers['above_expectations'][$competency->id]);
@@ -1626,6 +1661,8 @@ document.querySelectorAll('.question').forEach(function(q){
             wrap.querySelectorAll('.rating-col').forEach(function(c){ c.classList.remove('active'); });
             this.closest('.rating-col')?.classList.add('active');
             try { updateHeaderProgress(); } catch(e) {}
+            // autosave after selection
+            try { triggerAutosaveDebounced(); } catch(e) {}
         });
     });
 
@@ -1639,13 +1676,24 @@ document.querySelectorAll('.question').forEach(function(q){
         });
     });
 
+    // Autosave on textarea input (debounced)
+    const textarea = q.querySelector('.textarea-description textarea');
+    if (textarea){ textarea.addEventListener('input', function(){ try { triggerAutosaveDebounced(1200); } catch(e) {} }); }
+
     // Init bubble and selection state
     // Initialize from data attributes first to avoid any accidental defaults
     const initScore = (q.getAttribute('data-score') || scoreInput.value || '0').toString();
-    const initStar = q.getAttribute('data-star') === '1' || starInput.value === '1';
+    // Only trust data-star from server, and only if a comment existed (since star requires justification)
+    const initStar = (q.getAttribute('data-star') === '1') && (q.getAttribute('data-comment') === '1');
     scoreInput.value = initScore;
     starInput.value = initStar ? '1' : '0';
-    updateDefinition(scoreInput.value || '0');
+    // Only show definition once a selection exists
+    function clearSelection(){
+        wrap.querySelectorAll('.dot').forEach(d=>{ d.classList.remove('selected'); d.setAttribute('aria-pressed','false'); });
+        const legends = q.querySelectorAll('.rating-label');
+        legends.forEach(l=>l.classList.remove('active'));
+        defBubble.style.display='none';
+    }
     if (initStar){
         // Explicitly select the "Powyżej oczekiwań" dot
         const aboveBtn = wrap.querySelector('.dot[data-above="1"]');
@@ -1669,32 +1717,33 @@ document.querySelectorAll('.question').forEach(function(q){
             }
         }
     } else {
-        // Not above-expectations: ensure star is NOT selected and select saved score (or 0)
+        // Not above-expectations: ensure star is NOT selected and select saved score if > 0
         const aboveBtn = wrap.querySelector('.dot[data-above="1"]');
         if (aboveBtn){
             aboveBtn.classList.remove('selected');
             aboveBtn.setAttribute('aria-pressed','false');
         }
-        // Select the dot matching saved score (server-rendered may already do this, but enforce it defensively)
+        // Select the dot matching saved score; for a new form it's '0' (Nie dotyczy)
         const targetVal = (scoreInput.value || '0').toString();
-        let targetDot = wrap.querySelector(`.dot[data-value="${targetVal}"]:not([data-above="1"])`);
-        if (!targetDot) {
-            // Fallback to 0 (Nie dotyczy)
-            targetDot = wrap.querySelector('.dot[data-value="0"]');
-            if (targetDot) scoreInput.value = '0';
+        if (parseFloat(targetVal) >= 0){
+            let targetDot = wrap.querySelector(`.dot[data-value="${targetVal}"]:not([data-above="1"])`);
+            if (targetDot) {
+                wrap.querySelectorAll('.dot').forEach(d=>{ d.classList.remove('selected'); d.setAttribute('aria-pressed','false'); });
+                targetDot.classList.add('selected');
+                targetDot.setAttribute('aria-pressed','true');
+                // Sync active legend labels
+                const legends = q.querySelectorAll('.rating-label');
+                legends.forEach(l=>{
+                    const v = l.getAttribute('data-value');
+                    const lAbove = l.getAttribute('data-above') === '1';
+                    l.classList.toggle('active', (!lAbove && v === (scoreInput.value || '0')));
+                });
+                // For 0 (Nie dotyczy), nie pokazuj definicji
+                if (parseFloat(targetVal) > 0) updateDefinition(targetVal); else { defBubble.style.display='none'; }
+            } else {
+                clearSelection();
+            }
         }
-        if (targetDot) {
-            wrap.querySelectorAll('.dot').forEach(d=>{ d.classList.remove('selected'); d.setAttribute('aria-pressed','false'); });
-            targetDot.classList.add('selected');
-            targetDot.setAttribute('aria-pressed','true');
-        }
-        // Sync active legend labels
-        const legends = q.querySelectorAll('.rating-label');
-        legends.forEach(l=>{
-            const v = l.getAttribute('data-value');
-            const lAbove = l.getAttribute('data-above') === '1';
-            l.classList.toggle('active', (!lAbove && v === (scoreInput.value || '0')));
-        });
         // Ensure checkbox is enabled when not 'Powyżej oczekiwań'
         if (addDescCheckbox) addDescCheckbox.disabled = false;
     }
@@ -1706,6 +1755,26 @@ document.querySelectorAll('.question').forEach(function(q){
         wrap.querySelectorAll('.rating-col').forEach(function(c){ c.classList.remove('active'); });
         if (selectedDot){ selectedDot.closest('.rating-col')?.classList.add('active'); }
     })();
+
+    // Final safety: if nothing is selected (edge cases), default to 'Nie dotyczy' (0)
+    if (!wrap.querySelector('.dot.selected')){
+        const zeroDot = wrap.querySelector('.dot[data-value="0"]:not([data-above="1"])');
+        if (zeroDot){
+            zeroDot.classList.add('selected');
+            zeroDot.setAttribute('aria-pressed','true');
+            scoreInput.value = '0';
+            // activate corresponding label, keep definition hidden
+            const legends = q.querySelectorAll('.rating-label');
+            legends.forEach(l=>{
+                const v = l.getAttribute('data-value');
+                const lAbove = l.getAttribute('data-above') === '1';
+                l.classList.toggle('active', (!lAbove && v === '0'));
+            });
+            defBubble.style.display = 'none';
+            zeroDot.closest('.rating-col')?.classList.add('active');
+        }
+    }
+    try { updateHeaderProgress(); } catch(e) {}
 });
 
 // Header progress computation: current level ring shows percentage of answered questions
@@ -1733,7 +1802,9 @@ function updateHeaderProgress() {
         var ring = currentStep.querySelector('.ring');
         var text = currentStep.querySelector('.ring-text');
         if (ring){
-            ring.style.background = 'conic-gradient(#2563eb ' + pct + '%, #e5e7eb 0)';
+            // Use degrees for reliable rendering across browsers (0% edge case)
+            var deg = Math.max(0, Math.min(360, pct * 3.6));
+            ring.style.background = 'conic-gradient(#2563eb ' + deg + 'deg, #e5e7eb 0 360deg)';
             ring.title = pct + '% uzupełnione';
         }
         if (text){ text.textContent = String(pct); }
@@ -1743,6 +1814,59 @@ function updateHeaderProgress() {
 // Initial header update after DOM ready (in case no interactions yet)
 document.addEventListener('DOMContentLoaded', function(){
     try { updateHeaderProgress(); } catch(e) {}
+    // Safety: if for any reason ring text is empty on current step, set to 0
+    var cur = document.querySelector('.steps .step.current');
+    if (cur){
+        var t = cur.querySelector('.ring-text');
+        var ring = cur.querySelector('.ring');
+        if (t && (t.textContent === '' || isNaN(parseInt(t.textContent,10)))) t.textContent = '0';
+        if (ring && (!ring.style.background || ring.style.background.indexOf('conic-gradient') === -1)){
+            ring.style.background = 'conic-gradient(#2563eb 0deg, #e5e7eb 0 360deg)';
+        }
+    }
+
+    // Submit loading state: disable buttons, show overlay and spinner on the clicked button
+    var form = document.getElementById('assessmentForm');
+    var lastClickedBtn = null;
+    document.querySelectorAll('button[type="submit"][form="assessmentForm"], #assessmentForm button[type="submit"]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+            lastClickedBtn = this;
+            var act = document.getElementById('formAction');
+            if (act){ act.value = (this.getAttribute('name')||'').toLowerCase(); }
+        });
+    });
+    function setButtonLoading(btn, text){
+        if (!btn) return;
+        btn.classList.add('is-loading');
+        btn.disabled = true;
+        try { btn.dataset._original = btn.innerHTML; } catch(e) {}
+        btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span>' + (text||btn.textContent||'...');
+    }
+    function setAllDisabled(){
+        document.querySelectorAll('#assessmentForm button[type="submit"], button[form="assessmentForm"]').forEach(function(b){ b.disabled = true; b.classList.add('is-loading'); });
+    }
+    function openOverlay(msg){
+        var ov = document.getElementById('submitOverlay');
+        var txt = document.getElementById('submitOverlayText');
+        if (txt) txt.textContent = msg || 'Zapisywanie…';
+        if (ov) ov.style.display = 'flex';
+    }
+    if (form){
+        form.addEventListener('submit', function(){
+            var msg = 'Zapisywanie…';
+            var label = 'Zapisywanie…';
+            if (lastClickedBtn){
+                var n = (lastClickedBtn.getAttribute('name')||'').toLowerCase();
+                if (n === 'next') { msg = 'Przechodzę dalej…'; label = 'Przechodzę dalej…'; }
+                else if (n === 'back') { msg = 'Wracam…'; label = 'Wracam…'; }
+                else if (n === 'save_and_exit') { msg = 'Zapisuję…'; label = 'Zapisuję…'; }
+                else if (n === 'submit') { msg = 'Wysyłam…'; label = 'Wysyłam…'; }
+                setButtonLoading(lastClickedBtn, label);
+            }
+            setAllDisabled();
+            openOverlay(msg);
+        });
+    }
 });
 
 // Toggle manager feedback disclosure

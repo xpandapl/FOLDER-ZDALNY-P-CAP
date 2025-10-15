@@ -15,6 +15,19 @@
         <p>W przypadku pytań lub problemów - odezwij się do Asi Tonkowicz (<a href="mailto:jto@adsystem.pl">jto@adsystem.pl</a>).</p>
     </div>
 
+    <style>
+        /* Scoped spacing for step1 */
+        .sa-step1 .form-row{ display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+        .sa-step1 .form-group{ flex:1 1 260px; margin-bottom:16px; }
+        .sa-step1 label{ display:block; margin-bottom:6px; font-weight:600; }
+        .sa-step1 select, .sa-step1 input[type="text"]{ width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; }
+        .sa-step1 .btn{ margin-top:20px; }
+        @media (max-width: 640px){
+            .sa-step1 .form-row{ flex-direction:column; gap:12px; }
+        }
+    </style>
+
+    <div class="sa-step1">
     <form action="{{ route('self.assessment.step1.save') }}" method="POST">
         @csrf
         <div class="form-row">
@@ -47,6 +60,7 @@
         </div>
         <button type="submit" class="btn btn-success" style="width:100%">Przejdź dalej</button>
     </form>
+    </div>
 @endsection
 
 @section('scripts')
