@@ -72,6 +72,7 @@ Route::get('/admin/manager/{id}', [AdminPanelController::class, 'getManager'])->
 Route::put('/admin/update-manager', [AdminPanelController::class, 'updateManager'])->name('admin.update_manager');
 // Competencies summary (lazy JSON)
 Route::get('/admin/competencies/summary', [AdminPanelController::class, 'competenciesSummary'])->name('admin.competencies_summary');
+Route::post('/admin/settings/update', [AdminPanelController::class, 'updateSettings'])->name('admin.settings.update');
 
 
 

@@ -29,7 +29,7 @@
     </style>
 </head>
 <body>
-    <h2>Raport Samooceny dla {{ $employee->name }}</h2>
+    <h2>Raport Samooceny dla {{ $employee->first_name ?? '' }} {{ $employee->last_name ?? $employee->name }}</h2>
     <table>
         <thead>
             <tr>

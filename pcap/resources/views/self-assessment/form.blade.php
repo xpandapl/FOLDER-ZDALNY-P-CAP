@@ -208,12 +208,13 @@
                         }
                         .skip-button { background-color: #fff; color: #b91c1c; border-color: #fecaca; }
                         .skip-button:hover { background-color: #fee2e2; }
-                        .back-button { background-color: #fff; color: var(--text); }
-                        .back-button:hover { background-color: #f3f4f6; }
-                        .save-button { background-color: var(--primary); border-color: var(--primary); color: #fff; }
-                        .save-button:hover { background-color: var(--primary-600); border-color: var(--primary-600); }
-                        .cancel-button { background-color: #fff; color: #b91c1c; border-color: #fecaca; }
-                        .cancel-button:hover { background-color: #fee2e2; }
+                        /* Updated Button System */
+                        .back-button { background: transparent; color: #6b7280; border-color: transparent; padding: 8px 12px; }
+                        .back-button:hover { background: #f3f4f6; color: #374151; }
+                        .save-button { background: #3b82f6; color: white; border-color: #3b82f6; }
+                        .save-button:hover { background: #2563eb; border-color: #2563eb; }
+                        .cancel-button { background: white; color: #374151; border-color: #d1d5db; }
+                        .cancel-button:hover { background: #f9fafb; border-color: #9ca3af; }
                         .copy-button { background-color: #fff; color: var(--text); }
                         .copy-button:hover { background-color: #f3f4f6; }
                         .modal-content {
@@ -378,35 +379,7 @@ button {
 .skip-button:hover {
     background-color: #d32f2f;
 }
-.back-button {
-    background-color: #ccc;
-    color: #333;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-    align-self: flex-end;
-}
-
-.back-button:hover {
-    background-color: #bbb;
-}
-.save-button {
-    background-color: #4CAF50;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-    margin-top: 20px;
-    align-self: flex-end;
-}
-
-.save-button:hover {
-    background-color: #45a049;
-}
+/* Button definitions moved to consolidated button system */
 
 .user-info {
     position: fixed;
@@ -819,11 +792,29 @@ body.assessment-fix .textarea-description textarea::placeholder { color:#6b7280;
 body.assessment-fix .textarea-description { margin-top: 10px; }
 
 /* Buttons */
-body.assessment-fix .skip-button, body.assessment-fix .back-button, body.assessment-fix .save-button, body.assessment-fix .cancel-button, body.assessment-fix .copy-button { border-radius:10px; border:1px solid #e5e7eb; padding:10px 16px; font-weight:600; }
-body.assessment-fix .save-button { background:#2563eb; color:#fff; border-color:#2563eb; }
-body.assessment-fix .save-button:hover { background:#1d4ed8; border-color:#1d4ed8; }
-body.assessment-fix .back-button { background:#fff; color:#111827; }
-body.assessment-fix .back-button:hover { background:#f3f4f6; }
+/* Updated Button System */
+body.assessment-fix .skip-button, body.assessment-fix .back-button, body.assessment-fix .save-button, body.assessment-fix .cancel-button, body.assessment-fix .copy-button { 
+    border-radius:8px; 
+    border:1px solid transparent; 
+    padding:12px 20px; 
+    font-weight:600; 
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+/* Primary buttons */
+body.assessment-fix .save-button, body.assessment-fix .confirm-button { background:#3b82f6; color:#fff; border-color:#3b82f6; }
+body.assessment-fix .save-button:hover, body.assessment-fix .confirm-button:hover { background:#2563eb; border-color:#2563eb; }
+/* Secondary buttons */
+body.assessment-fix .cancel-button { background:white; color:#374151; border-color:#d1d5db; }
+body.assessment-fix .cancel-button:hover { background:#f9fafb; border-color:#9ca3af; }
+/* Text buttons */
+body.assessment-fix .back-button { background:transparent; color:#6b7280; border-color:transparent; padding: 8px 12px; }
+body.assessment-fix .back-button:hover { background:#f3f4f6; color:#374151; }
 body.assessment-fix .skip-button { background:#fff; color:#991b1b; border-color:#fecaca; }
 body.assessment-fix .skip-button:hover { background:#fee2e2; }
 /* Prevent skip button from stretching full height in any flex context */
@@ -839,8 +830,7 @@ body.assessment-fix .modal .modal-content { width: min(520px, 92vw); max-height:
 body.assessment-fix .modal .modal-content h3 { font-size: 22px; font-weight: 700; color:#111827; margin: 0 0 8px; }
 body.assessment-fix .modal .modal-content p { color:#111827; font-weight: 400 !important; font-size: 16px; line-height: 1.5; margin: 8px 0 16px; }
 /* Primary confirm button in modal */
-body.assessment-fix .confirm-button { background:#2563eb; color:#fff; border:1px solid #2563eb; border-radius:10px; padding:10px 16px; font-weight:600; }
-body.assessment-fix .confirm-button:hover { background:#1d4ed8; border-color:#1d4ed8; }
+/* Confirm button already defined above in primary buttons section */
 
 /* --- Submit/loading state --- */
 .btn-spinner{display:inline-block;width:16px;height:16px;border:2px solid #fff;border-top-color:transparent;border-right-color:transparent;border-radius:50%;vertical-align:-3px;margin-right:8px;animation:spin .8s linear infinite}

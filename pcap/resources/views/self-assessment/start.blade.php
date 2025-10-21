@@ -36,12 +36,12 @@
             <div class="card">
                 <h3>Świeżak</h3>
                 <p>Pierwsza samoocena lub nowa rola. Zaczynasz od krótkiego formularza startowego, a następnie przechodzisz przez pytania poziom po poziomie.</p>
-                <a href="{{ route('self.assessment.step1') }}" class="btn btn-success">Rozpocznij jako Świeżak</a>
+                <a href="{{ route('self.assessment.step1') }}" class="btn btn-primary">Rozpocznij jako Świeżak</a>
             </div>
             <div class="card">
                 <h3>Weteran</h3>
                 <p>Masz już wyniki z poprzedniego cyklu. Wpisz kod dostępu, aby wczytać poprzednie odpowiedzi i dokończyć aktualną samoocenę.</p>
-                <a href="{{ route('start.veteran.form') }}" class="btn btn-primary">Mam kod – przejdź</a>
+                <a href="{{ route('start.veteran.form') }}" class="btn btn-secondary">Mam kod – przejdź</a>
             </div>
         </div>
 

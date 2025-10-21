@@ -40,7 +40,7 @@
                     <div class="hint">Przykład formatu: AB7K-X9P2-LM (docelowo 10–12 znaków)</div>
                 </div>
                 <div class="actions">
-                    <a href="{{ route('start.landing') }}" class="btn btn-outline">Powrót</a>
+                    <a href="{{ route('start.landing') }}" class="btn btn-text">Powrót</a>
                     <button type="submit" class="btn btn-primary">Kontynuuj</button>
                 </div>
             </form>

@@ -10,7 +10,9 @@ class Employee extends Model
     use HasFactory;
 
     protected $fillable = [
-        'name',
+        'name', // Backwards compatibility - will be deprecated
+        'first_name',
+        'last_name',
         'email',
         'department',
         'manager_username',
@@ -63,7 +65,7 @@ class Employee extends Model
 
 
 
-    protected $appends = ['level', 'percentage'];
+    protected $appends = ['level', 'percentage', 'full_name'];
 
     public function getLevelAttribute()
     {
@@ -73,6 +75,29 @@ class Employee extends Model
     public function getPercentageAttribute()
     {
         return $this->attributes['percentage'] ?? 0;
+    }
+
+    // Full name accessor - handles both new and old format
+    public function getFullNameAttribute()
+    {
+        if (!empty($this->first_name) && !empty($this->last_name)) {
+            return trim($this->first_name . ' ' . $this->last_name);
+        }
+        
+        // Fallback to old 'name' field for backwards compatibility
+        return $this->name ?? '';
+    }
+
+    // Name accessor for backwards compatibility
+    public function getNameAttribute()
+    {
+        // If we have the old 'name' field, return it
+        if (!empty($this->attributes['name'])) {
+            return $this->attributes['name'];
+        }
+        
+        // Otherwise, construct from first_name and last_name
+        return $this->getFullNameAttribute();
     }
 
 }

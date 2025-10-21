@@ -4,15 +4,14 @@
     <div class="center" style="margin-bottom:12px;">
         <h1 style="color: var(--primary);">Witaj w procesie P-CAP</h1>
         <h2 style="font-size:14px;" class="muted">Welcome to the P-CAP process (People Competences Accelerating Process)</h2>
-        <p><strong>If you are an English speaker and you need an English version of this form, please use your browser translate tool.</strong></p>
-        <ul style="text-align:left; margin: 12px auto; max-width: 760px;">
-            <li>Poniżej znajdziesz formularz do samooceny - każdy pracownik wykonuje to samodzielnie.</li>
-            <li>Zarezerwuj czas: między 20 min a 1 h - w zależności od poziomu rozwoju zawodowego.</li>
-            <li>Oceń siebie z perspektywy kompetencji osobistych, społecznych, zawodowych, liderskich do poziomu, na którym jesteś, tj. Junior, Specjalista, Senior, Supervisor, Manager.</li>
-            <li>Przy każdej kompetencji możesz zostawić przykład wykorzystania danej kompetencji w pracy (krótko i na faktach).</li>
-        </ul>
-        <p>Oceń siebie za ten rok pracy (lub krótszy okres, jaki z nami jesteś). Twoja ocena trafi do Twojego lidera/liderki do dalszego etapu procesu P-CAP.</p>
-        <p>W przypadku pytań lub problemów - odezwij się do Asi Tonkowicz (<a href="mailto:jto@adsystem.pl">jto@adsystem.pl</a>).</p>
+        
+        <div class="welcome-content">
+            {!! \App\Models\AppSetting::get('welcome_text') !!}
+        </div>
+        
+        <p>W przypadku pytań lub problemów - odezwij się do {{ \App\Models\AppSetting::get('contact_name', 'Administratora') }} 
+           (<a href="mailto:{{ \App\Models\AppSetting::get('contact_email') }}">{{ \App\Models\AppSetting::get('contact_email') }}</a>).
+        </p>
     </div>
 
     <style>
@@ -28,13 +27,37 @@
     </style>
 
     <div class="sa-step1">
+        @if(session('error'))
+            <div class="alert alert-error" style="background: #fee2e2; color: #991b1b; padding: 16px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #fecaca;">
+                <i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i>
+                {{ session('error') }}
+            </div>
+        @endif
+
+        @if($errors->any())
+            <div class="alert alert-error" style="background: #fee2e2; color: #991b1b; padding: 16px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #fecaca;">
+                <i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i>
+                <ul style="margin: 0; list-style: none; padding: 0;">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
     <form action="{{ route('self.assessment.step1.save') }}" method="POST">
         @csrf
         <div class="form-row">
             <div class="form-group">
-                <label for="name">Imię i nazwisko:</label>
-                <input type="text" name="name" id="name" required>
+                <label for="first_name">Imię:</label>
+                <input type="text" name="first_name" id="first_name" required>
             </div>
+            <div class="form-group">
+                <label for="last_name">Nazwisko:</label>
+                <input type="text" name="last_name" id="last_name" required>
+            </div>
+        </div>
+        <div class="form-row">
             <div class="form-group">
                 <label for="job_title">Nazwa stanowiska:</label>
                 <input type="text" name="job_title" id="job_title" required>
@@ -58,7 +81,7 @@
                 <option value="">-- Wybierz przełożonego --</option>
             </select>
         </div>
-        <button type="submit" class="btn btn-success" style="width:100%">Przejdź dalej</button>
+        <button type="submit" class="btn btn-primary" style="width:100%">Przejdź dalej</button>
     </form>
     </div>
 @endsection

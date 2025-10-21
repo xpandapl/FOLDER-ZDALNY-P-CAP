@@ -39,11 +39,14 @@ class AdminPanelController extends Controller
         $blockDate = Carbon::parse(config('app.block_date', '2024-12-10'));
     
         // Pobierz listę użytkowników
-    $users = \App\Models\User::whereIn('role', ['manager','head','supermanager'])->orderBy('name')->get();
-    $managerNameByUsername = $users->pluck('name', 'username');
-    $roles = ['manager', 'head', 'supermanager'];
+        $users = \App\Models\User::whereIn('role', ['manager','head','supermanager'])->orderBy('name')->get();
+        $managerNameByUsername = $users->pluck('name', 'username');
+        $roles = ['manager', 'head', 'supermanager'];
+        
+        // Pobierz ustawienia aplikacji
+        $appSettings = \App\Models\AppSetting::orderBy('label')->get();
     
-    return view('admin_panel', compact('employees', 'blockDate', 'users', 'managerNameByUsername', 'roles'));
+        return view('admin_panel', compact('employees', 'blockDate', 'users', 'managerNameByUsername', 'roles', 'appSettings'));
     }
     
     public function showAdminPanel()
@@ -58,8 +61,11 @@ class AdminPanelController extends Controller
         $teams = \App\Models\Team::pluck('name');
     $roles = ['manager', 'head', 'supermanager'];
     $cycles = AssessmentCycle::orderByDesc('year')->orderByDesc('period')->get();
+    
+    // Pobierz ustawienia aplikacji
+    $appSettings = \App\Models\AppSetting::orderBy('label')->get();
 
-    return view('admin_panel', compact('employees', 'users', 'blockDate', 'teams', 'managerNameByUsername', 'roles', 'cycles'));
+    return view('admin_panel', compact('employees', 'users', 'blockDate', 'teams', 'managerNameByUsername', 'roles', 'cycles', 'appSettings'));
     }
 
     // UI: start new cycle (optionally mark active). Cloning handled via CLI if needed.
@@ -308,5 +314,16 @@ class AdminPanelController extends Controller
             'total' => $results->total(),
             'last_page' => $results->lastPage(),
         ]);
+    }
+    
+    public function updateSettings(Request $request)
+    {
+        $settings = $request->input('settings', []);
+        
+        foreach ($settings as $key => $value) {
+            \App\Models\AppSetting::set($key, $value);
+        }
+        
+        return redirect()->back()->with('success', 'Ustawienia zostały zaktualizowane.');
     }
 }

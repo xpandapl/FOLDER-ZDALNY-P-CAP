@@ -384,7 +384,8 @@ public function showStep1Form()
     
         // Validate input
         $request->validate([
-            'name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
             'department' => 'required|string|max:255',
             'manager' => 'required|string|max:255',
@@ -393,7 +394,9 @@ public function showStep1Form()
     
         // Create a new Employee record with a unique UUID
         $employee = Employee::create([
-            'name' => $request->input('name'),
+            'first_name' => $request->input('first_name'),
+            'last_name' => $request->input('last_name'),
+            'name' => trim($request->input('first_name') . ' ' . $request->input('last_name')), // For backwards compatibility
             'email' => $request->input('email'),
             'department' => $request->input('department'),
             'manager_username' => $request->input('manager'),
@@ -408,6 +411,12 @@ public function showStep1Form()
     // Wyświetlanie formularza samooceny (krok 2)
     public function showForm($level = 1, $uuid = null)
     {
+
+        // Sprawdź czy istnieje aktywny cykl
+        $activeCycleId = $this->activeCycleId();
+        if (!$activeCycleId) {
+            return redirect()->route('self.assessment.step1')->with('error', 'Samoocena jest obecnie zablokowana. Skontaktuj się z administratorem.');
+        }
 
         // Pobierz pracownika na podstawie UUID
         $employee = Employee::where('uuid', $uuid)->first();
@@ -494,7 +503,7 @@ public function showStep1Form()
             ->max('cycle_id');
 
         // Załaduj dane z poprzedniego cyklu bezpośrednio
-        $previousResults = [];
+        $previousResults = collect([]);
         if ($previousCycleId) {
             $previousResults = Result::where('employee_id', $employee->id)
                 ->where('cycle_id', $previousCycleId)
@@ -568,7 +577,7 @@ public function showStep1Form()
             'previousCycleId' => $previousCycleId,
             'all_results_count' => $allResults->count(),
             'filtered_results_count' => $results->count(),
-            'previous_results_count' => count($previousResults),
+            'previous_results_count' => $previousResults->count(),
             'results_with_parent' => $results->filter(function($r) { return $r->parent !== null; })->count(),
             'results_with_parent_result_id' => $results->filter(function($r) { return $r->parent_result_id !== null; })->count(),
             'prevAnswers' => $prevAnswers,
@@ -638,15 +647,96 @@ public function showStep1Form()
     
     public function completeAssessment($uuid)
     {
-        // Find the employee based on UUID
-        $employee = Employee::where('uuid', $uuid)->first();
+        // Find the employee based on UUID with necessary relationships
+        $employee = Employee::with(['team', 'overriddenCompetencyValues'])
+            ->where('uuid', $uuid)
+            ->first();
 
         if (!$employee) {
             return redirect()->route('self.assessment.step1')->with('error', 'Nie znaleziono danych użytkownika.');
         }
 
-        // Return the complete view with UUID
-        return view('self-assessment.complete', compact('uuid', 'employee'));
+        // Calculate level and percentage based on results
+        $assessmentSummary = $this->calculateAssessmentSummary($employee);
+
+        // Return the complete view with UUID and summary
+        return view('self-assessment.complete', compact('uuid', 'employee', 'assessmentSummary'));
+    }
+
+    /**
+     * Calculate assessment summary (level and percentage) for employee
+     */
+    private function calculateAssessmentSummary($employee)
+    {
+        $activeCycleId = $this->activeCycleId();
+        
+        // Get employee results with competency relationships - same logic as ManagerController
+        $results = $employee->results()
+            ->where('cycle_id', $activeCycleId)
+            ->with('competency.competencyTeamValues')
+            ->get();
+
+        $levelSummaries = [];
+
+        // Calculate per-level summaries - same logic as ManagerController
+        $levels = $results->groupBy('competency.level');
+        
+        foreach ($levels as $level => $levelResults) {
+            $earnedPointsEmployee = 0;
+            $maxPoints = 0;
+            
+            foreach ($levelResults as $result) {
+                // Use the same competency value calculation as ManagerController
+                $competencyValue = $employee->getCompetencyValue($result->competency_id) ?? 0;
+
+                // Employee's score
+                $scoreEmployee = $result->score;
+
+                // Include in calculations if score > 0 and competencyValue > 0
+                if ($scoreEmployee > 0) {
+                    $earnedPointsEmployee += $competencyValue * $scoreEmployee;
+                }
+                if ($competencyValue > 0) {
+                    $maxPoints += $competencyValue;
+                }
+            }
+
+            // Calculate percentage
+            $percentageEmployee = $maxPoints > 0 ? ($earnedPointsEmployee / $maxPoints) * 100 : 0;
+            
+            $levelSummaries[$level] = [
+                'levelName' => config("levels.active.{$level}", "Poziom {$level}"),
+                'earnedPoints' => $earnedPointsEmployee,
+                'maxPoints' => $maxPoints,
+                'percentage' => round($percentageEmployee, 2)
+            ];
+        }
+
+        // Determine achieved level based on percentages
+        $achievedLevel = $this->determineAchievedLevel($levelSummaries);
+
+        return [
+            'levelSummaries' => $levelSummaries,
+            'achievedLevel' => $achievedLevel
+        ];
+    }
+
+    /**
+     * Determine achieved level based on level summaries
+     */
+    private function determineAchievedLevel($levelSummaries)
+    {
+        $achievedLevel = 'Brak danych';
+        
+        // Find highest level with at least 50% score
+        foreach (array_reverse($levelSummaries, true) as $levelNumber => $summary) {
+            if ($summary['percentage'] >= 50) {
+                $achievedLevel = $summary['levelName'];
+                break;
+            }
+        }
+        
+        return $achievedLevel;
     }
 
 
@@ -757,8 +847,24 @@ public function generateXls($uuid)
         $comments = $request->input('comments', []);
     
         $activeCycleId = $this->activeCycleId();
+        
+        // Validate active cycle exists
+        if (!$activeCycleId) {
+            return redirect()->route('self.assessment.step1')->with('error', 'Brak aktywnego cyklu oceny. Skontaktuj się z administratorem.');
+        }
+        
         // Iterate through competency IDs
         foreach ($competencyIds as $competencyId) {
+            // Skip invalid competency IDs (can happen with stale forms)
+            if (!$competencyId || $competencyId <= 0) {
+                continue;
+            }
+            
+            // Verify competency exists
+            if (!DB::table('competencies')->where('id', $competencyId)->exists()) {
+                continue; // Skip non-existent competencies
+            }
+            
             $isAboveExpectations = intval($aboveExpectations[$competencyId] ?? 0) ? 1 : 0;
         
             // Jeśli above_expectations jest zaznaczone, ustaw score na 1

@@ -40,7 +40,7 @@
     </style>
 </head>
 <body>
-    <h2>Raport użytkownika: {{ $employee->name }}</h2>
+    <h2>Raport użytkownika: {{ $employee->first_name ?? '' }} {{ $employee->last_name ?? $employee->name }}</h2>
     <table>
         <thead>
             <tr>

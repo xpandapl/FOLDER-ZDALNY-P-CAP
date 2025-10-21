@@ -41,6 +41,9 @@
         <li class="nav-item">
             <a class="nav-link" id="cycles-tab" data-toggle="tab" href="#cycles" role="tab" aria-controls="cycles" aria-selected="false">Cykl ocen</a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link" id="settings-tab" data-toggle="tab" href="#settings" role="tab" aria-controls="settings" aria-selected="false">Ustawienia</a>
+        </li>
     </ul>
 
     <!-- Zawartość zakładek -->
@@ -56,7 +59,8 @@
             <table class="table table-bordered">
                 <thead>
                     <tr>
-                        <th>Imię i Nazwisko</th>
+                        <th>Imię</th>
+                        <th>Nazwisko</th>
                         <th>Link do Edycji</th>
                         <th>Dział</th>
                         <th>Stanowisko</th>
@@ -69,7 +73,8 @@
                 <tbody id="employee-table-body">
                     @foreach($employees as $employee)
                     <tr>
-                        <td>{{ $employee->name }}</td>
+                        <td>{{ $employee->first_name ?? $employee->name }}</td>
+                        <td>{{ $employee->last_name ?? '' }}</td>
                         <td>
                             <div class="input-group">
                                 <input type="text" class="form-control uuid-input" value="{{ url('/form/edit/' . $employee->uuid) }}" readonly>
@@ -452,6 +457,65 @@
                 </form>
             </div>
         </div>
+        
+        <!-- Settings Tab -->
+        <div class="tab-pane fade" id="settings" role="tabpanel" aria-labelledby="settings-tab">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Ustawienia aplikacji</h4>
+                    <p class="mb-0 text-muted">Zarządzaj treściami wyświetlanymi w aplikacji</p>
+                </div>
+                <div class="card-body">
+                    <form action="{{ route('admin.settings.update') }}" method="POST">
+                        @csrf
+                        
+                        @foreach($appSettings as $setting)
+                        <div class="form-group mb-4">
+                            <label for="setting_{{ $setting->key }}" class="form-label">
+                                <strong>{{ $setting->label }}</strong>
+                            </label>
+                            @if($setting->description)
+                                <small class="form-text text-muted d-block mb-2">{{ $setting->description }}</small>
+                            @endif
+                            
+                            @if($setting->type === 'textarea')
+                                <textarea 
+                                    name="settings[{{ $setting->key }}]" 
+                                    id="setting_{{ $setting->key }}" 
+                                    class="form-control" 
+                                    rows="8"
+                                >{{ $setting->value }}</textarea>
+                                <small class="form-text text-muted">Możesz używać podstawowych tagów HTML (p, ul, li, strong, em, a).</small>
+                            @elseif($setting->type === 'email')
+                                <input 
+                                    type="email" 
+                                    name="settings[{{ $setting->key }}]" 
+                                    id="setting_{{ $setting->key }}" 
+                                    class="form-control" 
+                                    value="{{ $setting->value }}"
+                                >
+                            @else
+                                <input 
+                                    type="text" 
+                                    name="settings[{{ $setting->key }}]" 
+                                    id="setting_{{ $setting->key }}" 
+                                    class="form-control" 
+                                    value="{{ $setting->value }}"
+                                >
+                            @endif
+                        </div>
+                        @endforeach
+                        
+                        <div class="form-group">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Zapisz ustawienia
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
     </div> <!-- Zamknięcie div dla tab-content -->
 </div> <!-- Zamknięcie div dla container -->
 

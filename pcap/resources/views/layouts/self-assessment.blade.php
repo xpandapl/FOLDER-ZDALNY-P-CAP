@@ -43,12 +43,82 @@
         p { margin: 0 0 12px; color:#374151; }
         .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 14px; border-radius:10px; border:1px solid var(--border); background:#f3f4f6; color:#0b1b33; font-weight:600; text-decoration:none; cursor:pointer; transition: background-color .15s ease, color .15s ease, border-color .15s ease; }
         .btn:hover { background:#e5e7eb; }
-        .btn-primary { background: var(--primary); border-color: var(--primary); color:#fff; }
-        .btn-primary:hover { background: var(--primary-600); border-color: var(--primary-600); }
-        .btn-success { background:#10b981; border-color:#10b981; color:#fff; }
-        .btn-success:hover { background:#059669; border-color:#059669; }
-        .btn-outline { background:#fff; color:#374151; }
-        .btn-outline:hover { background:#f3f4f6; }
+        /* Button System - Consistent Hierarchy */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-height: 44px;
+            justify-content: center;
+        }
+        
+        /* Primary Button - Main actions (Submit, Continue, Start) */
+        .btn-primary { 
+            background: #3b82f6; 
+            color: white; 
+            border-color: #3b82f6; 
+        }
+        .btn-primary:hover { 
+            background: #2563eb; 
+            border-color: #2563eb; 
+            color: white;
+            text-decoration: none;
+        }
+        
+        /* Secondary Button - Supporting actions (Copy, Cancel) */
+        .btn-secondary { 
+            background: white; 
+            color: #374151; 
+            border-color: #d1d5db; 
+        }
+        .btn-secondary:hover { 
+            background: #f9fafb; 
+            border-color: #9ca3af; 
+            color: #374151;
+            text-decoration: none;
+        }
+        
+        /* Text Button - Low priority actions (Back, Links) */
+        .btn-text { 
+            background: transparent; 
+            color: #6b7280; 
+            border-color: transparent;
+            padding: 8px 12px;
+        }
+        .btn-text:hover { 
+            background: #f3f4f6; 
+            color: #374151;
+            text-decoration: none;
+        }
+        
+        /* Legacy support - map old classes to new system */
+        .btn-success { 
+            background: #3b82f6; 
+            color: white; 
+            border-color: #3b82f6; 
+        }
+        .btn-success:hover { 
+            background: #2563eb; 
+            border-color: #2563eb; 
+        }
+        .btn-outline { 
+            background: transparent; 
+            color: #6b7280; 
+            border-color: transparent;
+            padding: 8px 12px;
+        }
+        .btn-outline:hover { 
+            background: #f3f4f6; 
+            color: #374151;
+        }
         .grid { display:grid; gap:16px; }
         .grid-cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
         @media (max-width: 700px){ .grid-cols-2 { grid-template-columns: 1fr; } .assessment-topbar .inner { padding:8px 10px; } .brand .title { font-size:14px; } }
