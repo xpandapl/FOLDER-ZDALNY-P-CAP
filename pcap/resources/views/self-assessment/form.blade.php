@@ -10,36 +10,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f0f0f0;
-    margin: 0;
-    padding: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    width: 100%;
-        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
-        background-color: var(--bg);
-        margin: 0;
-        padding: 20px;
-        display: flex;
-        justify-content: center;
-        align-items: flex-start;
-        width: 100%;
-.container {
-    background-color: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    max-width: 800px;
-    width: 100%;
-    display: flex;
-    .container-wrapper {
-        display: flex;
-        justify-content: center;
-        width: 100%;
-    }
     :root {
         --bg: #f8fafc;
         --card: #ffffff;
@@ -52,10 +22,9 @@ body {
         --warning: #f59e0b; /* amber-500 */
         --danger: #ef4444; /* red-500 */
         --border: #e5e7eb; /* gray-200 */
-    flex-direction: column;
-    align-items: stretch;
-    gap: 20px;
-}
+    }
+
+    /* Podstawowe style zostały przeniesione do body.assessment-fix */
 
 .level-header {
     font-size: 24px;
@@ -548,9 +517,6 @@ button {
 .definition-bubble .def-content{font-size:14px;color:#0d47a1}
 
 /* Previous-year definition bubble */
-.prev-definition-bubble{background:#fff8e1;border-left:none;border-radius:6px;padding:12px;margin-top:10px}
-.prev-definition-bubble .prev-def-content{font-size:14px;color:#5d4037}
-
 /* Show star on last-year selected dot (instead of star button) */
 .rating-dots .dot.prev.prev-star::before{content:'\2605'; /* ★ */ position:absolute; right:-8px; top:-10px; font-size:14px; color:#f9a825; display:none}
 .show-prev .rating-dots .dot.prev.prev-star::before{display:block}
@@ -617,6 +583,10 @@ body.assessment-fix {
     font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
     background-color: #f8fafc;
     color: #1f2937;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    min-height: 100vh;
 }
 /* Make outer container airy; individual question cards carry borders/shadows */
 body.assessment-fix .container {
@@ -624,10 +594,9 @@ body.assessment-fix .container {
     border: none;
     border-radius: 0;
     box-shadow: none;
-    max-width: 840px;
-    margin-left: auto;
-    margin-right: auto;
     width: 100%;
+    padding: 0;
+    box-sizing: border-box;
 }
 body.assessment-fix .level-header { color: #1f2937; font-weight: 700; margin-bottom: 8px; }
 body.assessment-fix .form-header { display:flex; justify-content: space-between; align-items:center; gap:12px; margin-bottom:16px; }
@@ -675,7 +644,17 @@ body.assessment-fix .assessment-topbar .inner { max-width: 1100px; margin: 0 aut
 /* Dynamic topbar height variable (updated via JS) */
 :root { --topbar-h: 66px; }
 /* Offset main content to avoid overlap with fixed header */
-body.assessment-fix .container-wrapper { padding-top: calc(var(--topbar-h, 66px) + var(--gt-offset, 0px)); }
+body.assessment-fix .container-wrapper { 
+    padding-top: calc(var(--topbar-h, 66px) + var(--gt-offset, 0px) + 20px); 
+    display: block;
+    max-width: 840px;
+    width: 100%;
+    margin: 0 auto;
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-bottom: 20px;
+    box-sizing: border-box;
+}
 /* Remove previously reserved space for floating user card */
 @media (min-width: 1200px){ body.assessment-fix .container { padding-right: 0; } }
 /* Step label ellipsis for long names */
@@ -742,9 +721,18 @@ body.assessment-fix.text-lg .definition-bubble > div:first-child { font-size: 15
 body.assessment-fix.text-xl .definition-bubble > div:first-child { font-size: 16px !important; }
 body.assessment-fix.text-lg .definition-bubble .def-content { font-size: 16px !important; line-height: 1.6 !important; }
 body.assessment-fix.text-xl .definition-bubble .def-content { font-size: 18px !important; line-height: 1.65 !important; }
+/* Chat-style previous cycle messages */
+body.assessment-fix.text-lg .message-header { font-size: 13px !important; }
+body.assessment-fix.text-xl .message-header { font-size: 14px !important; }
+body.assessment-fix.text-lg .message-text { font-size: 16px !important; line-height: 1.6 !important; }
+body.assessment-fix.text-xl .message-text { font-size: 18px !important; line-height: 1.65 !important; }
+body.assessment-fix.text-lg .prev-conversation-toggle { font-size: 14px !important; }
+body.assessment-fix.text-xl .prev-conversation-toggle { font-size: 15px !important; }
 /* Badges */
 body.assessment-fix.text-lg .badge { font-size: 13px !important; }
 body.assessment-fix.text-xl .badge { font-size: 14px !important; }
+body.assessment-fix.text-lg .prev-badge { font-size: 13px !important; }
+body.assessment-fix.text-xl .prev-badge { font-size: 14px !important; }
 /* Topbar text */
 body.assessment-fix.text-lg .flow-info { font-size: 15px !important; }
 body.assessment-fix.text-xl .flow-info { font-size: 16px !important; }
@@ -798,9 +786,33 @@ body.assessment-fix .dot.star { border-color:#f59e0b; color:#f59e0b; }
 body.assessment-fix .dot.star.selected { background:#f59e0b; color:#fff; }
 
 /* Text areas and bubbles */
-body.assessment-fix .definition-bubble, body.assessment-fix .prev-definition-bubble { background:#eef2ff; border:1px solid #c7d2fe; color:#111827; border-radius:10px; padding:12px 14px; }
+body.assessment-fix .definition-bubble { background:#eef2ff; border:1px solid #c7d2fe; color:#111827; border-radius:10px; padding:12px 14px; }
 body.assessment-fix .definition-bubble > div:first-child { font-size:13px; font-weight:700; color:#1d4ed8; }
 body.assessment-fix .definition-bubble .def-content { font-size:14px; font-weight:400; line-height:1.55; color:#111827; }
+
+/* Chat-style previous cycle messages */
+body.assessment-fix .chat-message { display:flex; gap:8px; margin-bottom:12px; max-width:85%; }
+body.assessment-fix .chat-message.user-message { margin-left:auto; }
+body.assessment-fix .chat-message.manager-message { margin-right:auto; }
+
+body.assessment-fix .message-avatar { width:36px; height:36px; border-radius:50%; background:#f3f4f6; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+body.assessment-fix .user-message .message-avatar { background:#dbeafe; color:#1d4ed8; }
+body.assessment-fix .manager-message .message-avatar { background:#ecfdf5; color:#059669; }
+body.assessment-fix .user-avatar-text { font-size:11px; font-weight:700; }
+
+body.assessment-fix .message-content { background:#f9fafb; border:1px solid #e5e7eb; border-radius:12px; padding:10px 12px; flex:1; min-width:0; max-width:100%; }
+body.assessment-fix .user-message .message-content { background:#dbeafe; border-color:#c7d2fe; }
+body.assessment-fix .manager-message .message-content { background:#ecfdf5; border-color:#bbf7d0; }
+
+body.assessment-fix .message-header { font-size:12px; font-weight:600; margin-bottom:4px; opacity:0.8; word-wrap:break-word; overflow-wrap:break-word; }
+body.assessment-fix .message-text { font-size:14px; line-height:1.5; white-space:pre-wrap; word-wrap:break-word; overflow-wrap:break-word; word-break:break-word; hyphens:auto; min-width:0; }
+
+/* Previous conversation toggle */
+body.assessment-fix .prev-conversation-toggle { background:none; border:1px solid #e5e7eb; border-radius:6px; padding:8px 12px; cursor:pointer; display:flex; align-items:center; gap:8px; font-size:13px; color:#6b7280; transition:all 0.2s ease; width:100%; text-align:left; }
+body.assessment-fix .prev-conversation-toggle:hover { border-color:#c7d2fe; background:#f8faff; color:#1d4ed8; }
+body.assessment-fix .conversation-chevron { transition:transform 0.2s ease; font-size:11px; }
+body.assessment-fix .prev-conversation-toggle.expanded .conversation-chevron { transform:rotate(90deg); }
+
 body.assessment-fix .textarea-description textarea { border:1px solid #e5e7eb; border-radius:8px; padding:12px; outline:none; min-height:140px; resize: vertical; width:100%; box-sizing:border-box; font-size:15px; line-height:1.55; font-family: 'Segoe UI', Roboto, Inter, sans-serif; color:#111827; }
 body.assessment-fix .textarea-description textarea:focus { border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.15); }
 body.assessment-fix .textarea-description textarea::placeholder { color:#6b7280; font-style:italic; }
@@ -1253,17 +1265,10 @@ let autosaveInterval = setInterval(autosaveNow, 60000);
         </div>
         <div class="container">
 
-            <!-- Toggle poprzedniego cyklu -->
-            @if(!empty($prevAnswers))
-            <div style="text-align:right;margin-bottom:10px;">
-                <label style="font-size:14px;color:#333;">
-                    <input type="checkbox" id="togglePrev" onchange="document.body.classList.toggle('show-prev', this.checked)"> Pokaż wyniki z poprzedniego cyklu
-                </label>
+            <!-- Toggle poprzedniego cyklu usunięty - dane wyświetlają się domyślnie -->
                 <style>
-                    .prev-badge{display:none;color:#555;font-size:12px;margin-left:8px}
-                    .show-prev .prev-badge{display:inline-block}
-                    .prev-value{display:none;color:#777;font-size:12px;margin-top:6px}
-                    .show-prev .prev-value{display:block}
+                    .prev-badge{display:inline-block;color:#555;font-size:12px;margin-left:8px}
+                    .prev-value{display:block;color:#777;font-size:12px;margin-top:6px}
                     /* Improved rating dots and labels layout */
                     .rating-dots {
                         display: flex;
@@ -1344,7 +1349,6 @@ let autosaveInterval = setInterval(autosaveNow, 60000);
                     }
                 </style>
             </div>
-            @endif
             
 
             <!-- Modal -->
@@ -1455,9 +1459,30 @@ let autosaveInterval = setInterval(autosaveNow, 60000);
                             </div>
                         </div>
                         <div class="assessment-subheader">Jak oceniasz swoją kompetencję/cechę:</div>
-                        <label style="display:block;font-size:18px;font-weight:700;margin-bottom:8px;">{{ $competency->competency_name }}:
+                        <label style="display:block;font-size:18px;font-weight:700;margin-bottom:8px;">{{ $competency->competency_name }}
                             @if(!empty($prevAnswers['score'][$competency->id]))
-                                <span class="prev-badge"><i class="fa fa-history"></i> Poprzednio: {{ $prevAnswers['score'][$competency->id] }}@if(!empty($prevAnswers['above_expectations'][$competency->id])) ⭐@endif</span>
+                                @php
+                                    $prevScore = $prevAnswers['score'][$competency->id];
+                                    $isAboveExpectations = !empty($prevAnswers['above_expectations'][$competency->id]);
+                                    
+                                    // Mapowanie score na definicje
+                                    if ($isAboveExpectations) {
+                                        $prevDefinition = 'Powyżej oczekiwań';
+                                    } elseif ((float)$prevScore == 0) {
+                                        $prevDefinition = 'Nie dotyczy';
+                                    } elseif ((float)$prevScore == 0.25) {
+                                        $prevDefinition = 'Poniżej oczekiwań';
+                                    } elseif ((float)$prevScore == 0.5) {
+                                        $prevDefinition = 'Wymaga rozwoju';
+                                    } elseif ((float)$prevScore == 0.75) {
+                                        $prevDefinition = 'Blisko oczekiwań';
+                                    } elseif ((float)$prevScore == 1) {
+                                        $prevDefinition = 'Spełnia oczekiwania';
+                                    } else {
+                                        $prevDefinition = '';
+                                    }
+                                @endphp
+                                <span class="prev-badge"><i class="fa fa-history"></i> Poprzednio: {{ $prevScore }}@if($prevDefinition) ({{ $prevDefinition }})@endif @if($isAboveExpectations)⭐@endif</span>
                             @endif
                         </label>
                         <div class="rating-dots" role="radiogroup" aria-label="Ocena">
@@ -1514,13 +1539,8 @@ let autosaveInterval = setInterval(autosaveNow, 60000);
                             <label for="adddesc-{{ $competency->id }}" class="assessment-label">Dodaj uzasadnienie</label>
                         </div>
 
-                        @if(!empty($prevTextGlobal))
-                            <!-- Dymek z opisem z poprzedniego roku, poniżej oceny/definicji i "Dodaj uzasadnienie" -->
-                            <div class="prev-definition-bubble prev-value">
-                                <div style="font-weight:600;color:#a15a00;margin-bottom:6px;">Jak opisaliśmy to poprzednio:</div>
-                                <div class="prev-def-content">{{ $prevTextGlobal }}</div>
-                            </div>
-                        @endif
+                        <!-- DEBUG okienko usunięte - dane działają poprawnie -->
+                        <!-- Dymek z definicją poziomu (prevTextGlobal) usunięty - niepotrzebny -->
 
                         @php $hasPrev = !empty($prevAnswers['comments'][$competency->id]) || !empty($prevAnswers['manager_feedback'][$competency->id]); @endphp
 
@@ -1528,26 +1548,41 @@ let autosaveInterval = setInterval(autosaveNow, 60000);
                         <div class="textarea-description" style="display:none;">
                             <textarea name="comments[{{ $competency->id }}]" placeholder="Wpisz opis/argumentację...">{{ $savedAnswers['comments'][$competency->id] ?? '' }}</textarea>
                         </div>
-                        @if(!empty($prevTextGlobal))
-                            <!-- Dymek z opisem z poprzedniego roku, poniżej pola tekstowego -->
-                            <div class="prev-definition-bubble prev-value" style="margin-top:8px;">
-                                <div style="font-weight:600;color:#a15a00;margin-bottom:6px;">Jak opisaliśmy to poprzednio:</div>
-                                <div class="prev-def-content">{{ $prevTextGlobal }}</div>
-                            </div>
-                        @endif
+                        <!-- DEBUG okienko 2 usunięte - dane działają poprawnie -->
+                        <!-- Duplikat "Jak opisaliśmy to poprzednio" usunięty -->
                         <!-- Poprzedni komentarz (read-only box below textarea) -->
-                        @if($hasPrev)
-                        <div class="prev-value" style="margin-top:10px;">
-                            @if(!empty($prevAnswers['comments'][$competency->id]))
-                                <div style="font-weight:600;margin-bottom:6px;">Co napisałeś/aś poprzednim razem:</div>
-                                <div class="prev-comment" style="white-space:pre-wrap;">{{ $prevAnswers['comments'][$competency->id] }}</div>
-                            @endif
-                            @if(!empty($prevAnswers['manager_feedback'][$competency->id]))
-                                <div class="prev-manager" style="white-space:pre-wrap;margin-top:12px;">
-                                    <a href="#" class="toggle-manager" style="color:#1976d2;text-decoration:underline;" onclick="this.nextElementSibling.style.display = (this.nextElementSibling.style.display==='none'||!this.nextElementSibling.style.display)?'block':'none';return false;">Jakiej odpowiedzi udzielił manager ></a>
-                                    <div class="manager-feedback" style="display:none;margin-top:6px;">{{ $prevAnswers['manager_feedback'][$competency->id] }}</div>
-                                </div>
-                            @endif
+                        @if($hasPrev && (!empty($prevAnswers['comments'][$competency->id]) || !empty($prevAnswers['manager_feedback'][$competency->id])))
+                        <div class="prev-conversation-section" style="margin-top:10px;">
+                            <button type="button" class="prev-conversation-toggle" onclick="togglePrevConversation(this)">
+                                <i class="fas fa-chevron-right conversation-chevron"></i>
+                                <span>Zobacz poprzednie uzasadnienia i feedback</span>
+                            </button>
+                            <div class="prev-conversation-content" style="display:none; margin-top:8px;">
+                                @if(!empty($prevAnswers['comments'][$competency->id]))
+                                    <!-- Chat-style dymek użytkownika (po prawej) -->
+                                    <div class="chat-message user-message" style="margin-top:8px;">
+                                        <div class="message-content">
+                                            <div class="message-header">Co napisałeś/aś poprzednim razem:</div>
+                                            <div class="message-text">{{ $prevAnswers['comments'][$competency->id] }}</div>
+                                        </div>
+                                        <div class="message-avatar user-avatar-text">
+                                            JA
+                                        </div>
+                                    </div>
+                                @endif
+                                @if(!empty($prevAnswers['manager_feedback'][$competency->id]))
+                                    <!-- Chat-style dymek managera (po lewej) -->
+                                    <div class="chat-message manager-message" style="margin-top:8px;">
+                                        <div class="message-avatar">
+                                            <i class="fas fa-user-tie"></i>
+                                        </div>
+                                        <div class="message-content">
+                                            <div class="message-header">Feedback od twojego przełożonego:</div>
+                                            <div class="message-text">{{ $prevAnswers['manager_feedback'][$competency->id] }}</div>
+                                        </div>
+                                    </div>
+                                @endif
+                            </div>
                         </div>
                         @endif
                     </div>
@@ -1715,6 +1750,8 @@ document.querySelectorAll('.question').forEach(function(q){
                 // Disable checkbox while 'Powyżej oczekiwań' is active
                 addDescCheckbox.disabled = true;
             }
+            // Show definition for "Powyżej oczekiwań"
+            updateDefinition(initScore);
         }
     } else {
         // Not above-expectations: ensure star is NOT selected and select saved score if > 0
@@ -1738,8 +1775,8 @@ document.querySelectorAll('.question').forEach(function(q){
                     const lAbove = l.getAttribute('data-above') === '1';
                     l.classList.toggle('active', (!lAbove && v === (scoreInput.value || '0')));
                 });
-                // For 0 (Nie dotyczy), nie pokazuj definicji
-                if (parseFloat(targetVal) > 0) updateDefinition(targetVal); else { defBubble.style.display='none'; }
+                // Show definitions for all levels including 0 (Nie dotyczy) if they exist
+                updateDefinition(targetVal);
             } else {
                 clearSelection();
             }
@@ -1763,14 +1800,14 @@ document.querySelectorAll('.question').forEach(function(q){
             zeroDot.classList.add('selected');
             zeroDot.setAttribute('aria-pressed','true');
             scoreInput.value = '0';
-            // activate corresponding label, keep definition hidden
+            // activate corresponding label and show definition if exists
             const legends = q.querySelectorAll('.rating-label');
             legends.forEach(l=>{
                 const v = l.getAttribute('data-value');
                 const lAbove = l.getAttribute('data-above') === '1';
                 l.classList.toggle('active', (!lAbove && v === '0'));
             });
-            defBubble.style.display = 'none';
+            updateDefinition('0');
             zeroDot.closest('.rating-col')?.classList.add('active');
         }
     }
@@ -1842,6 +1879,7 @@ document.addEventListener('DOMContentLoaded', function(){
         try { btn.dataset._original = btn.innerHTML; } catch(e) {}
         btn.innerHTML = '<span class="btn-spinner" aria-hidden="true"></span>' + (text||btn.textContent||'...');
     }
+
     function setAllDisabled(){
         document.querySelectorAll('#assessmentForm button[type="submit"], button[form="assessmentForm"]').forEach(function(b){ b.disabled = true; b.classList.add('is-loading'); });
     }
@@ -1867,11 +1905,6 @@ document.addEventListener('DOMContentLoaded', function(){
             openOverlay(msg);
         });
     }
-});
-
-// Toggle manager feedback disclosure
-document.querySelectorAll('.prev-manager .toggle-manager').forEach(function(a){
-    a.addEventListener('click', function(e){ e.preventDefault(); const box = this.nextElementSibling; box.style.display = (box.style.display==='none'||!box.style.display)?'block':'none'; });
 });
 
 // --- Language: Google Translate integration with custom selector ---
@@ -2015,6 +2048,20 @@ function updateGtOffset(){
     var mo = new MutationObserver(debounced);
     mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
 })();
+
+// Global function for toggling previous conversation
+function togglePrevConversation(button) {
+    const content = button.nextElementSibling;
+    const isExpanded = content.style.display !== 'none';
+    
+    if (isExpanded) {
+        content.style.display = 'none';
+        button.classList.remove('expanded');
+    } else {
+        content.style.display = 'block';
+        button.classList.add('expanded');
+    }
+}
 </script>
 </body>
 

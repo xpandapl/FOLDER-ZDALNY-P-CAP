@@ -36,13 +36,10 @@ class ManagerController extends Controller
         ]);
     }
     
-    // Active cycle helper
+    // Active cycle helper (bez cache'u - zawsze pobiera aktualny)
     private function activeCycleId(): ?int
     {
-        static $cached = null;
-        if ($cached !== null) return $cached;
-        $cached = AssessmentCycle::where('is_active', true)->value('id');
-        return $cached;
+        return AssessmentCycle::where('is_active', true)->value('id');
     }
 
     // Selected cycle: query ?cycle -> session -> active

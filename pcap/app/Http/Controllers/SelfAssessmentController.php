@@ -26,13 +26,10 @@ use Illuminate\Support\Str;
 
 class SelfAssessmentController extends Controller
 {
-    // Helper: pobierz aktywny cykl
+    // Helper: pobierz aktywny cykl (bez cache'u - zawsze pobiera aktualny)
     private function activeCycleId(): ?int
     {
-        static $cached = null;
-        if ($cached !== null) return $cached;
-        $cached = \App\Models\AssessmentCycle::where('is_active', true)->value('id');
-        return $cached;
+        return \App\Models\AssessmentCycle::where('is_active', true)->value('id');
     }
 
     // STEP0 landing
@@ -478,16 +475,38 @@ public function showStep1Form()
         $currentLevel = $level;
 
         $activeCycleId = $this->activeCycleId();
-        // Pobierz zapisane odpowiedzi z bazy danych dla tego pracownika i poziomu z aktywnego cyklu
-        $results = Result::where('employee_id', $employee->id)
-            ->when($activeCycleId, fn($q)=>$q->where('cycle_id',$activeCycleId))
+        // Pobierz zapisane odpowiedzi z bazy danych dla tego pracownika i poziomu - BEZ filtrowania cyklu
+        // żeby eager loading parent mogło załadować dane z poprzedniego cyklu
+        $allResults = Result::where('employee_id', $employee->id)
             ->whereHas('competency', function ($query) use ($level) {
                 $query->where('level', 'like', "{$level}%");
             })
             ->with(['competency','parent'])
             ->get();
+            
+        // Filtruj wyniki z aktywnego cyklu w PHP
+        $results = $allResults->where('cycle_id', $activeCycleId);
 
-        // Mapowanie wyników do $savedAnswers + poprzedni cykl (parent)
+        // Znajdź poprzedni cykl (najwyższy cycle_id różny od aktywnego)
+        // Może być wyższy lub niższy - nie zakładamy chronologii
+        $previousCycleId = Result::where('employee_id', $employee->id)
+            ->where('cycle_id', '!=', $activeCycleId)
+            ->max('cycle_id');
+
+        // Załaduj dane z poprzedniego cyklu bezpośrednio
+        $previousResults = [];
+        if ($previousCycleId) {
+            $previousResults = Result::where('employee_id', $employee->id)
+                ->where('cycle_id', $previousCycleId)
+                ->whereHas('competency', function ($query) use ($level) {
+                    $query->where('level', 'like', "{$level}%");
+                })
+                ->with('competency')
+                ->get()
+                ->keyBy('competency_id');
+        }
+
+        // Mapowanie wyników do $savedAnswers + poprzedni cykl
         $savedAnswers = [];
         $prevAnswers = [];
         foreach ($results as $result) {
@@ -500,6 +519,8 @@ public function showStep1Form()
                 $savedAnswers['comments'][$result->competency_id] = $result->comments;
                 $savedAnswers['add_description'][$result->competency_id] = 1;
             }
+            
+            // Spróbuj załadować poprzednie dane z relacji parent
             if ($result->parent) {
                 $prevAnswers['score'][$result->competency_id] = $result->parent->score;
                 if ($result->parent->above_expectations) {
@@ -513,6 +534,77 @@ public function showStep1Form()
                 }
             }
         }
+
+        // Jeśli nie mamy danych z parent relacji, użyj bezpośredniego zapytania do poprzedniego cyklu
+        foreach ($competencies as $competency) {
+            if (!isset($prevAnswers['score'][$competency->id]) && isset($previousResults[$competency->id])) {
+                $prevResult = $previousResults[$competency->id];
+                $prevAnswers['score'][$competency->id] = $prevResult->score;
+                if ($prevResult->above_expectations) {
+                    $prevAnswers['above_expectations'][$competency->id] = 1;
+                }
+                if ($prevResult->comments) {
+                    $prevAnswers['comments'][$competency->id] = $prevResult->comments;
+                }
+                if ($prevResult->feedback_manager) {
+                    $prevAnswers['manager_feedback'][$competency->id] = $prevResult->feedback_manager;
+                }
+            }
+        }
+
+        // DEBUG: Lista wszystkich dostępnych cycle_id dla tego employee
+        $availableCycles = Result::where('employee_id', $employee->id)
+            ->distinct()
+            ->pluck('cycle_id')
+            ->sort()
+            ->values();
+            
+        // DEBUG: Log query results and prevAnswers
+        \Log::info('DEBUG - Form data:', [
+            'employee_id' => $employee->id,
+            'level' => $level,
+            'activeCycleId' => $activeCycleId,
+            'availableCycles' => $availableCycles,
+            'previousCycleId' => $previousCycleId,
+            'all_results_count' => $allResults->count(),
+            'filtered_results_count' => $results->count(),
+            'previous_results_count' => count($previousResults),
+            'results_with_parent' => $results->filter(function($r) { return $r->parent !== null; })->count(),
+            'results_with_parent_result_id' => $results->filter(function($r) { return $r->parent_result_id !== null; })->count(),
+            'prevAnswers' => $prevAnswers,
+            'previousResults_sample' => $previousResults->take(3)->map(function($r) {
+                return [
+                    'competency_id' => $r->competency_id,
+                    'score' => $r->score,
+                    'comments' => substr($r->comments ?? '', 0, 50),
+                    'cycle_id' => $r->cycle_id
+                ];
+            }),
+            'all_results_detailed' => $allResults->map(function($r) {
+                return [
+                    'id' => $r->id,
+                    'competency_id' => $r->competency_id,
+                    'cycle_id' => $r->cycle_id,
+                    'parent_result_id' => $r->parent_result_id,
+                    'has_parent_loaded' => $r->parent ? true : false,
+                    'parent_id' => $r->parent ? $r->parent->id : null,
+                    'parent_cycle_id' => $r->parent ? $r->parent->cycle_id : null,
+                    'parent_comments' => $r->parent ? $r->parent->comments : null,
+                ];
+            }),
+            'filtered_results_detailed' => $results->map(function($r) {
+                return [
+                    'id' => $r->id,
+                    'competency_id' => $r->competency_id,
+                    'cycle_id' => $r->cycle_id,
+                    'parent_result_id' => $r->parent_result_id,
+                    'has_parent_loaded' => $r->parent ? true : false,
+                    'parent_id' => $r->parent ? $r->parent->id : null,
+                    'parent_cycle_id' => $r->parent ? $r->parent->cycle_id : null,
+                    'parent_comments' => $r->parent ? $r->parent->comments : null,
+                ];
+            })
+        ]);
 
         // Przekazanie zmiennych do widoku
     $showPrev = true; // domyślnie pokażemy toggle, UI ukryje jeśli brak danych
