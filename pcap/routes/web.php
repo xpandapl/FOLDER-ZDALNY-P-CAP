@@ -20,15 +20,18 @@ if (config('app.maintenance')) {
     return;
 }
 
-// Step0 (wybór ścieżki) oraz główne wejścia do procesu
-Route::get('/start', [SelfAssessmentController::class, 'startLanding'])->name('start.landing');
+// Główna strona aplikacji - widok start z wyborem ścieżki
+Route::get('/', [SelfAssessmentController::class, 'startLanding'])->name('start.landing');
+
+// Formularz step1 (Świeżak) przeniesiony pod /step1
+Route::get('/step1', [SelfAssessmentController::class, 'showStep1Form'])->name('self.assessment.step1'); // Pierwszy krok - dane osobowe
+
+// Ścieżka Weteran
 Route::get('/start/veteran', [SelfAssessmentController::class, 'startVeteranForm'])->name('start.veteran.form');
 Route::post('/start/veteran', [SelfAssessmentController::class, 'startVeteranSubmit'])->name('start.veteran.submit');
 
-// Pozostawiamy dotychczasowy formularz krok 1 (Świeżak) pod '/'
-Route::get('/', [SelfAssessmentController::class, 'showStep1Form'])->name('self.assessment.step1'); // Pierwszy krok - dane osobowe
-
-// Opcja: Przekierowanie z /self-assessment do /
+// Przekierowania dla zachowania kompatybilności
+Route::redirect('/start', '/');
 Route::redirect('/self-assessment', '/');
 
 // Trasy samooceny

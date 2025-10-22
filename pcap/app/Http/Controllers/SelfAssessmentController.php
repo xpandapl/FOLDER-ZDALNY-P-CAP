@@ -415,14 +415,14 @@ public function showStep1Form()
         // Sprawdź czy istnieje aktywny cykl
         $activeCycleId = $this->activeCycleId();
         if (!$activeCycleId) {
-            return redirect()->route('self.assessment.step1')->with('error', 'Samoocena jest obecnie zablokowana. Skontaktuj się z administratorem.');
+            return redirect()->route('start.landing')->with('error', 'Samoocena jest obecnie zablokowana. Skontaktuj się z administratorem.');
         }
 
         // Pobierz pracownika na podstawie UUID
         $employee = Employee::where('uuid', $uuid)->first();
 
         if (!$employee) {
-            return redirect()->route('self.assessment.step1')->withErrors('Nie znaleziono danych użytkownika.');
+            return redirect()->route('start.landing')->withErrors('Nie znaleziono danych użytkownika.');
         }
 
         // Mapowanie działów do kodów
@@ -653,7 +653,7 @@ public function showStep1Form()
             ->first();
 
         if (!$employee) {
-            return redirect()->route('self.assessment.step1')->with('error', 'Nie znaleziono danych użytkownika.');
+            return redirect()->route('start.landing')->with('error', 'Nie znaleziono danych użytkownika.');
         }
 
         // Calculate level and percentage based on results
@@ -824,14 +824,14 @@ public function generateXls($uuid)
         $uuid = $request->input('uuid');
     
         if (!$uuid) {
-            return redirect()->route('self.assessment.step1')->with('error', 'Brakuje identyfikatora użytkownika.');
+            return redirect()->route('start.landing')->with('error', 'Brakuje identyfikatora użytkownika.');
         }
     
         // Find the employee based on UUID
         $employee = Employee::where('uuid', $uuid)->first();
     
         if (!$employee) {
-            return redirect()->route('self.assessment.step1')->with('error', 'Nie znaleziono danych użytkownika.');
+            return redirect()->route('start.landing')->with('error', 'Nie znaleziono danych użytkownika.');
         }
     
     // Determine which action was requested (prefer explicit hidden field 'action')
@@ -850,7 +850,7 @@ public function generateXls($uuid)
         
         // Validate active cycle exists
         if (!$activeCycleId) {
-            return redirect()->route('self.assessment.step1')->with('error', 'Brak aktywnego cyklu oceny. Skontaktuj się z administratorem.');
+            return redirect()->route('start.landing')->with('error', 'Brak aktywnego cyklu oceny. Skontaktuj się z administratorem.');
         }
         
         // Iterate through competency IDs
