@@ -728,9 +728,13 @@ public function showStep1Form()
 
         // Determine achieved level based on percentages
         $achievedLevel = $this->determineAchievedLevel($levelSummaries);
+        
+        // Filter levels for display - show only highest achieved + next unachieved
+        $filteredLevels = $this->filterLevelsForDisplay($levelSummaries);
 
         return [
             'levelSummaries' => $levelSummaries,
+            'displayLevels' => $filteredLevels,
             'achievedLevel' => $achievedLevel
         ];
     }
@@ -782,6 +786,56 @@ public function showStep1Form()
         }
         
         return $achievedLevel;
+    }
+
+    /**
+     * Filter levels for professional display - show highest achieved + next unachieved
+     */
+    private function filterLevelsForDisplay($levelSummaries)
+    {
+        $thresholds = [
+            1 => 80, 2 => 85, 3 => 85, 4 => 80, 5 => 80,
+        ];
+        
+        // Sort levels numerically
+        $sortedLevels = [];
+        foreach ($levelSummaries as $levelNumber => $summary) {
+            preg_match('/^(\d+)/', $levelNumber, $matches);
+            $numericLevel = isset($matches[1]) ? (int)$matches[1] : 0;
+            $sortedLevels[$numericLevel] = [$levelNumber, $summary];
+        }
+        ksort($sortedLevels);
+        
+        $filteredLevels = [];
+        $highestAchieved = null;
+        $nextUnachieved = null;
+        
+        // Find highest achieved and next unachieved
+        foreach ($sortedLevels as $numericLevel => $levelData) {
+            [$levelNumber, $summary] = $levelData;
+            $requiredThreshold = $thresholds[$numericLevel] ?? 50;
+            
+            if ($summary['percentage'] >= $requiredThreshold) {
+                $highestAchieved = [$levelNumber, $summary];
+            } else {
+                if (!$nextUnachieved) {
+                    $nextUnachieved = [$levelNumber, $summary];
+                }
+                break; // Stop at first unachieved
+            }
+        }
+        
+        // Add highest achieved level
+        if ($highestAchieved) {
+            $filteredLevels[$highestAchieved[0]] = $highestAchieved[1];
+        }
+        
+        // Add next unachieved level for development focus
+        if ($nextUnachieved) {
+            $filteredLevels[$nextUnachieved[0]] = $nextUnachieved[1];
+        }
+        
+        return $filteredLevels;
     }
 
 
