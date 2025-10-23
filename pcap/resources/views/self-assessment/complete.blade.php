@@ -171,12 +171,29 @@
                             <i class="fas fa-tasks"></i> Szczegółowe wyniki według poziomów
                         </h3>
                         
+                        @php
+                            // Define thresholds for each level
+                            $thresholds = [
+                                1 => 80, // Junior ≥80%
+                                2 => 85, // Specjalista ≥85%
+                                3 => 85, // Senior ≥85%
+                                4 => 80, // Supervisor ≥80%
+                                5 => 80, // Manager ≥80%
+                            ];
+                        @endphp
+                        
                         <div class="levels-grid">
                             @foreach($assessmentSummary['levelSummaries'] as $levelNumber => $summary)
-                            <div class="level-card {{ $summary['percentage'] >= 50 ? 'achieved' : 'not-achieved' }}">
+                            @php
+                                // Extract numeric level from levelNumber
+                                preg_match('/^(\d+)/', $levelNumber, $matches);
+                                $numericLevel = isset($matches[1]) ? (int)$matches[1] : 1;
+                                $requiredThreshold = $thresholds[$numericLevel] ?? 50;
+                            @endphp
+                            <div class="level-card {{ $summary['percentage'] >= $requiredThreshold ? 'achieved' : 'not-achieved' }}">
                                 <div class="level-header">
                                     <h4 class="level-name">{{ $summary['levelName'] }}</h4>
-                                    @if($summary['percentage'] >= 50)
+                                    @if($summary['percentage'] >= $requiredThreshold)
                                         <div class="achievement-badge">
                                             <i class="fas fa-check-circle"></i>
                                         </div>
@@ -199,13 +216,13 @@
                                         <span class="points-label">pkt</span>
                                     </div>
                                     
-                                    @if($summary['percentage'] >= 50)
+                                    @if($summary['percentage'] >= $requiredThreshold)
                                         <div class="achievement-status achieved">
                                             <i class="fas fa-trophy"></i> Poziom osiągnięty
                                         </div>
                                     @else
                                         <div class="achievement-status not-achieved">
-                                            <i class="fas fa-target"></i> Do osiągnięcia: {{ 50 - $summary['percentage'] }}%
+                                            <i class="fas fa-target"></i> Do osiągnięcia: {{ $requiredThreshold - $summary['percentage'] }}%
                                         </div>
                                     @endif
                                 </div>

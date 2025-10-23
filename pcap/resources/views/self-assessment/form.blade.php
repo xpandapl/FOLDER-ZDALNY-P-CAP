@@ -976,7 +976,12 @@ body.assessment-fix .add-description-container { display:flex; align-items:cente
 
 
 // Funkcja, która pokazuje pole tekstowe przy zaznaczeniu checkboxa "Dodaj opis/argumentację"
-    function toggleDescriptionInput(checkbox) {
+    function toggleDescriptionInput(checkbox, isInitializing = false) {
+        // Only mark user changes and trigger autosave if this is not part of form initialization
+        if (!isInitializing) {
+            markUserChanges();
+        }
+        
         const question = checkbox.closest('.question');
         const commentContainer = question.querySelector('.textarea-description');
 
@@ -987,8 +992,11 @@ body.assessment-fix .add-description-container { display:flex; align-items:cente
             commentContainer.style.display = 'none';
             commentContainer.querySelector('textarea').required = false;
         }
-        // trigger autosave after user toggles requirement
-        try { triggerAutosaveDebounced(); } catch(e) {}
+        
+        // Only trigger autosave if this is not part of form initialization
+        if (!isInitializing) {
+            try { triggerAutosaveDebounced(); } catch(e) {}
+        }
     }
 
     function copyLink() {
@@ -1001,7 +1009,9 @@ body.assessment-fix .add-description-container { display:flex; align-items:cente
             alert("Link został skopiowany do schowka.");
         }
 
+    console.log('JAVASCRIPT STARTED - DOM Content loading...');
     document.addEventListener("DOMContentLoaded", function() {
+        console.log('DOM CONTENT LOADED EVENT FIRED');
         // Compute dynamic topbar height and set CSS var
         function setTopbarHeightVar(){
             var header = document.querySelector('.assessment-topbar');
@@ -1098,7 +1108,7 @@ body.assessment-fix .add-description-container { display:flex; align-items:cente
 
         // Checkbox "Dodaj uzasadnienie" logic
         document.querySelectorAll('input[name^="add_description"]').forEach(checkbox => {
-            toggleDescriptionInput(checkbox);
+            toggleDescriptionInput(checkbox, true); // isInitializing = true
         });
     });
 
@@ -1106,7 +1116,17 @@ body.assessment-fix .add-description-container { display:flex; align-items:cente
 
 
 // --- Autosave helpers ---
+let hasUserMadeChanges = false; // Flag to track if user made any changes since page load
+console.log('AUTOSAVE PROTECTION LOADED: hasUserMadeChanges = false');
+
 function autosaveNow(){
+    // Don't autosave if user hasn't made any changes since page load
+    if (!hasUserMadeChanges) {
+        console.log('Skipping autosave - no user changes detected since page load');
+        return Promise.resolve();
+    }
+    
+    console.log('Autosave triggered - user has made changes');
     const form = document.getElementById('assessmentForm');
     if (!form) return Promise.resolve();
     const formData = new FormData(form);
@@ -1121,8 +1141,17 @@ function triggerAutosaveDebounced(delay){
     clearTimeout(__autosaveTimer);
     __autosaveTimer = setTimeout(function(){ autosaveNow(); }, typeof delay==='number'? delay : 1000);
 }
-// Safety net: periodic autosave every 60s
-let autosaveInterval = setInterval(autosaveNow, 60000);
+
+// Mark that user made changes - this will be called on form interactions
+function markUserChanges() {
+    console.log('USER MADE CHANGES: Setting hasUserMadeChanges = true');
+    hasUserMadeChanges = true;
+}
+
+// Safety net: periodic autosave every 60s - but only start after 60s delay
+let autosaveInterval = setTimeout(() => {
+    autosaveInterval = setInterval(autosaveNow, 60000);
+}, 60000);
 </script>
 
 </head>
@@ -1430,8 +1459,19 @@ let autosaveInterval = setInterval(autosaveNow, 60000);
                 $prev = $prevAnswers['score'][$competency->id] ?? null;
                 $hasCommentInit = !empty($savedAnswers['comments'][$competency->id]);
                 $isAboveSelectedInit = !empty($savedAnswers['above_expectations'][$competency->id]);
+                
+                // DEBUG: Log what we're setting for each competency
+                if ($competency->id == 3) {
+                    \Log::info("DEBUG: Blade template for competency 3", [
+                        'competency_id' => $competency->id,
+                        'current' => $current,
+                        'savedAnswers_for_3' => $savedAnswers['score'][$competency->id] ?? 'NOT_SET',
+                        'all_savedAnswers_scores' => array_slice($savedAnswers['score'] ?? [], 0, 5, true)
+                    ]);
+                }
             @endphp
              <div class="question"
+                    data-competency-id="{{ $competency->id }}"
                     data-description0to05="{{ $competency->description_0_to_05 }}"
                     data-description025="{{ $competency->description_025 }}"
                     data-description075to1="{{ $competency->description_075_to_1 }}"
@@ -1654,6 +1694,8 @@ document.querySelectorAll('.question').forEach(function(q){
             this.setAttribute('aria-pressed','true');
             // set above_expectations flag
             starInput.value = isAbove ? '1' : '0';
+            // Mark that user made changes
+            markUserChanges();
             // Update label active
             const legends = q.querySelectorAll('.rating-label');
             legends.forEach(l=>{
@@ -1687,6 +1729,7 @@ document.querySelectorAll('.question').forEach(function(q){
             this.closest('.rating-col')?.classList.add('active');
             try { updateHeaderProgress(); } catch(e) {}
             // autosave after selection
+            markUserChanges();
             try { triggerAutosaveDebounced(); } catch(e) {}
         });
     });
@@ -1703,13 +1746,14 @@ document.querySelectorAll('.question').forEach(function(q){
 
     // Autosave on textarea input (debounced)
     const textarea = q.querySelector('.textarea-description textarea');
-    if (textarea){ textarea.addEventListener('input', function(){ try { triggerAutosaveDebounced(1200); } catch(e) {} }); }
+    if (textarea){ textarea.addEventListener('input', function(){ markUserChanges(); try { triggerAutosaveDebounced(1200); } catch(e) {} }); }
 
     // Init bubble and selection state
     // Initialize from data attributes first to avoid any accidental defaults
     const initScore = (q.getAttribute('data-score') || scoreInput.value || '0').toString();
     // Only trust data-star from server, and only if a comment existed (since star requires justification)
     const initStar = (q.getAttribute('data-star') === '1') && (q.getAttribute('data-comment') === '1');
+    console.log('DEBUG: Init values - competency ID:', q.getAttribute('data-competency-id'), 'data-score:', q.getAttribute('data-score'), 'initScore:', initScore, 'initStar:', initStar);
     scoreInput.value = initScore;
     starInput.value = initStar ? '1' : '0';
     // Only show definition once a selection exists
@@ -1735,7 +1779,7 @@ document.querySelectorAll('.question').forEach(function(q){
             if (addDescCheckbox) {
                 if (!addDescCheckbox.checked) {
                     addDescCheckbox.checked = true;
-                    toggleDescriptionInput(addDescCheckbox);
+                    toggleDescriptionInput(addDescCheckbox, true); // isInitializing = true
                 }
                 // Disable checkbox while 'Powyżej oczekiwań' is active
                 addDescCheckbox.disabled = true;
@@ -1752,8 +1796,12 @@ document.querySelectorAll('.question').forEach(function(q){
         }
         // Select the dot matching saved score; for a new form it's '0' (Nie dotyczy)
         const targetVal = (scoreInput.value || '0').toString();
+        console.log('DEBUG: Initializing dots - competency ID:', q.getAttribute('data-competency-id'), 'targetVal:', targetVal, 'scoreInput.value:', scoreInput.value);
         if (parseFloat(targetVal) >= 0){
-            let targetDot = wrap.querySelector(`.dot[data-value="${targetVal}"]:not([data-above="1"])`);
+            // Normalize values: "1.00" should match "1", "0.75" should match "0.75"
+            const normalizedTarget = parseFloat(targetVal).toString();
+            let targetDot = wrap.querySelector(`.dot[data-value="${normalizedTarget}"]:not([data-above="1"])`);
+            console.log('DEBUG: Found targetDot for', normalizedTarget, '(from', targetVal, '):', targetDot);
             if (targetDot) {
                 wrap.querySelectorAll('.dot').forEach(d=>{ d.classList.remove('selected'); d.setAttribute('aria-pressed','false'); });
                 targetDot.classList.add('selected');
@@ -1784,7 +1832,8 @@ document.querySelectorAll('.question').forEach(function(q){
     })();
 
     // Final safety: if nothing is selected (edge cases), default to 'Nie dotyczy' (0)
-    if (!wrap.querySelector('.dot.selected')){
+    // BUT ONLY if scoreInput is also empty/zero - respect saved values!
+    if (!wrap.querySelector('.dot.selected') && (!scoreInput.value || scoreInput.value === '0')){
         const zeroDot = wrap.querySelector('.dot[data-value="0"]:not([data-above="1"])');
         if (zeroDot){
             zeroDot.classList.add('selected');
@@ -1893,6 +1942,10 @@ document.addEventListener('DOMContentLoaded', function(){
             }
             setAllDisabled();
             openOverlay(msg);
+            
+            // Reset user changes flag when submitting (navigating to next level)
+            hasUserMadeChanges = false;
+            console.log('FORM SUBMITTED: Reset hasUserMadeChanges = false');
         });
     }
 });

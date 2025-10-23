@@ -411,7 +411,6 @@ public function showStep1Form()
     // Wyświetlanie formularza samooceny (krok 2)
     public function showForm($level = 1, $uuid = null)
     {
-
         // Sprawdź czy istnieje aktywny cykl
         $activeCycleId = $this->activeCycleId();
         if (!$activeCycleId) {
@@ -518,9 +517,18 @@ public function showStep1Form()
         // Mapowanie wyników do $savedAnswers + poprzedni cykl
         $savedAnswers = [];
         $prevAnswers = [];
+        
         foreach ($results as $result) {
             $savedAnswers['competency_id'][] = $result->competency_id;
             $savedAnswers['score'][$result->competency_id] = $result->score;
+            
+            // DEBUG: Log każdego mapowania
+            \Log::info("Mapping result to savedAnswers", [
+                'competency_id' => $result->competency_id,
+                'score' => $result->score,
+                'result_id' => $result->id,
+                'cycle_id' => $result->cycle_id
+            ]);
             if ($result->above_expectations) {
                 $savedAnswers['above_expectations'][$result->competency_id] = 1;
             }
@@ -614,6 +622,13 @@ public function showStep1Form()
                 ];
             })
         ]);
+        
+        // DEBUG: Final savedAnswers przed widokiem
+        \Log::info('DEBUG - Final savedAnswers:', [
+            'savedAnswers_scores' => $savedAnswers['score'] ?? [],
+            'competency_3_score' => $savedAnswers['score'][3] ?? 'NOT_SET',
+            'total_saved_scores' => count($savedAnswers['score'] ?? [])
+        ]);
 
         // Przekazanie zmiennych do widoku
     $showPrev = true; // domyślnie pokażemy toggle, UI ukryje jeśli brak danych
@@ -692,11 +707,10 @@ public function showStep1Form()
                 // Employee's score
                 $scoreEmployee = $result->score;
 
-                // Include in calculations if score > 0 and competencyValue > 0
-                if ($scoreEmployee > 0) {
+                // Only include in calculations if score > 0 (not "Nie dotyczy")
+                // This matches the PDF logic where "Nie dotyczy" entries are excluded from both earned and max points
+                if ($scoreEmployee > 0 && $competencyValue > 0) {
                     $earnedPointsEmployee += $competencyValue * $scoreEmployee;
-                }
-                if ($competencyValue > 0) {
                     $maxPoints += $competencyValue;
                 }
             }
@@ -722,16 +736,47 @@ public function showStep1Form()
     }
 
     /**
-     * Determine achieved level based on level summaries
+     * Determine achieved level based on level summaries - sequential from lowest to highest
      */
     private function determineAchievedLevel($levelSummaries)
     {
         $achievedLevel = 'Brak danych';
         
-        // Find highest level with at least 50% score
-        foreach (array_reverse($levelSummaries, true) as $levelNumber => $summary) {
-            if ($summary['percentage'] >= 50) {
-                $achievedLevel = $summary['levelName'];
+        // Define thresholds for each level
+        $thresholds = [
+            1 => 80, // Junior ≥80%
+            2 => 85, // Specjalista ≥85%
+            3 => 85, // Senior ≥85%
+            4 => 80, // Supervisor ≥80%
+            5 => 80, // Manager ≥80%
+        ];
+        
+        // Sort levels numerically and check sequentially from lowest to highest
+        $sortedLevels = [];
+        foreach ($levelSummaries as $levelNumber => $summary) {
+            // Extract numeric part from level (e.g., "1 Junior" -> 1)
+            preg_match('/^(\d+)/', $levelNumber, $matches);
+            $numericLevel = isset($matches[1]) ? (int)$matches[1] : 0;
+            $sortedLevels[$numericLevel] = [$levelNumber, $summary];
+        }
+        ksort($sortedLevels);
+        
+        // Always assign at least the lowest level if any data exists
+        if (!empty($sortedLevels)) {
+            $firstLevel = reset($sortedLevels);
+            $achievedLevel = $firstLevel[1]['levelName']; // Default to first level
+        }
+        
+        // Check levels sequentially - must pass each level to achieve higher ones
+        foreach ($sortedLevels as $numericLevel => $levelData) {
+            [$levelNumber, $summary] = $levelData;
+            
+            $requiredThreshold = $thresholds[$numericLevel] ?? 50;
+            
+            if ($summary['percentage'] >= $requiredThreshold) {
+                $achievedLevel = $summary['levelName']; // Passed this level
+            } else {
+                // Failed this level - stay at previous level and stop checking
                 break;
             }
         }
@@ -839,6 +884,10 @@ public function generateXls($uuid)
     $goBack = $action === 'back' || $request->has('back');
     $saveAndExit = $action === 'save_and_exit' || $request->has('save_and_exit');
     $submit = $action === 'submit' || $request->has('submit');
+    
+    // CRITICAL: For navigation, save data for the level user is LEAVING FROM (current level)
+    // This ensures we only save data that is actually in the form
+    $levelForFiltering = $currentLevel;
 
         // Save the form data (ALWAYS save before redirecting, including when going Back)
         $competencyIds = $request->input('competency_id', []);
@@ -853,26 +902,56 @@ public function generateXls($uuid)
             return redirect()->route('start.landing')->with('error', 'Brak aktywnego cyklu oceny. Skontaktuj się z administratorem.');
         }
         
+        // Get competencies for target level (not current form level)
+        $validCompetencyIds = DB::table('competencies')
+            ->where('level', 'like', "{$levelForFiltering}%")
+            ->pluck('id')
+            ->toArray();
+            
+        // Debug: log saveResults activity with detailed data
+        // Basic logging for monitoring
+        \Log::info('saveResults processing', [
+            'action' => $action,
+            'current_level' => $currentLevel,
+            'total_competencies' => count($competencyIds),
+            'employee_id' => $employee->id
+        ]);
+        
         // Iterate through competency IDs
-        foreach ($competencyIds as $competencyId) {
+        $processedCount = 0;
+        $skippedCount = 0;
+        
+        foreach ($competencyIds as $index => $competencyId) {
             // Skip invalid competency IDs (can happen with stale forms)
             if (!$competencyId || $competencyId <= 0) {
+                $skippedCount++;
                 continue;
+            }
+            
+            // CRITICAL: Only save competencies that belong to target level
+            if (!in_array($competencyId, $validCompetencyIds)) {
+                $skippedCount++;
+                continue; // Skip competencies not from target level
             }
             
             // Verify competency exists
             if (!DB::table('competencies')->where('id', $competencyId)->exists()) {
+                $skippedCount++;
                 continue; // Skip non-existent competencies
             }
             
             $isAboveExpectations = intval($aboveExpectations[$competencyId] ?? 0) ? 1 : 0;
         
+            // Get score using competency ID as key (score array is keyed by competency ID)
+            $scoreValue = $scores[$competencyId] ?? 0;
+            
             // Jeśli above_expectations jest zaznaczone, ustaw score na 1
             if ($isAboveExpectations) {
                 $scoreValue = 1;
-            } else {
-                $scoreValue = $scores[$competencyId] ?? 0;
             }
+            
+            $processedCount++;
+            
             Result::updateOrCreate(
                 [
                     'employee_id' => $employee->id,
@@ -887,6 +966,12 @@ public function generateXls($uuid)
                 ]
             );
         }
+
+        \Log::info('saveResults completed', [
+            'processed_count' => $processedCount,
+            'skipped_count' => $skippedCount,
+            'total_received' => count($competencyIds)
+        ]);
 
         // Redirect according to requested action
         if ($saveAndExit) {
@@ -959,16 +1044,79 @@ public function generateXls($uuid)
             return response()->json(['status' => 'error', 'message' => 'Nie znaleziono użytkownika.'], 404);
         }
 
+        $currentLevel = $request->input('current_level', 1);
         $competencyIds = $request->input('competency_id', []);
         $scores = $request->input('score', []);
         $aboveExpectations = $request->input('above_expectations', []);
         $comments = $request->input('comments', []);
+        
+        // Debug: log received data to see what's being sent
+        \Log::info('Autosave received data', [
+            'competency_count' => count($competencyIds),
+            'score_count' => count($scores),
+            'first_5_scores' => array_slice($scores, 0, 5),
+            'employee_id' => $employee->id,
+            'cycle_id' => $this->activeCycleId(),
+            'current_level' => $currentLevel,
+            'user_agent' => $request->header('User-Agent'),
+            'referer' => $request->header('Referer'),
+            'request_method' => $request->method(),
+            'content_type' => $request->header('Content-Type')
+        ]);
+        
+        // Get competencies for current level to ensure we only save data for competencies that should be on this level
+        $validCompetencyIds = DB::table('competencies')
+            ->where('level', 'like', "{$currentLevel}%")
+            ->pluck('id')
+            ->toArray();
 
         foreach ($competencyIds as $competencyId) {
+            // Only process competencies that belong to the current level
+            if (!in_array($competencyId, $validCompetencyIds)) {
+                continue; // Skip competencies not from current level
+            }
+            
             // IMPORTANT: do not use isset() here; inputs exist for every competency with value "0" when not selected
             // Using isset would incorrectly set all items to 1. Respect the actual submitted value 0/1.
             $isAboveExpectations = intval($aboveExpectations[$competencyId] ?? 0) ? 1 : 0;
             $scoreValue = $isAboveExpectations ? 1 : ($scores[$competencyId] ?? 0);
+            
+            // Check if record already exists with same data - don't save if nothing changed
+            $existingResult = \App\Models\Result::where([
+                'employee_id' => $employee->id,
+                'competency_id' => $competencyId,
+                'cycle_id' => $this->activeCycleId(),
+            ])->first();
+            
+            // If record exists and data is identical, skip saving
+            if ($existingResult && 
+                $existingResult->score == $scoreValue && 
+                $existingResult->above_expectations == $isAboveExpectations &&
+                $existingResult->comments == ($comments[$competencyId] ?? null)) {
+                \Log::info("Skipping competency {$competencyId} - no changes (score: {$scoreValue})");
+                continue; // Skip - no changes to save
+            }
+            
+            // CRITICAL: Only protect from cross-level overwrites in autosave
+            // Check if this competency belongs to current level - if not, and we're trying to save 0, it's likely cross-level contamination
+            $competencyLevel = DB::table('competencies')->where('id', $competencyId)->value('level');
+            $belongsToCurrentLevel = strpos($competencyLevel, (string)$currentLevel) === 0;
+            
+            if ($existingResult && $existingResult->score > 0 && $scoreValue == 0 && !$isAboveExpectations && !$belongsToCurrentLevel) {
+                \Log::info("PROTECTION: Skipping competency {$competencyId} - protecting from cross-level overwrite", [
+                    'current_level' => $currentLevel,
+                    'competency_level' => $competencyLevel,
+                    'existing_score' => $existingResult->score,
+                    'new_score' => $scoreValue
+                ]);
+                continue;
+            }
+            
+            \Log::info("Saving competency {$competencyId}", [
+                'old_score' => $existingResult ? $existingResult->score : 'new',
+                'new_score' => $scoreValue,
+                'changed' => !$existingResult || $existingResult->score != $scoreValue
+            ]);
 
             \App\Models\Result::updateOrCreate(
                 [
@@ -985,6 +1133,11 @@ public function generateXls($uuid)
             );
         }
 
+        \Log::info('Autosave completed', [
+            'processed_competencies' => count(array_intersect($competencyIds, $validCompetencyIds)),
+            'total_received' => count($competencyIds)
+        ]);
+        
         return response()->json(['status' => 'success']);
     }
 }

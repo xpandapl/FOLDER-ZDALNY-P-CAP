@@ -166,28 +166,28 @@ class ManagerController extends Controller
                 $earnedPointsManager = 0;
                 $maxPoints = 0;
             
-                foreach ($levelResults as $result) {
-                    $competencyValue = $employee->getCompetencyValue($result->competency_id) ?? 0;
+            foreach ($levelResults as $result) {
+                $competencyValue = $employee->getCompetencyValue($result->competency_id) ?? 0;
 
-                    // Employee's score
-                    $scoreEmployee = $result->score;
+                // Employee's score
+                $scoreEmployee = $result->score;
 
-                    // Manager's score (if exists, else employee's score)
-                    $scoreManager = ($result->score_manager !== null) ? $result->score_manager : $result->score;
+                // Manager's score (if exists, else employee's score)
+                $scoreManager = ($result->score_manager !== null) ? $result->score_manager : $result->score;
 
-                    // Include in calculations if score > 0
-                    if ($scoreEmployee > 0) {
-                        $earnedPointsEmployee += $competencyValue * $scoreEmployee;
-                    }
-                    if ($scoreManager > 0) {
-                        $earnedPointsManager += $competencyValue * $scoreManager;
-                    }
-                    if ($competencyValue > 0) {
-                        $maxPoints += $competencyValue;
-                    }
+                // Calculate earned points if score > 0
+                if ($scoreEmployee > 0 && $competencyValue > 0) {
+                    $earnedPointsEmployee += $competencyValue * $scoreEmployee;
                 }
-
-                // Calculate percentages
+                if ($scoreManager > 0 && $competencyValue > 0) {
+                    $earnedPointsManager += $competencyValue * $scoreManager;
+                }
+                
+                // Add to maxPoints only if either employee or manager scored > 0 (not "Nie dotyczy")
+                if (($scoreEmployee > 0 || $scoreManager > 0) && $competencyValue > 0) {
+                    $maxPoints += $competencyValue;
+                }
+            }                // Calculate percentages
                 $percentageEmployee = $maxPoints > 0 ? ($earnedPointsEmployee / $maxPoints) * 100 : 'N/D';
                 $percentageManager = $maxPoints > 0 ? ($earnedPointsManager / $maxPoints) * 100 : 'N/D';
 
@@ -486,8 +486,14 @@ class ManagerController extends Controller
             $levelPercentagesManager = [];
 
             foreach ($levelNames as $levelKey => $levelName) {
-                $levelResults = $emp->results->filter(function ($result) use ($levelKey) {
-                    return (int)$result->competency->level === $levelKey;
+                // Map config keys to actual database level values
+                // Extract level number from level name (e.g., "1. Junior" -> 1)
+                $actualLevel = intval(substr($levelName, 0, 1));
+                
+
+                
+                $levelResults = $emp->results->filter(function ($result) use ($actualLevel) {
+                    return (int)$result->competency->level === $actualLevel;
                 });
 
                 if ($levelResults->isEmpty()) {
@@ -516,13 +522,16 @@ class ManagerController extends Controller
                     if ($scoreManager > 0) {
                         $earnedPointsManager += $competencyValue * $scoreManager;
                     }
-                    if ($competencyValue > 0) {
+                    // Add to maxPoints only if either employee or manager scored > 0 (not "Nie dotyczy")
+                    if (($scoreEmployee > 0 || $scoreManager > 0) && $competencyValue > 0) {
                         $maxPoints += $competencyValue;
                     }
                 }
 
                 $percentageEmployee = $maxPoints > 0 ? ($earnedPointsEmployee / $maxPoints) * 100 : 'N/D';
                 $percentageManager = $maxPoints > 0 ? ($earnedPointsManager / $maxPoints) * 100 : 'N/D';
+
+
 
                 $levelPercentagesEmployee[$levelName] = $percentageEmployee;
                 $levelPercentagesManager[$levelName] = $percentageManager;
@@ -750,74 +759,32 @@ class ManagerController extends Controller
     }
 
     private function determineHighestLevel($percJunior, $percSpecialist, $percSenior, $percSupervisor, $percManager)
-{
-    // Zgodnie z logiką z formuły Excel i wcześniejszymi ustaleniami:
-    // E=Junior (percJunior)
-    // F=Specjalista (percSpecialist)
-    // G=Senior (percSenior)
-    // H=Supervisor (percSupervisor)
-    // I=Manager (percManager)
-    //
-    // Porównania:
-    // Junior≥80% => daje możliwość awansu dalej
-    // Specialist≥85% => kolejny krok
-    // Senior≥85% lub (≥60% i inne warunki) => senior/supervisor logic
-    // Supervisor≥80%
-    // Manager≥80%
-    //
-    // Oraz:
-    // 1. Junior
-    // 2. Specjalista
-    // 3. Senior
-    // 4. Supervisor
-    // 5. Manager
-    // Senior/Supervisor => "3/4. Senior/Supervisor"
-
-    // Junior check
-    if ($percJunior < 80) {
-        return "1. Junior";
-    }
-
-    // Specialist check
-    if ($percSpecialist < 85) {
-        return "1. Junior";
-    }
-
-    // Minimum to "2. Specjalista" na tym etapie
-    // Sprawdzamy dalej Senior, Supervisor i Manager
-
-    // Senior≥85%?
-    if ($percSenior >= 85) {
-        // Mamy Senior
-        if ($percSupervisor >= 80) {
-            // Senior i Supervisor
-            if ($percManager >= 80) {
-                // Manager osiągnięty
-                return "5. Manager";
+    {
+        // Thresholds for each level (same as SelfAssessmentController)
+        $levels = [
+            1 => ['percentage' => $percJunior, 'threshold' => 80, 'name' => '1. Junior'],
+            2 => ['percentage' => $percSpecialist, 'threshold' => 85, 'name' => '2. Specjalista'],
+            3 => ['percentage' => $percSenior, 'threshold' => 85, 'name' => '3. Senior'],
+            4 => ['percentage' => $percSupervisor, 'threshold' => 80, 'name' => '4. Supervisor'],
+            5 => ['percentage' => $percManager, 'threshold' => 80, 'name' => '5. Manager'],
+        ];
+        
+        $achievedLevel = '1. Junior'; // Default to first level
+        
+        // Check levels sequentially - must pass each level to achieve higher ones
+        foreach ($levels as $levelNumber => $level) {
+            $percentage = is_numeric($level['percentage']) ? $level['percentage'] : 0;
+            
+            if ($percentage >= $level['threshold']) {
+                $achievedLevel = $level['name']; // Passed this level, continue
             } else {
-                // Senior≥80% i Supervisor≥80%, Manager<80%
-                return "3/4. Senior/Supervisor";
+                // Failed this level - stay at previous level and stop checking
+                break;
             }
-        } else {
-            // Supervisor nie osiągnięty
-            // Sam Senior≥85%
-            return "3. Senior";
         }
-    } else {
-        // Senior nie osiągnął 80%
-        // Sprawdzamy Supervisor≥80% i Senior≥60%
-        if ($percSupervisor >= 80 && $percSenior >= 60) {
-            // Supervisor
-            // Nie osiągnęliśmy Senior≥80%, ale mamy minimalnie Senior≥60% i Supervisor≥80%
-            // To daje "4. Supervisor"
-            // Manager sprawdzany tylko przy Senior≥80% i Supervisor≥80%, tu go nie sprawdzamy
-            return "4. Supervisor";
-        } else {
-            // Nie spełniamy warunków wyższych niż Specjalista
-            return "2. Specjalista";
-        }
+        
+        return $achievedLevel;
     }
-}
 
     
     
