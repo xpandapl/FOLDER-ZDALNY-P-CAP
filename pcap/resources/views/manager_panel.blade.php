@@ -1202,42 +1202,63 @@
 
         <!-- Zakładka Cały Zespół -->
         <div id="team-tab" style="display:none;">
-            <!-- Tabela z podsumowaniem zespołu -->
-            <table>
-                <thead>
-                    <tr>
-                        <th>Imię i nazwisko</th>
-                        <th>Nazwa stanowiska</th>
-                        @foreach($levelNames as $levelKey => $levelName)
-                            <th>{{ $levelName }}</th>
-                        @endforeach
-                        <th>Poziom</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($teamEmployeesData as $emp)
+            @if($employees->isEmpty())
+                <div style="text-align: center; padding: 40px; background-color: #f8f9fa; border-radius: 8px; margin: 20px 0;">
+                    <i class="fas fa-users" style="font-size: 48px; color: #6c757d; margin-bottom: 15px;"></i>
+                    <h3 style="color: #6c757d; margin-bottom: 10px;">Brak przypisanych pracowników</h3>
+                    <p style="color: #6c757d; margin-bottom: 20px;">
+                        @if($manager->role === 'supermanager')
+                            Aby widzieć pracowników w zakładce "Twój zespół", musisz być przypisany do struktury hierarchii jako supervisor, manager lub head.
+                            <br><br>
+                            <strong>Wszyscy pracownicy są dostępni w zakładkach HR.</strong>
+                        @else
+                            Nie masz jeszcze przypisanych pracowników w systemie hierarchii.
+                        @endif
+                    </p>
+                    @if($manager->role === 'supermanager')
+                        <a href="/admin" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">
+                            <i class="fas fa-sitemap"></i> Przejdź do panelu administracyjnego
+                        </a>
+                    @endif
+                </div>
+            @else
+                <!-- Tabela z podsumowaniem zespołu -->
+                <table>
+                    <thead>
                         <tr>
-                            <td>{{ $emp['name'] }}</td>
-                            <td>{{ $emp['job_title'] }}</td>
+                            <th>Imię i nazwisko</th>
+                            <th>Nazwa stanowiska</th>
                             @foreach($levelNames as $levelKey => $levelName)
-                                <!-- Manager's Percentage -->
-                                <td>
-                                    @php
-                                        $percentageManager = $emp['levelPercentagesManager'][$levelName] ?? null;
-                                        $threshold = $levelKey == 1 ? 80 : ($levelKey == 2 || $levelKey == 3 ? 85 : 80);
-                                        $isHighManager = is_numeric($percentageManager) && $percentageManager >= $threshold;
-                                    @endphp
-                                    <span class="{{ $isHighManager ? 'high-percentage' : '' }}">
-                                        {{ is_numeric($percentageManager) ? number_format((float)$percentageManager, 2) . '%' : 'N/D' }}
-                                    </span>
-                                </td>
+                                <th>{{ $levelName }}</th>
                             @endforeach
-                            <!-- Highest Level based on Manager's Assessment -->
-                            <td>{{ $emp['highestLevelManager'] }}</td>
+                            <th>Poziom</th>
                         </tr>
-                    @endforeach
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach($teamEmployeesData as $emp)
+                            <tr>
+                                <td>{{ $emp['name'] }}</td>
+                                <td>{{ $emp['job_title'] }}</td>
+                                @foreach($levelNames as $levelKey => $levelName)
+                                    <!-- Manager's Percentage -->
+                                    <td>
+                                        @php
+                                            $percentageManager = $emp['levelPercentagesManager'][$levelName] ?? null;
+                                            $threshold = $levelKey == 1 ? 80 : ($levelKey == 2 || $levelKey == 3 ? 85 : 80);
+                                            $isHighManager = is_numeric($percentageManager) && $percentageManager >= $threshold;
+                                        @endphp
+                                        <span class="{{ $isHighManager ? 'high-percentage' : '' }}">
+                                            {{ is_numeric($percentageManager) ? number_format((float)$percentageManager, 2) . '%' : 'N/D' }}
+                                        </span>
+                                    </td>
+                                @endforeach
+                                <!-- Highest Level based on Manager's Assessment -->
+                                <td>{{ $emp['highestLevelManager'] }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
 
 
             @php

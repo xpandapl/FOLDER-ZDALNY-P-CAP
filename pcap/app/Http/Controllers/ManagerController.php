@@ -79,23 +79,14 @@ class ManagerController extends Controller
     // Get the employee ID from the request (if selected)
     $employeeId = $request->input('employee');
 
-    // Fetch employees under the manager with necessary relationships
-    $employees = Employee::with([
-        'team:id,name', // Only load team name and ID
-        'team.competencyTeamValues:id,team_id,competency_id,value', // Preload team competency values to avoid N+1 in getCompetencyValue
-        'overriddenCompetencyValues:id,employee_id,competency_id,value', // Preload overridden values
-        'results' => function ($query) use ($selectedCycleId) {
-            // Load only the fields used in calculations
-            $query->select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'cycle_id')
-                  ->when($selectedCycleId, function($q) use ($selectedCycleId){ $q->where('cycle_id', $selectedCycleId); });
-        },
-        'results.competency' => function ($query) {
-            // Only fields required for grouping by level
-            $query->select('id', 'level');
-        },
-    ])->where('manager_username', $manager->name)
-      ->get(['id', 'name', 'job_title', 'department']);
+    // Pobierz pracowników według nowej hierarchii
+    $employees = $this->getEmployeesForManager($manager, $selectedCycleId);
     
+    // Grupowanie pracowników według poziomu hierarchii
+    $employeesByLevel = $this->groupEmployeesByLevel($employees, $manager);
+    
+    // Statystyki dla zakładek
+    $stats = $this->calculateEmployeeStats($employees, $manager);
 
     // For supermanagers, fetch all employees with necessary relationships
     if ($manager->role == 'supermanager') {
@@ -116,6 +107,7 @@ class ManagerController extends Controller
         $allEmployees = collect(); // Empty collection for non-supermanagers
     }
 
+    // Dla head - używamy nowej logiki hierarchii
     if ($manager->role == 'head') {
         $departmentEmployees = Employee::with([
                 'team:id,name',
@@ -129,7 +121,11 @@ class ManagerController extends Controller
                     $q->select('id','level');
                 },
             ])
-            ->where('department', $manager->department)
+            ->where(function($q) use ($manager) {
+                $q->where('head_username', $manager->username)
+                  ->orWhere('manager_username', $manager->username)
+                  ->orWhere('supervisor_username', $manager->username);
+            })
             ->get(['id','name','job_title','department']);
     } else {
         $departmentEmployees = collect(); // Empty collection for non-heads
@@ -145,12 +141,8 @@ class ManagerController extends Controller
     if ($employeeId) {
         $employee = Employee::with(['team', 'results.competency.competencyTeamValues'])->find($employeeId);
 
-        // Check if manager has access to this employee
-        if ($employee && (
-            $manager->role == 'supermanager' ||
-            $employee->manager_username == $manager->name ||
-            ($manager->role == 'head' && $employee->department == $manager->department)
-        )) {
+        // Check if manager has access to this employee - nowa logika hierarchii
+        if ($employee && $this->hasAccessToEmployee($manager, $employee)) {
             // Access allowed
             $results = $employee->results()
                 ->when($selectedCycleId, function($q) use ($selectedCycleId){ $q->where('cycle_id', $selectedCycleId); })
@@ -303,6 +295,8 @@ class ManagerController extends Controller
         // Pass variables to the view
         return view('manager_panel', compact(
             'employees',
+            'employeesByLevel',
+            'stats',
             'allEmployees',
             'departmentEmployees',
             'teamEmployeesData',
@@ -1002,6 +996,160 @@ class ManagerController extends Controller
             },
             $filename
         );
+    }
+
+    // Nowe metody dla obsługi 3-poziomowej hierarchii
+    private function getEmployeesForManager($manager, $selectedCycleId)
+    {
+        $query = Employee::with([
+            'team:id,name',
+            'supervisor:username,name',
+            'manager:username,name', 
+            'head:username,name',
+            'team.competencyTeamValues:id,team_id,competency_id,value',
+            'overriddenCompetencyValues:id,employee_id,competency_id,value',
+            'results' => function ($q) use ($selectedCycleId) {
+                $q->select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'cycle_id')
+                  ->when($selectedCycleId, function($qq) use ($selectedCycleId) {
+                      $qq->where('cycle_id', $selectedCycleId);
+                  });
+            },
+            'results.competency' => function ($q) {
+                $q->select('id', 'level');
+            },
+        ]);
+
+        // Sprawdź czy są struktury hierarchiczne (pracownicy z przypisaną hierarchią)
+        $hasHierarchyStructures = Employee::where(function($q) {
+            $q->whereNotNull('supervisor_username')
+              ->orWhereNotNull('manager_username') 
+              ->orWhereNotNull('head_username');
+        })->exists();
+        
+        if (!$hasHierarchyStructures) {
+            // Gdy brak struktur hierarchicznych, wszyscy (włącznie z supermanagerem) 
+            // powinni mieć pustą kolekcję w zakładkach zespołowych
+            return collect();
+        }
+
+        switch ($manager->role) {
+            case 'supervisor':
+                return $query->where('supervisor_username', $manager->username)->get();
+                
+            case 'manager':
+                return $query->where(function($q) use ($manager) {
+                    $q->where('manager_username', $manager->username)
+                      ->orWhere('supervisor_username', $manager->username);
+                })->get();
+                
+            case 'head':
+                return $query->where(function($q) use ($manager) {
+                    $q->where('head_username', $manager->username)
+                      ->orWhere('manager_username', $manager->username)
+                      ->orWhere('supervisor_username', $manager->username);
+                })->get();
+                
+            case 'supermanager':
+                // Supermanager w zakładkach zespołowych powinien widzieć tylko swoich bezpośrednich
+                // pracowników zgodnie z hierarchią (może być supervisor/manager/head w strukturze)
+                return $query->where(function($q) use ($manager) {
+                    $q->where('head_username', $manager->username)
+                      ->orWhere('manager_username', $manager->username)
+                      ->orWhere('supervisor_username', $manager->username);
+                })->get();
+                
+            default:
+                return collect();
+        }
+    }
+
+    private function groupEmployeesByLevel($employees, $manager)
+    {
+        $grouped = [
+            'direct' => collect(),
+            'supervisors' => collect(),
+            'managers' => collect(),
+        ];
+        
+        foreach ($employees as $employee) {
+            $relationship = $employee->getRelationshipToManager($manager);
+            
+            if ($relationship['type'] === 'direct') {
+                $grouped['direct']->push($employee);
+            } elseif ($relationship['type'] === 'indirect') {
+                if ($relationship['through'] === 'supervisor') {
+                    $grouped['supervisors']->push($employee);
+                } elseif ($relationship['through'] === 'manager') {
+                    $grouped['managers']->push($employee);
+                }
+            }
+        }
+        
+        return $grouped;
+    }
+
+    private function calculateEmployeeStats($employees, $manager)
+    {
+        $stats = [
+            'total' => $employees->count(),
+            'direct' => 0,
+            'through_supervisors' => 0,
+            'through_managers' => 0,
+            'with_results' => 0,
+            'pending' => 0,
+        ];
+        
+        foreach ($employees as $employee) {
+            $relationship = $employee->getRelationshipToManager($manager);
+            
+            // Liczenie bezpośrednich vs pośrednich
+            if ($relationship['type'] === 'direct') {
+                $stats['direct']++;
+            } elseif ($relationship['type'] === 'indirect') {
+                if ($relationship['through'] === 'supervisor') {
+                    $stats['through_supervisors']++;
+                } elseif ($relationship['through'] === 'manager') {
+                    $stats['through_managers']++;
+                }
+            }
+            
+            // Liczenie statusów ocen
+            if ($employee->results->isNotEmpty()) {
+                $stats['with_results']++;
+            } else {
+                $stats['pending']++;
+            }
+        }
+        
+        return $stats;
+    }
+
+    private function hasAccessToEmployee($manager, $employee)
+    {
+        // Supermanager widzi wszystkich
+        if ($manager->role == 'supermanager') {
+            return true;
+        }
+        
+        // Supervisor widzi tylko swoich bezpośrednich pracowników
+        if ($manager->role == 'supervisor' && $employee->supervisor_username == $manager->username) {
+            return true;
+        }
+        
+        // Manager widzi swoich bezpośrednich pracowników i pracowników swoich supervisorów
+        if ($manager->role == 'manager') {
+            return $employee->manager_username == $manager->username || 
+                   $employee->supervisor_username == $manager->username;
+        }
+        
+        // Head widzi wszystkich w swojej hierarchii
+        if ($manager->role == 'head') {
+            return $employee->head_username == $manager->username ||
+                   $employee->manager_username == $manager->username ||
+                   $employee->supervisor_username == $manager->username;
+        }
+        
+        return false;
     }
 
 }

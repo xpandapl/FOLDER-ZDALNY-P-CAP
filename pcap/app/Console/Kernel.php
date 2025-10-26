@@ -34,5 +34,8 @@ class Kernel extends ConsoleKernel
         \App\Console\Commands\AssessmentInitCommand::class,
         \App\Console\Commands\AssessmentStartCycleCommand::class,
         \App\Console\Commands\AssessmentGenerateCodeCommand::class,
+        \App\Console\Commands\MigrateOldManagerData::class,
+        \App\Console\Commands\FixManagerData::class,
+        \App\Console\Commands\CleanAndMigrateLegacy::class,
     ];
 }

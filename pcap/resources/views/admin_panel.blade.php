@@ -33,6 +33,9 @@
             <a class="nav-link" id="managers-tab" data-toggle="tab" href="#managers" role="tab" aria-controls="managers" aria-selected="false">Managerowie</a>
         </li>
         <li class="nav-item">
+            <a class="nav-link" id="hierarchy-tab" data-toggle="tab" href="#hierarchy" role="tab" aria-controls="hierarchy" aria-selected="false">Hierarchia</a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link" id="dates-tab" data-toggle="tab" href="#dates" role="tab" aria-controls="dates" aria-selected="false">Zarządzanie Datami</a>
         </li>
         <li class="nav-item">
@@ -184,8 +187,8 @@
         <!-- Zakładka Managerowie -->
         <div class="tab-pane fade" id="managers" role="tabpanel" aria-labelledby="managers-tab">
             <div class="user-list mt-3">
-                <h2>Lista Managerów</h2>
-                <!-- Dodaj formularz dodawania managera -->
+                <h2>Lista Managerów / Użytkowników</h2>
+                <!-- Dodaj formularz dodawania użytkownika -->
                 <form method="POST" action="{{ route('admin.add_manager') }}" class="mb-4">
                     @csrf
                     <div class="row">
@@ -202,6 +205,14 @@
                             <input type="password" name="password" class="form-control" placeholder="Hasło" required>
                         </div>
                         <div class="col">
+                            <select name="role" class="form-control" required>
+                                <option value="">Wybierz rolę</option>
+                                @foreach($roles as $role)
+                                    <option value="{{ $role }}">{{ ucfirst($role) }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col">
                             <select name="department" class="form-control" required>
                                 <option value="">Wybierz dział</option>
                                 @foreach($teams as $team)
@@ -210,7 +221,7 @@
                             </select>
                         </div>
                         <div class="col">
-                            <button type="submit" class="btn btn-success">Dodaj Managera</button>
+                            <button type="submit" class="btn btn-success">Dodaj Użytkownika</button>
                         </div>
                     </div>
                 </form>
@@ -282,6 +293,33 @@
                         </div>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Zakładka Hierarchia -->
+        <div class="tab-pane fade" id="hierarchy" role="tabpanel" aria-labelledby="hierarchy-tab">
+            <div class="hierarchy-management mt-3">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2>Zarządzanie hierarchią organizacyjną</h2>
+                    <a href="{{ route('admin.hierarchy.create') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Dodaj strukturę
+                    </a>
+                </div>
+
+                <!-- Iframe z pełnym panelem hierarchii -->
+                <div style="border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;">
+                    <iframe src="{{ route('admin.hierarchy.index') }}" 
+                            style="width: 100%; height: 600px; border: none;">
+                    </iframe>
+                </div>
+
+                <div class="mt-3">
+                    <p class="text-muted">
+                        <i class="fas fa-info-circle"></i>
+                        Panel hierarchii pozwala na zarządzanie strukturą organizacyjną z 3 poziomami: Supervisor → Manager → Head.
+                        Pracownicy automatycznie dziedziczą hierarchię po wyborze bezpośredniego supervisora.
+                    </p>
+                </div>
             </div>
         </div>
 

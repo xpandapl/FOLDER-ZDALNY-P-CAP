@@ -11,7 +11,9 @@ class ManagerMiddleware
     {
         $user = auth()->user();
 
-        if ($user && ($user->role == 'manager' || $user->role == 'supermanager' || $user->role == 'head')) {
+        $allowedRoles = ['supervisor', 'manager', 'head', 'supermanager'];
+        
+        if ($user && in_array($user->role, $allowedRoles)) {
             return $next($request);
         }
 

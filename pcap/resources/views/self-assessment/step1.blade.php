@@ -76,10 +76,16 @@
             </select>
         </div>
         <div class="form-group">
-            <label for="manager">Moim przełożonym jest:</label>
+            <label for="manager">Moim bezpośrednim przełożonym jest:</label>
             <select name="manager" id="manager" required>
                 <option value="">-- Wybierz przełożonego --</option>
             </select>
+        </div>
+        
+        <!-- Podgląd hierarchii -->
+        <div id="hierarchy-preview" style="display: none; background: #f8fafc; padding: 12px; border-radius: 8px; margin-top: 12px;">
+            <h4 style="margin: 0 0 8px 0; color: #374151;">Twoja struktura przełożonych:</h4>
+            <div id="hierarchy-text" style="color: #6b7280; font-size: 14px;"></div>
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%">Przejdź dalej</button>
     </form>
@@ -88,35 +94,33 @@
 
 @section('scripts')
 <script>
-        // Your existing JavaScript code
         document.addEventListener('DOMContentLoaded', function() {
             const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
             document.getElementById('department').addEventListener('change', function () {
                 const department = this.value;
                 const managerSelect = document.getElementById('manager');
+                const hierarchyPreview = document.getElementById('hierarchy-preview');
 
                 // Clear previous options
                 managerSelect.innerHTML = '<option value="">-- Wybierz przełożonego --</option>';
+                hierarchyPreview.style.display = 'none';
 
                 if (department) {
-                    // Make AJAX request to fetch managers
-                    fetch("{{ route('get.managers') }}", {
+                    // Fetch supervisors for department
+                    fetch("{{ route('get.supervisors') }}", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
                             "X-CSRF-TOKEN": csrfToken
                         },
-                        credentials: 'same-origin',
                         body: JSON.stringify({ department: department })
                     })
-
                     .then(response => response.json())
-                    .then(managers => {
-                        // `managers` is an object with key-value pairs
-                        for (const [id, name] of Object.entries(managers)) {
+                    .then(supervisors => {
+                        for (const [username, name] of Object.entries(supervisors)) {
                             const option = document.createElement('option');
-                            option.value = name; // Use name as value if you store manager's name
+                            option.value = username;
                             option.textContent = name;
                             managerSelect.appendChild(option);
                         }
@@ -124,7 +128,41 @@
                     .catch(error => console.error('Błąd:', error));
                 }
             });
-        });
 
-    </script>
+            // Show hierarchy when supervisor is selected
+            document.getElementById('manager').addEventListener('change', function() {
+                const department = document.getElementById('department').value;
+                const supervisor = this.value;
+                const hierarchyPreview = document.getElementById('hierarchy-preview');
+                const hierarchyText = document.getElementById('hierarchy-text');
+
+                if (department && supervisor) {
+                    // Fetch full hierarchy for this supervisor
+                    fetch("{{ route('get.hierarchy') }}", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRF-TOKEN": csrfToken
+                        },
+                        body: JSON.stringify({ 
+                            department: department, 
+                            supervisor: supervisor 
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(hierarchy => {
+                        hierarchyText.innerHTML = `
+                            <strong>Supervisor:</strong> ${hierarchy.supervisor}<br>
+                            <strong>Manager:</strong> ${hierarchy.manager}<br>
+                            <strong>Head:</strong> ${hierarchy.head}
+                        `;
+                        hierarchyPreview.style.display = 'block';
+                    })
+                    .catch(error => console.error('Błąd:', error));
+                } else {
+                    hierarchyPreview.style.display = 'none';
+                }
+            });
+        });
+</script>
 @endsection

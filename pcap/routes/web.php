@@ -38,6 +38,8 @@ Route::redirect('/self-assessment', '/');
 Route::post('/self-assessment/step1', [SelfAssessmentController::class, 'saveStep1'])->name('self.assessment.step1.save'); // Zapisz dane osobowe
 Route::post('/self-assessment/get-managers', [SelfAssessmentController::class, 'getManagersByDepartment']);
 Route::post('/get-managers', [SelfAssessmentController::class, 'getManagersByDepartment'])->name('get.managers');
+Route::post('/get-supervisors', [SelfAssessmentController::class, 'getSupervisorsByDepartment'])->name('get.supervisors');
+Route::post('/get-hierarchy', [SelfAssessmentController::class, 'getHierarchyPreview'])->name('get.hierarchy');
 Route::get('/self-assessment/{level}/{uuid?}', [SelfAssessmentController::class, 'showForm'])
     ->where('level', '[0-9]+')
     ->name('self.assessment');
@@ -76,6 +78,23 @@ Route::put('/admin/update-manager', [AdminPanelController::class, 'updateManager
 // Competencies summary (lazy JSON)
 Route::get('/admin/competencies/summary', [AdminPanelController::class, 'competenciesSummary'])->name('admin.competencies_summary');
 Route::post('/admin/settings/update', [AdminPanelController::class, 'updateSettings'])->name('admin.settings.update');
+
+// Admin hierarchy management - integracja z istniejącym panelem
+Route::middleware(['auth'])->group(function () {
+    // Sprawdzenie roli w kontrolerze
+    Route::get('/admin/hierarchy', [\App\Http\Controllers\Admin\HierarchyController::class, 'index'])->name('admin.hierarchy.index');
+    Route::get('/admin/hierarchy/create', [\App\Http\Controllers\Admin\HierarchyController::class, 'create'])->name('admin.hierarchy.create');
+    Route::post('/admin/hierarchy', [\App\Http\Controllers\Admin\HierarchyController::class, 'store'])->name('admin.hierarchy.store');
+    Route::get('/admin/hierarchy/{hierarchy}', [\App\Http\Controllers\Admin\HierarchyController::class, 'show'])->name('admin.hierarchy.show');
+    Route::get('/admin/hierarchy/{hierarchy}/edit', [\App\Http\Controllers\Admin\HierarchyController::class, 'edit'])->name('admin.hierarchy.edit');
+    Route::put('/admin/hierarchy/{hierarchy}', [\App\Http\Controllers\Admin\HierarchyController::class, 'update'])->name('admin.hierarchy.update');
+    Route::delete('/admin/hierarchy/{hierarchy}', [\App\Http\Controllers\Admin\HierarchyController::class, 'destroy'])->name('admin.hierarchy.destroy');
+    Route::post('/admin/hierarchy/{hierarchy}/assign-employees', [\App\Http\Controllers\Admin\HierarchyController::class, 'assignEmployees'])->name('admin.hierarchy.assign_employees');
+    Route::post('/admin/hierarchy/mass-update', [\App\Http\Controllers\Admin\HierarchyController::class, 'massUpdate'])->name('admin.hierarchy.mass-update');
+    Route::get('/admin/hierarchy-users-by-role', [\App\Http\Controllers\Admin\HierarchyController::class, 'getUsersByRole'])->name('admin.hierarchy.users-by-role');
+    Route::get('/admin/hierarchy/orphaned-employees', [\App\Http\Controllers\Admin\HierarchyController::class, 'getOrphanedEmployees'])->name('admin.hierarchy.orphaned');
+    Route::post('/admin/hierarchy/assign-orphaned/{employee}', [\App\Http\Controllers\Admin\HierarchyController::class, 'assignOrphanedEmployee'])->name('admin.hierarchy.assign-orphaned');
+});
 
 
 

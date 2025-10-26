@@ -16,6 +16,8 @@ class Employee extends Model
         'email',
         'department',
         'manager_username',
+        'supervisor_username',  // Bezpośredni przełożony
+        'head_username',        // Head w hierarchii
         'job_title',
         'uuid',
     ];
@@ -29,6 +31,21 @@ class Employee extends Model
     public function team()
     {
         return $this->belongsTo(Team::class, 'department', 'name');
+    }
+
+    public function supervisor()
+    {
+        return $this->belongsTo(User::class, 'supervisor_username', 'username');
+    }
+
+    public function manager()
+    {
+        return $this->belongsTo(User::class, 'manager_username', 'username');
+    }
+
+    public function head()
+    {
+        return $this->belongsTo(User::class, 'head_username', 'username');
     }
 
     public function overriddenCompetencyValues()
@@ -98,6 +115,69 @@ class Employee extends Model
         
         // Otherwise, construct from first_name and last_name
         return $this->getFullNameAttribute();
+    }
+
+    // Zwraca pełną hierarchię jako string
+    public function getHierarchyAttribute()
+    {
+        $parts = [];
+        if ($this->supervisor) $parts[] = "Supervisor: {$this->supervisor->name}";
+        if ($this->manager) $parts[] = "Manager: {$this->manager->name}";
+        if ($this->head) $parts[] = "Head: {$this->head->name}";
+        
+        return implode(' → ', $parts);
+    }
+
+    // Zwraca relację pracownika do managera
+    public function getRelationshipToManager($manager)
+    {
+        // Bezpośredni podwładni na różnych poziomach
+        if ($this->supervisor_username == $manager->username) {
+            return ['type' => 'direct', 'role' => 'supervisor'];
+        }
+        
+        if ($this->manager_username == $manager->username) {
+            return ['type' => 'direct', 'role' => 'manager'];
+        }
+        
+        if ($this->head_username == $manager->username) {
+            return ['type' => 'direct', 'role' => 'head'];
+        }
+        
+        // Pośrednie relacje
+        if ($manager->role == 'manager') {
+            // Manager widzi pracowników swoich supervisorów
+            if ($this->supervisor_username && $this->supervisor_username != $manager->username) {
+                return ['type' => 'indirect', 'through' => 'supervisor'];
+            }
+        }
+        
+        if ($manager->role == 'head') {
+            // Head widzi pracowników przez managerów i supervisorów
+            if ($this->manager_username && $this->manager_username != $manager->username) {
+                return ['type' => 'indirect', 'through' => 'manager'];
+            }
+            if ($this->supervisor_username && $this->supervisor_username != $manager->username) {
+                return ['type' => 'indirect', 'through' => 'supervisor'];
+            }
+        }
+        
+        return ['type' => 'none'];
+    }
+
+    // Sprawdza czy pracownik ma przypisaną pełną hierarchię
+    public function hasCompleteHierarchy()
+    {
+        return $this->supervisor_username && $this->manager_username && $this->head_username;
+    }
+
+    // Zwraca najwyższy poziom przypisanego przełożonego
+    public function getHighestAssignedLevel()
+    {
+        if ($this->head_username) return 'head';
+        if ($this->manager_username) return 'manager';
+        if ($this->supervisor_username) return 'supervisor';
+        return null;
     }
 
 }

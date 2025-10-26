@@ -293,13 +293,86 @@ class SelfAssessmentController extends Controller
         $managers = [];
 
         if ($department) {
-            // Fetch managers for the selected department
-            $managers = User::where('department', $department)
-                            ->whereIn('role', ['manager', 'supermanager', 'head'])
-                            ->pluck('name', 'id'); // Adjust field names as per your User model
+            // Pobierz wszystkich managerów, supervisorów i headów z struktur hierarchicznych dla tego działu
+            $hierarchyManagers = \App\Models\HierarchyStructure::where('department', $department)
+                ->with(['supervisor:username,name', 'manager:username,name', 'head:username,name'])
+                ->get();
+            
+            // Dodaj wszystkich przełożonych do listy
+            foreach ($hierarchyManagers as $hierarchy) {
+                if ($hierarchy->manager) {
+                    $managers[$hierarchy->manager_username] = $hierarchy->manager->name;
+                }
+                
+                // Jeśli jest supervisor, dodaj go także
+                if ($hierarchy->supervisor) {
+                    $managers[$hierarchy->supervisor_username] = $hierarchy->supervisor->name;
+                }
+                
+                // Dodaj head, żeby managerowie mogli go wybrać
+                if ($hierarchy->head) {
+                    $managers[$hierarchy->head_username] = $hierarchy->head->name;
+                }
+            }
+            
+            // Usuń duplikaty i posortuj
+            $managers = collect($managers)->unique()->sort();
         }
 
         return response()->json($managers);
+    }
+
+    public function getSupervisorsByDepartment(Request $request)
+    {
+        $department = $request->input('department');
+        
+        // Pobierz wszystkie struktury hierarchiczne dla działu
+        $hierarchies = \App\Models\HierarchyStructure::where('department', $department)
+            ->with(['supervisor:username,name', 'manager:username,name', 'head:username,name'])
+            ->get();
+        
+        $supervisors = [];
+        
+        foreach ($hierarchies as $hierarchy) {
+            if ($hierarchy->supervisor_username) {
+                // Struktura ma supervisora
+                $supervisors[$hierarchy->supervisor_username] = $hierarchy->supervisor->name;
+            } else {
+                // Struktura bez supervisora - pracownicy raportują bezpośrednio do managera
+                $supervisors[$hierarchy->manager_username] = $hierarchy->manager->name;
+            }
+            
+            // Dodaj też heada, żeby managerowie mogli go wybrać jako przełożonego
+            if ($hierarchy->head_username && !isset($supervisors[$hierarchy->head_username])) {
+                $supervisors[$hierarchy->head_username] = $hierarchy->head->name;
+            }
+        }
+        
+        return response()->json($supervisors);
+    }
+
+    public function getHierarchyPreview(Request $request)
+    {
+        $department = $request->input('department');
+        $supervisor = $request->input('supervisor');
+        
+        $hierarchy = \App\Models\HierarchyStructure::getHierarchyBySupervisor($department, $supervisor);
+        
+        if ($hierarchy) {
+            $response = [];
+            
+            // Jeśli supervisor_username jest NULL, znaczy że struktura nie ma supervisora
+            if ($hierarchy->supervisor_username) {
+                $response['supervisor'] = $hierarchy->supervisor->name;
+            }
+            
+            $response['manager'] = $hierarchy->manager->name;
+            $response['head'] = $hierarchy->head->name;
+            
+            return response()->json($response);
+        }
+        
+        return response()->json(['error' => 'Hierarchy not found'], 404);
     }
 
     
@@ -399,10 +472,18 @@ public function showStep1Form()
             'name' => trim($request->input('first_name') . ' ' . $request->input('last_name')), // For backwards compatibility
             'email' => $request->input('email'),
             'department' => $request->input('department'),
-            'manager_username' => $request->input('manager'),
             'job_title' => $request->input('job_title'),
             'uuid' => Str::uuid(),
         ]);
+
+        // Automatyczne przypisanie hierarchii na podstawie wybranego supervisora/managera
+        $hierarchyAssigned = \App\Models\HierarchyStructure::assignHierarchyByManager($employee, $request->input('manager'));
+        
+        if (!$hierarchyAssigned) {
+            // Fallback do starego systemu jeśli nie ma hierarchii
+            $employee->manager_username = $request->input('manager');
+            $employee->save();
+        }
     
         // Redirect to the first level of questions with UUID
         return redirect()->route('self.assessment', ['level' => 1, 'uuid' => $employee->uuid]);

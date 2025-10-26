@@ -39,9 +39,9 @@ class AdminPanelController extends Controller
         $blockDate = Carbon::parse(config('app.block_date', '2024-12-10'));
     
         // Pobierz listę użytkowników
-        $users = \App\Models\User::whereIn('role', ['manager','head','supermanager'])->orderBy('name')->get();
+        $users = \App\Models\User::whereIn('role', ['supervisor', 'manager','head','supermanager'])->orderBy('name')->get();
         $managerNameByUsername = $users->pluck('name', 'username');
-        $roles = ['manager', 'head', 'supermanager'];
+        $roles = ['supervisor', 'manager', 'head', 'supermanager'];
         
         // Pobierz ustawienia aplikacji
         $appSettings = \App\Models\AppSetting::orderBy('label')->get();
@@ -52,14 +52,14 @@ class AdminPanelController extends Controller
     public function showAdminPanel()
     {
     $employees = \App\Models\Employee::all();
-    $users = \App\Models\User::whereIn('role', ['manager','head','supermanager'])->orderBy('name')->get();
+    $users = \App\Models\User::whereIn('role', ['supervisor', 'manager','head','supermanager'])->orderBy('name')->get();
     $managerNameByUsername = $users->pluck('name', 'username');
         $blockDate = \App\Models\BlockDate::first();
         if (!$blockDate) {
             $blockDate = (object)['block_date' => now()->format('Y-m-d')];
         }
         $teams = \App\Models\Team::pluck('name');
-    $roles = ['manager', 'head', 'supermanager'];
+    $roles = ['supervisor', 'manager', 'head', 'supermanager'];
     $cycles = AssessmentCycle::orderByDesc('year')->orderByDesc('period')->get();
     
     // Pobierz ustawienia aplikacji
@@ -193,7 +193,7 @@ class AdminPanelController extends Controller
     {
         $request->validate([
             'user_id' => 'required|integer|exists:users,id',
-            'role' => 'required|string|in:manager,head,supermanager',
+            'role' => 'required|string|in:supervisor,manager,head,supermanager',
             'department' => 'required|string|exists:teams,name',
         ]);
 
@@ -246,6 +246,7 @@ class AdminPanelController extends Controller
             'username' => 'required|string|max:255|unique:users,username',
             'email' => 'required|email|max:255|unique:users,email',
             'password' => 'required|string|min:8',
+            'role' => 'required|string|in:supervisor,manager,head,supermanager',
             'department' => 'required|string|max:255',
         ]);
 
@@ -254,11 +255,11 @@ class AdminPanelController extends Controller
             'username' => $request->username,
             'email' => $request->email,
             'password' => bcrypt($request->password),
-            'role' => 'manager',
+            'role' => $request->role,
             'department' => $request->department,
         ]);
 
-        return redirect()->back()->with('success', 'Manager został dodany.');
+        return redirect()->back()->with('success', 'Użytkownik został dodany.');
     }
 
     // Lazy-loaded JSON: competencies summary with counts and averages
