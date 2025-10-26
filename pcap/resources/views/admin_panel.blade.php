@@ -91,8 +91,38 @@
                         <td>
                             @php
                                 $mgr = $employee->manager_username;
+                                // Znajdź strukturę hierarchii dla pracownika
+                                $structure = \App\Models\HierarchyStructure::where('department', $employee->department)
+                                    ->where(function($query) use ($employee) {
+                                        if ($employee->supervisor_username) {
+                                            $query->where('supervisor_username', $employee->supervisor_username);
+                                        } else if ($employee->manager_username) {
+                                            $query->where('manager_username', $employee->manager_username)
+                                                  ->whereNull('supervisor_username');
+                                        } else if ($employee->head_username) {
+                                            $query->where('head_username', $employee->head_username)
+                                                  ->whereNull('supervisor_username')
+                                                  ->whereNull('manager_username');
+                                        }
+                                    })
+                                    ->first();
                             @endphp
-                            {{ $mgr && isset($managerNameByUsername[$mgr]) ? $managerNameByUsername[$mgr] : ($mgr ?? '-') }}
+                            @if($structure)
+                                <div style="font-size: 13px;">
+                                    <strong>{{ $structure->team_name }}</strong><br>
+                                    <small class="text-muted">
+                                        @if($employee->supervisor_username)
+                                            Supervisor: {{ $employee->supervisor_username }}
+                                        @elseif($employee->manager_username)
+                                            Manager: {{ $employee->manager_username }}
+                                        @else
+                                            Head: {{ $employee->head_username }}
+                                        @endif
+                                    </small>
+                                </div>
+                            @else
+                                <span class="text-muted">Brak struktury</span>
+                            @endif
                         </td>
                         <td>{{ $employee->created_at->format('Y-m-d H:i') }}</td>
                         <td>{{ $employee->updated_at->format('Y-m-d H:i') }}</td>
@@ -138,13 +168,23 @@
                                     <input type="text" class="form-control" id="edit_job_title" name="job_title" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="edit_manager_username">Manager:</label>
-                                    <select class="form-control" id="edit_manager_username" name="manager_username">
-                                        <option value="">— Brak —</option>
-                                        @foreach($users as $manager)
-                                            <option value="{{ $manager->name }}" data-username="{{ $manager->username }}">{{ $manager->name }} ({{ $manager->username }})</option>
+                                    <label for="edit_hierarchy_structure">Struktura hierarchii:</label>
+                                    <select class="form-control" id="edit_hierarchy_structure" name="hierarchy_structure_id">
+                                        <option value="">— Wybierz strukturę —</option>
+                                        @foreach(\App\Models\HierarchyStructure::with(['supervisor', 'manager', 'head'])->orderBy('department')->orderBy('team_name')->get() as $structure)
+                                            <option value="{{ $structure->id }}" data-department="{{ $structure->department }}">
+                                                {{ $structure->department }} - {{ $structure->team_name }}
+                                                @if($structure->supervisor)
+                                                    (Supervisor: {{ $structure->supervisor->name }})
+                                                @elseif($structure->manager)
+                                                    (Manager: {{ $structure->manager->name }})
+                                                @else
+                                                    (Head: {{ $structure->head->name }})
+                                                @endif
+                                            </option>
                                         @endforeach
                                     </select>
+                                    <small class="form-text text-muted">Wybierz strukturę hierarchii dla pracownika. To automatycznie ustawi przełożonych.</small>
                                 </div>
                             </div>
                             <div class="modal-footer">
@@ -612,19 +652,11 @@ $(document).ready(function() {
                 $('#employee_id_to_edit').val(data.id);
                 $('#edit_name').val(data.name);
                 $('#edit_job_title').val(data.job_title);
-                // Try to select by full name first
-                var $mgrSelect = $('#edit_manager_username');
-                var mgrValue = data.manager_username ?? '';
-                $mgrSelect.val(mgrValue);
-                // If no option with this full name, try mapping stored username to option's data-username
-                if (!$mgrSelect.val() && mgrValue) {
-                    var $optByUsername = $mgrSelect.find('option').filter(function(){
-                        return $(this).data('username') === mgrValue;
-                    }).first();
-                    if ($optByUsername.length) {
-                        $mgrSelect.val($optByUsername.val());
-                    }
-                }
+                
+                // Set current hierarchy structure
+                var currentStructureId = data.current_hierarchy_structure_id || '';
+                $('#edit_hierarchy_structure').val(currentStructureId);
+                
                 // Show the modal
                 $('#editModal').modal('show');
             },

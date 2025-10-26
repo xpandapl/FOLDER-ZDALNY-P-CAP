@@ -60,8 +60,9 @@ class CleanAndMigrateLegacy extends Command
                 if ($manager && $manager->username !== $head->username) {
                     $managerUsername = $manager->username;
                 } else {
-                    // Head (lub supermanager) pełni także rolę managera
-                    $managerUsername = $head->username;
+                    // Head pełni także rolę managera lub nie ma odrębnego managera
+                    // W nowym systemie można pominąć managera i mieć bezpośrednio head
+                    $managerUsername = null;
                 }
             } else if ($manager) {
                 $managerUsername = $manager->username;
@@ -79,7 +80,7 @@ class CleanAndMigrateLegacy extends Command
                     'head_username' => $headUsername,
                 ]);
 
-                $this->info("✅ Utworzono strukturę dla {$department}: Manager={$managerUsername}, Head={$headUsername}");
+                $this->info("✅ Utworzono strukturę dla {$department}: Manager=" . ($managerUsername ?? 'brak') . ", Head={$headUsername}");
             } catch (\Exception $e) {
                 $this->error("❌ Błąd dla {$department}: " . $e->getMessage());
             }

@@ -75,8 +75,12 @@ Route::post('/admin/add-manager', [AdminPanelController::class, 'addManager'])->
 // Manager edit endpoints
 Route::get('/admin/manager/{id}', [AdminPanelController::class, 'getManager'])->name('admin.get_manager');
 Route::put('/admin/update-manager', [AdminPanelController::class, 'updateManager'])->name('admin.update_manager');
+Route::post('/admin/reset-password', [AdminPanelController::class, 'resetPassword'])->name('admin.reset_password');
+Route::delete('/admin/manager/{id}', [AdminPanelController::class, 'deleteManager'])->name('admin.delete_manager');
 // Competencies summary (lazy JSON)
 Route::get('/admin/competencies/summary', [AdminPanelController::class, 'competenciesSummary'])->name('admin.competencies_summary');
+Route::get('/admin/competencies/search', [AdminPanelController::class, 'searchCompetencies'])->name('admin.competencies_search');
+Route::get('/admin/section/{section}', [AdminPanelController::class, 'loadSection'])->name('admin.load_section');
 Route::post('/admin/settings/update', [AdminPanelController::class, 'updateSettings'])->name('admin.settings.update');
 
 // Admin hierarchy management - integracja z istniejącym panelem

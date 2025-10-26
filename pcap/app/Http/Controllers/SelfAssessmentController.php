@@ -249,6 +249,11 @@ class SelfAssessmentController extends Controller
             }
     
             Log::info("Przesyłanie zakończone. Zaktualizowano $updatedCount pytań.");
+            
+            // Clear cache after competencies update
+            \Cache::forget('competency_stats');
+            \Cache::forget('competencies_default_list');
+            
             return redirect()->back()->with('message', "Pytania zostały zaktualizowane. Zaktualizowano $updatedCount pytań.");
     
         } catch (\Exception $e) {
@@ -337,9 +342,12 @@ class SelfAssessmentController extends Controller
             if ($hierarchy->supervisor_username) {
                 // Struktura ma supervisora
                 $supervisors[$hierarchy->supervisor_username] = $hierarchy->supervisor->name;
-            } else {
+            } else if ($hierarchy->manager_username) {
                 // Struktura bez supervisora - pracownicy raportują bezpośrednio do managera
                 $supervisors[$hierarchy->manager_username] = $hierarchy->manager->name;
+            } else if ($hierarchy->head_username) {
+                // Struktura bez supervisora i managera - pracownicy raportują bezpośrednio do heada
+                $supervisors[$hierarchy->head_username] = $hierarchy->head->name;
             }
             
             // Dodaj też heada, żeby managerowie mogli go wybrać jako przełożonego
@@ -366,7 +374,11 @@ class SelfAssessmentController extends Controller
                 $response['supervisor'] = $hierarchy->supervisor->name;
             }
             
-            $response['manager'] = $hierarchy->manager->name;
+            // Jeśli manager_username jest NULL, znaczy że struktura nie ma managera
+            if ($hierarchy->manager_username) {
+                $response['manager'] = $hierarchy->manager->name;
+            }
+            
             $response['head'] = $hierarchy->head->name;
             
             return response()->json($response);

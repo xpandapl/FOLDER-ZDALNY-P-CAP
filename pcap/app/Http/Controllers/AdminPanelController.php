@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use App\Models\AssessmentCycle;
 use Carbon\Carbon;
 
@@ -46,26 +48,41 @@ class AdminPanelController extends Controller
         // Pobierz ustawienia aplikacji
         $appSettings = \App\Models\AppSetting::orderBy('label')->get();
     
-        return view('admin_panel', compact('employees', 'blockDate', 'users', 'managerNameByUsername', 'roles', 'appSettings'));
+        return view('admin_panel_new', compact('employees', 'blockDate', 'users', 'managerNameByUsername', 'roles', 'appSettings'));
     }
     
     public function showAdminPanel()
     {
-    $employees = \App\Models\Employee::all();
-    $users = \App\Models\User::whereIn('role', ['supervisor', 'manager','head','supermanager'])->orderBy('name')->get();
-    $managerNameByUsername = $users->pluck('name', 'username');
-        $blockDate = \App\Models\BlockDate::first();
-        if (!$blockDate) {
-            $blockDate = (object)['block_date' => now()->format('Y-m-d')];
+        $employees = \App\Models\Employee::orderBy('created_at', 'desc')->get();
+        $users = \App\Models\User::whereIn('role', ['supervisor', 'manager','head','supermanager'])->orderBy('name')->get();
+        $managerNameByUsername = $users->pluck('name', 'username');
+        
+        $blockDateRecord = \App\Models\BlockDate::first();
+        if ($blockDateRecord && $blockDateRecord->block_date) {
+            $blockDate = Carbon::parse($blockDateRecord->block_date);
+        } else {
+            $blockDate = Carbon::parse(config('app.block_date', '2025-12-15'));
         }
+        
         $teams = \App\Models\Team::pluck('name');
-    $roles = ['supervisor', 'manager', 'head', 'supermanager'];
-    $cycles = AssessmentCycle::orderByDesc('year')->orderByDesc('period')->get();
-    
-    // Pobierz ustawienia aplikacji
-    $appSettings = \App\Models\AppSetting::orderBy('label')->get();
+        $roles = ['supervisor', 'manager', 'head', 'supermanager'];
+        $cycles = AssessmentCycle::orderByDesc('year')->orderByDesc('period')->get();
+        
+        // Pobierz ustawienia aplikacji
+        $appSettings = \App\Models\AppSetting::orderBy('label')->get();
+        
+        // Dane dla sekcji hierarchii
+        $hierarchyStructures = \App\Models\HierarchyStructure::with(['supervisor', 'manager', 'head'])->orderBy('department')->orderBy('team_name')->get();
+        $departmentCounts = $hierarchyStructures->groupBy('department')->map(function($items) {
+            return $items->count();
+        });
+        $totalStructures = $hierarchyStructures->count();
+        $uniqueDepartments = $hierarchyStructures->pluck('department')->unique()->count();
 
-    return view('admin_panel', compact('employees', 'users', 'blockDate', 'teams', 'managerNameByUsername', 'roles', 'cycles', 'appSettings'));
+        // Dane dla sekcji kompetencji - ładowane przez AJAX
+        $totalCompetencies = \App\Models\Competency::count();
+
+        return view('admin_panel_new', compact('employees', 'users', 'blockDate', 'teams', 'managerNameByUsername', 'roles', 'cycles', 'appSettings', 'hierarchyStructures', 'departmentCounts', 'totalStructures', 'uniqueDepartments', 'totalCompetencies'));
     }
 
     // UI: start new cycle (optionally mark active). Cloning handled via CLI if needed.
@@ -193,44 +210,143 @@ class AdminPanelController extends Controller
     {
         $request->validate([
             'user_id' => 'required|integer|exists:users,id',
+            'name' => 'required|string|max:255',
+            'username' => 'required|string|max:255|unique:users,username,' . $request->input('user_id'),
+            'email' => 'required|email|max:255|unique:users,email,' . $request->input('user_id'),
             'role' => 'required|string|in:supervisor,manager,head,supermanager',
-            'department' => 'required|string|exists:teams,name',
+            'department' => 'required|string',
         ]);
 
         $user = \App\Models\User::find($request->input('user_id'));
         if ($user) {
+            $user->name = $request->input('name');
+            $user->username = $request->input('username');
+            $user->email = $request->input('email');
             $user->role = $request->input('role');
             $user->department = $request->input('department');
             $user->save();
-            return redirect()->route('admin.panel')->with('success', 'Dane managera zostały zaktualizowane.');
+            
+            return redirect()->route('admin.panel', ['section' => 'managers'])->with('success', 'Dane managera zostały zaktualizowane.');
         }
-        return redirect()->route('admin.panel')->with('error', 'Nie znaleziono użytkownika.');
+        return redirect()->route('admin.panel', ['section' => 'managers'])->with('error', 'Nie znaleziono użytkownika.');
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $user = \App\Models\User::find($request->input('user_id'));
+        if ($user) {
+            $user->password = bcrypt($request->input('password'));
+            $user->save();
+            
+            return redirect()->route('admin.panel', ['section' => 'managers'])->with('success', 'Hasło zostało zresetowane.');
+        }
+        return redirect()->route('admin.panel', ['section' => 'managers'])->with('error', 'Nie znaleziono użytkownika.');
+    }
+
+    public function deleteManager($id)
+    {
+        try {
+            $user = \App\Models\User::find($id);
+            if (!$user) {
+                return response()->json(['success' => false, 'message' => 'Nie znaleziono użytkownika.'], 404);
+            }
+
+            // Prevent self-deletion
+            if ($user->id === auth()->id()) {
+                return response()->json(['success' => false, 'message' => 'Nie możesz usunąć własnego konta.'], 403);
+            }
+
+            // Check if user has employees assigned
+            $assignedEmployees = \App\Models\Employee::where('supervisor_username', $user->username)
+                ->orWhere('manager_username', $user->username)
+                ->orWhere('head_username', $user->username)
+                ->count();
+
+            if ($assignedEmployees > 0) {
+                return response()->json([
+                    'success' => false, 
+                    'message' => "Nie można usunąć managera. Ma przypisanych {$assignedEmployees} pracowników."
+                ], 400);
+            }
+
+            $user->delete();
+            
+            return response()->json(['success' => true, 'message' => 'Manager został usunięty.']);
+        } catch (\Exception $e) {
+            Log::error("Error deleting manager {$id}: " . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Wystąpił błąd podczas usuwania managera.'], 500);
+        }
     }
 
     public function getEmployee($id)
     {
         $employee = \App\Models\Employee::find($id);
         if ($employee) {
-            return response()->json($employee);
+            // Znajdź aktualną strukturę hierarchii dla pracownika
+            $currentStructure = \App\Models\HierarchyStructure::where('department', $employee->department)
+                ->where(function($query) use ($employee) {
+                    if ($employee->supervisor_username) {
+                        $query->where('supervisor_username', $employee->supervisor_username);
+                    } else if ($employee->manager_username) {
+                        $query->where('manager_username', $employee->manager_username)
+                              ->whereNull('supervisor_username');
+                    } else if ($employee->head_username) {
+                        $query->where('head_username', $employee->head_username)
+                              ->whereNull('supervisor_username')
+                              ->whereNull('manager_username');
+                    }
+                })
+                ->first();
+            
+            $employeeData = $employee->toArray();
+            $employeeData['hierarchy_structure_id'] = $currentStructure ? $currentStructure->id : null;
+            
+            return response()->json([
+                'success' => true,
+                'employee' => $employeeData
+            ]);
         }
-        return response()->json(['message' => 'Nie znaleziono pracownika.'], 404);
+        return response()->json([
+            'success' => false,
+            'message' => 'Nie znaleziono pracownika.'
+        ], 404);
     }
 
     public function updateEmployee(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
             'job_title' => 'required|string|max:255',
-            // Now storing full manager name directly in employees.manager_username
-            'manager_username' => 'nullable|string|max:255',
+            'hierarchy_structure_id' => 'nullable|exists:hierarchy_structure,id',
         ]);
 
         $employee = \App\Models\Employee::find($request->input('employee_id'));
         if ($employee) {
-            $employee->name = $request->input('name');
+            // Podstawowe dane pracownika
+            $employee->first_name = $request->input('first_name');
+            $employee->last_name = $request->input('last_name');
             $employee->job_title = $request->input('job_title');
-            $employee->manager_username = $request->input('manager_username');
-            $employee->save();
+            
+            // Jeśli wybrano strukturę hierarchii, przypisz pracownika do niej
+            $hierarchyStructureId = $request->input('hierarchy_structure_id');
+            if ($hierarchyStructureId) {
+                $success = \App\Models\HierarchyStructure::assignHierarchyToEmployee($employee, $hierarchyStructureId);
+                if (!$success) {
+                    return redirect()->route('admin.panel')->with('error', 'Nie udało się przypisać pracownika do struktury hierarchii.');
+                }
+            } else {
+                // Jeśli nie wybrano struktury, wyczyść hierarchię
+                $employee->supervisor_username = null;
+                $employee->manager_username = null;
+                $employee->head_username = null;
+                $employee->save();
+            }
 
             return redirect()->route('admin.panel')->with('success', 'Dane pracownika zostały zaktualizowane.');
         }
@@ -259,7 +375,7 @@ class AdminPanelController extends Controller
             'department' => $request->department,
         ]);
 
-        return redirect()->back()->with('success', 'Użytkownik został dodany.');
+        return redirect()->route('admin.panel', ['section' => 'managers'])->with('success', 'Użytkownik został dodany.');
     }
 
     // Lazy-loaded JSON: competencies summary with counts and averages
@@ -326,5 +442,133 @@ class AdminPanelController extends Controller
         }
         
         return redirect()->back()->with('success', 'Ustawienia zostały zaktualizowane.');
+    }
+
+    public function searchCompetencies(Request $request)
+    {
+        $search = $request->get('search', '');
+        
+        // Jeśli nie ma wyszukiwania, zwróć cache'owany wynik
+        if (empty($search)) {
+            $cacheKey = 'competencies_default_list';
+            $result = Cache::remember($cacheKey, 300, function() {
+                $competencies = \App\Models\Competency::select('id', 'competency_name', 'competency_type', 'level', 'description_025', 'description_0_to_05', 'description_075_to_1')
+                    ->orderBy('level')
+                    ->orderBy('competency_name')
+                    ->limit(20) // Jeszcze mniej dla domyślnego widoku
+                    ->get();
+                
+                $totalCompetencies = \App\Models\Competency::count();
+                
+                return [
+                    'competencies' => $competencies,
+                    'totalCompetencies' => $totalCompetencies
+                ];
+            });
+            
+            $competencies = $result['competencies'];
+            $totalCompetencies = $result['totalCompetencies'];
+        } else {
+            // Dla wyszukiwania - bez cache
+            $competencies = \App\Models\Competency::select('id', 'competency_name', 'competency_type', 'level', 'description_025', 'description_0_to_05', 'description_075_to_1')
+                ->where(function ($q) use ($search) {
+                    $q->where('competency_name', 'LIKE', '%' . $search . '%')
+                      ->orWhere('competency_type', 'LIKE', '%' . $search . '%')
+                      ->orWhere('level', 'LIKE', '%' . $search . '%');
+                })
+                ->orderBy('level')
+                ->orderBy('competency_name')
+                ->limit(40)
+                ->get();
+            
+            $totalCompetencies = \App\Models\Competency::count();
+        }
+        
+        $html = view('admin.partials.competencies_list', [
+            'competencies' => $competencies,
+            'totalCompetencies' => $totalCompetencies,
+            'search' => $search
+        ])->render();
+        
+        return response()->json([
+            'success' => true,
+            'html' => $html,
+            'total' => $totalCompetencies,
+            'displayed' => $competencies->count()
+        ]);
+    }
+
+    public function loadSection($section)
+    {
+        try {
+            // Validate section
+            $allowedSections = ['employees', 'managers', 'hierarchy', 'dates', 'competencies', 'cycles', 'settings'];
+            if (!in_array($section, $allowedSections)) {
+                return response()->json(['error' => 'Invalid section'], 400);
+            }
+
+            // Get data needed for the section (reuse logic from showAdminPanel)
+            $employees = \App\Models\Employee::with(['results', 'supervisor', 'manager', 'head'])->get();
+            $users = \App\Models\User::all();
+            
+            // Fix blockDate handling
+            $blockDateRecord = \App\Models\BlockDate::first();
+            if ($blockDateRecord && $blockDateRecord->block_date) {
+                $blockDate = \Carbon\Carbon::parse($blockDateRecord->block_date);
+            } else {
+                $blockDate = \Carbon\Carbon::parse(config('app.block_date', '2025-12-15'));
+            }
+            
+            $teams = \App\Models\Team::pluck('name');
+            $managerNameByUsername = \App\Models\User::pluck('name', 'username')->toArray();
+            $roles = ['supervisor', 'manager', 'head', 'supermanager'];
+            $cycles = \App\Models\AssessmentCycle::orderBy('created_at', 'desc')->get();
+            
+            // Fix appSettings - return as collection, not array
+            $appSettings = \App\Models\AppSetting::orderBy('label')->get();
+            
+            $hierarchyStructures = \App\Models\HierarchyStructure::with(['supervisor', 'manager', 'head'])->get();
+            $departmentCounts = $hierarchyStructures->groupBy('department')->map->count();
+            $totalStructures = $hierarchyStructures->count();
+            $uniqueDepartments = $hierarchyStructures->pluck('department')->unique()->count();
+            $totalCompetencies = \App\Models\Competency::count();
+            
+            // Competencies statistics - cache for 5 minutes
+            $competencyStats = \Cache::remember('competency_stats', 300, function() {
+                return [
+                    'total' => \App\Models\Competency::count(),
+                    'levels' => \App\Models\Competency::distinct('level')->count('level'),
+                    'types' => \App\Models\Competency::distinct('competency_type')->count('competency_type'),
+                    'with_descriptions' => \App\Models\Competency::where(function($query) {
+                        $query->whereNotNull('description_025')
+                              ->orWhereNotNull('description_0_to_05')
+                              ->orWhereNotNull('description_075_to_1')
+                              ->orWhereNotNull('description_above_expectations');
+                    })->count()
+                ];
+            });
+
+            $html = view("admin.sections.{$section}", compact(
+                'employees', 'users', 'blockDate', 'teams', 'managerNameByUsername', 
+                'roles', 'cycles', 'appSettings', 'hierarchyStructures', 
+                'departmentCounts', 'totalStructures', 'uniqueDepartments', 'totalCompetencies', 'competencyStats'
+            ))->render();
+
+            return response()->json([
+                'success' => true,
+                'html' => $html,
+                'section' => $section
+            ]);
+        } catch (\Exception $e) {
+            \Log::error("Error loading section {$section}: " . $e->getMessage(), [
+                'exception' => $e,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'Błąd podczas ładowania sekcji: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

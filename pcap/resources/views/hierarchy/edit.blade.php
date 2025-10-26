@@ -113,11 +113,11 @@
                                 <div class="col-md-6">
                                     <label for="manager_username" class="form-label">
                                         <i class="fas fa-user-tie text-success"></i> Manager
-                                        <span class="text-danger">*</span>
+                                        <span class="text-muted">(opcjonalny)</span>
                                     </label>
                                     <select class="form-select @error('manager_username') is-invalid @enderror" 
-                                            id="manager_username" name="manager_username" required>
-                                        <option value="">Wybierz managera</option>
+                                            id="manager_username" name="manager_username">
+                                        <option value="">Brak managera (bezpośrednio pod headem)</option>
                                         @foreach($users->where('role', 'manager') as $user)
                                             <option value="{{ $user->username }}" 
                                                 {{ old('manager_username', $hierarchy->manager_username) === $user->username ? 'selected' : '' }}>
@@ -128,6 +128,7 @@
                                     @error('manager_username')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
+                                    <div class="form-text">Zostaw puste jeśli pracownicy mają pracować bezpośrednio pod headem</div>
                                 </div>
                             </div>
 
@@ -274,8 +275,10 @@
             if (supervisor && supervisor !== 'Wybierz supervisora') {
                 document.getElementById('supervisor-preview').textContent = supervisor;
             }
-            if (manager && manager !== 'Wybierz managera') {
+            if (manager && manager !== 'Brak managera (bezpośrednio pod headem)') {
                 document.getElementById('manager-preview').textContent = manager;
+            } else if (!manager || manager === 'Brak managera (bezpośrednio pod headem)') {
+                document.getElementById('manager-preview').textContent = 'Brak managera';
             }
             if (head && head !== 'Wybierz head') {
                 document.getElementById('head-preview').textContent = head;

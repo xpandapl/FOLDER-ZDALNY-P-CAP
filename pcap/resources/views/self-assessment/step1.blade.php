@@ -151,11 +151,19 @@
                     })
                     .then(response => response.json())
                     .then(hierarchy => {
-                        hierarchyText.innerHTML = `
-                            <strong>Supervisor:</strong> ${hierarchy.supervisor}<br>
-                            <strong>Manager:</strong> ${hierarchy.manager}<br>
-                            <strong>Head:</strong> ${hierarchy.head}
-                        `;
+                        let hierarchyHtml = '';
+                        
+                        if (hierarchy.supervisor) {
+                            hierarchyHtml += `<strong>Supervisor:</strong> ${hierarchy.supervisor}<br>`;
+                        }
+                        
+                        if (hierarchy.manager) {
+                            hierarchyHtml += `<strong>Manager:</strong> ${hierarchy.manager}<br>`;
+                        }
+                        
+                        hierarchyHtml += `<strong>Head:</strong> ${hierarchy.head}`;
+                        
+                        hierarchyText.innerHTML = hierarchyHtml;
                         hierarchyPreview.style.display = 'block';
                     })
                     .catch(error => console.error('Błąd:', error));

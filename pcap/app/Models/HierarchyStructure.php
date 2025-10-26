@@ -44,7 +44,7 @@ class HierarchyStructure extends Model
                    ->unique();
     }
 
-    // Automatyczne przypisanie hierarchii dla pracownika na podstawie wybranego supervisora/managera
+    // Automatyczne przypisanie hierarchii dla pracownika na podstawie wybranego supervisora/managera/heada
     public static function assignHierarchyByManager($employee, $selectedManager)
     {
         $department = $employee->department;
@@ -54,11 +54,10 @@ class HierarchyStructure extends Model
                          ->where('supervisor_username', $selectedManager)
                          ->first();
         
-        // Jeśli nie znaleziono, sprawdź czy to manager w strukturze bez supervisora
+        // Jeśli nie znaleziono, sprawdź czy to manager w strukturze
         if (!$hierarchy) {
             $hierarchy = self::where('department', $department)
                            ->where('manager_username', $selectedManager)
-                           ->whereNull('supervisor_username')
                            ->first();
         }
         
@@ -117,7 +116,7 @@ class HierarchyStructure extends Model
         return true;
     }
 
-    // Zwraca pełną hierarchię dla danego supervisora lub managera (gdy brak supervisora)
+    // Zwraca pełną hierarchię dla danego supervisora, managera lub heada
     public static function getHierarchyBySupervisor($department, $supervisorUsername)
     {
         // Sprawdź najpierw czy to supervisor
@@ -126,11 +125,18 @@ class HierarchyStructure extends Model
                          ->with(['supervisor:username,name', 'manager:username,name', 'head:username,name'])
                          ->first();
         
-        // Jeśli nie znaleziono, sprawdź czy to manager z struktury bez supervisora
+        // Jeśli nie znaleziono, sprawdź czy to manager
         if (!$hierarchy) {
             $hierarchy = self::where('department', $department)
                            ->where('manager_username', $supervisorUsername)
-                           ->whereNull('supervisor_username') // Struktura bez supervisora
+                           ->with(['supervisor:username,name', 'manager:username,name', 'head:username,name'])
+                           ->first();
+        }
+        
+        // Jeśli nie znaleziono, sprawdź czy to head
+        if (!$hierarchy) {
+            $hierarchy = self::where('department', $department)
+                           ->where('head_username', $supervisorUsername)
                            ->with(['supervisor:username,name', 'manager:username,name', 'head:username,name'])
                            ->first();
         }
@@ -154,12 +160,44 @@ class HierarchyStructure extends Model
     // Zwraca liczbę przypisanych pracowników
     public function getEmployeesCountAttribute()
     {
-        return Employee::where('supervisor_username', $this->supervisor_username)->count();
+        return Employee::where(function($query) {
+            if ($this->supervisor_username) {
+                // Struktura ma supervisora
+                $query->where('supervisor_username', $this->supervisor_username);
+            } else if ($this->manager_username) {
+                // Struktura bez supervisora - pracownicy pod managerem
+                $query->where('manager_username', $this->manager_username)
+                      ->whereNull('supervisor_username');
+            } else {
+                // Struktura bez supervisora i managera - pracownicy pod headem
+                $query->where('head_username', $this->head_username)
+                      ->whereNull('supervisor_username')
+                      ->whereNull('manager_username');
+            }
+        })
+        ->where('department', $this->department)
+        ->count();
     }
 
-    // Zwraca wszystkich pracowników przypisanych do tego supervisora
+    // Zwraca wszystkich pracowników przypisanych do tej struktury
     public function employees()
     {
-        return Employee::where('supervisor_username', $this->supervisor_username)->get();
+        return Employee::where(function($query) {
+            if ($this->supervisor_username) {
+                // Struktura ma supervisora
+                $query->where('supervisor_username', $this->supervisor_username);
+            } else if ($this->manager_username) {
+                // Struktura bez supervisora - pracownicy pod managerem
+                $query->where('manager_username', $this->manager_username)
+                      ->whereNull('supervisor_username');
+            } else {
+                // Struktura bez supervisora i managera - pracownicy pod headem
+                $query->where('head_username', $this->head_username)
+                      ->whereNull('supervisor_username')
+                      ->whereNull('manager_username');
+            }
+        })
+        ->where('department', $this->department)
+        ->get();
     }
 }

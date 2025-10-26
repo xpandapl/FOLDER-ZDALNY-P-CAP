@@ -59,8 +59,16 @@ class HierarchyController extends Controller
         $stats = [
             'total_structures' => HierarchyStructure::count(),
             'departments_count' => HierarchyStructure::distinct('department')->count('department'),
-            'employees_assigned' => Employee::whereNotNull('supervisor_username')->count(),
-            'employees_unassigned' => Employee::whereNull('supervisor_username')->count(),
+            'employees_assigned' => Employee::where(function($query) {
+                $query->whereNotNull('supervisor_username')
+                      ->orWhereNotNull('manager_username')
+                      ->orWhereNotNull('head_username');
+            })->count(),
+            'employees_unassigned' => Employee::where(function($query) {
+                $query->whereNull('supervisor_username')
+                      ->whereNull('manager_username')
+                      ->whereNull('head_username');
+            })->count(),
         ];
         
         return view('hierarchy.index', compact('hierarchies', 'departments', 'stats'));
@@ -76,7 +84,7 @@ class HierarchyController extends Controller
                     ->orderBy('name')
                     ->get();
         
-        return view('hierarchy.create', compact('departments', 'users'));
+        return view('hierarchy.create_new', compact('departments', 'users'));
     }
 
     public function store(Request $request)
@@ -87,7 +95,7 @@ class HierarchyController extends Controller
             'department' => 'required|string|in:' . implode(',', $availableDepartments),
             'team_name' => 'required|string|max:255',
             'supervisor_username' => 'nullable|exists:users,username',
-            'manager_username' => 'required|exists:users,username',
+            'manager_username' => 'nullable|exists:users,username',
             'head_username' => 'required|exists:users,username',
         ]);
 
@@ -112,7 +120,7 @@ class HierarchyController extends Controller
             $this->autoAssignEmployees($request->department, HierarchyStructure::latest()->first());
         }
 
-        return redirect()->route('admin.hierarchy.index')
+        return redirect()->route('admin.panel', ['section' => 'hierarchy'])
                         ->with('success', 'Struktura hierarchii została utworzona pomyślnie.');
     }
 
@@ -120,10 +128,25 @@ class HierarchyController extends Controller
     {
         $hierarchy->load(['supervisor', 'manager', 'head']);
         
-        // Pracownicy przypisani do tego supervisora
-        $employees = Employee::where('supervisor_username', $hierarchy->supervisor_username)
-                            ->select('first_name', 'last_name', 'job_title', 'email', 'created_at')
-                            ->get();
+        // Pracownicy przypisani do tej struktury hierarchii
+        $employees = Employee::where(function($query) use ($hierarchy) {
+            if ($hierarchy->supervisor_username) {
+                // Struktura ma supervisora
+                $query->where('supervisor_username', $hierarchy->supervisor_username);
+            } else if ($hierarchy->manager_username) {
+                // Struktura bez supervisora - pracownicy pod managerem
+                $query->where('manager_username', $hierarchy->manager_username)
+                      ->whereNull('supervisor_username');
+            } else {
+                // Struktura bez supervisora i managera - pracownicy pod headem
+                $query->where('head_username', $hierarchy->head_username)
+                      ->whereNull('supervisor_username')
+                      ->whereNull('manager_username');
+            }
+        })
+        ->where('department', $hierarchy->department)
+        ->select('first_name', 'last_name', 'job_title', 'email', 'created_at')
+        ->get();
         
         return view('hierarchy.show', compact('hierarchy', 'employees'));
     }
@@ -139,10 +162,25 @@ class HierarchyController extends Controller
                     ->get();
         
         // Pracownicy przypisani do tej struktury
-        $assignedEmployees = Employee::where('supervisor_username', $hierarchy->supervisor_username)
-                                  ->get();
+        $assignedEmployees = Employee::where(function($query) use ($hierarchy) {
+            if ($hierarchy->supervisor_username) {
+                // Struktura ma supervisora
+                $query->where('supervisor_username', $hierarchy->supervisor_username);
+            } else if ($hierarchy->manager_username) {
+                // Struktura bez supervisora - pracownicy pod managerem
+                $query->where('manager_username', $hierarchy->manager_username)
+                      ->whereNull('supervisor_username');
+            } else {
+                // Struktura bez supervisora i managera - pracownicy pod headem
+                $query->where('head_username', $hierarchy->head_username)
+                      ->whereNull('supervisor_username')
+                      ->whereNull('manager_username');
+            }
+        })
+        ->where('department', $hierarchy->department)
+        ->get();
         
-        return view('hierarchy.edit', compact('hierarchy', 'departments', 'users', 'assignedEmployees'));
+        return view('hierarchy.edit_new', compact('hierarchy', 'departments', 'users', 'assignedEmployees'));
     }
 
     public function update(Request $request, HierarchyStructure $hierarchy)
@@ -153,7 +191,7 @@ class HierarchyController extends Controller
             'department' => 'required|string|in:' . implode(',', $availableDepartments),
             'team_name' => 'required|string|max:255',
             'supervisor_username' => 'nullable|exists:users,username',
-            'manager_username' => 'required|exists:users,username',
+            'manager_username' => 'nullable|exists:users,username',
             'head_username' => 'required|exists:users,username',
         ]);
 
@@ -179,7 +217,7 @@ class HierarchyController extends Controller
             $this->updateEmployeeHierarchy($oldSupervisor, $hierarchy);
         }
 
-        return redirect()->route('admin.hierarchy.index')
+        return redirect()->route('admin.panel', ['section' => 'hierarchy'])
                         ->with('success', 'Struktura hierarchii została zaktualizowana pomyślnie.');
     }
 
@@ -304,7 +342,7 @@ class HierarchyController extends Controller
     private function validateUserRoles(Request $request)
     {
         $supervisor = $request->supervisor_username ? User::where('username', $request->supervisor_username)->first() : null;
-        $manager = User::where('username', $request->manager_username)->first();
+        $manager = $request->manager_username ? User::where('username', $request->manager_username)->first() : null;
         $head = User::where('username', $request->head_username)->first();
 
         if ($supervisor && $supervisor->role !== 'supervisor') {

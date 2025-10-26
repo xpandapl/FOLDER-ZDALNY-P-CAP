@@ -139,13 +139,17 @@
                             @endif
                         </td>
                         <td>
-                            <div class="d-flex align-items-center">
-                                <i class="fas fa-user-tie text-success me-1"></i>
-                                <div>
-                                    <strong>{{ $hierarchy->manager->name ?? 'N/A' }}</strong>
-                                    <br><small class="text-muted">{{ $hierarchy->manager_username }}</small>
+                            @if($hierarchy->manager_username)
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-user-tie text-success me-1"></i>
+                                    <div>
+                                        <strong>{{ $hierarchy->manager->name ?? 'N/A' }}</strong>
+                                        <br><small class="text-muted">{{ $hierarchy->manager_username }}</small>
+                                    </div>
                                 </div>
-                            </div>
+                            @else
+                                <span class="text-muted"><i class="fas fa-minus"></i> Brak managera</span>
+                            @endif
                         </td>
                         <td>
                             <div class="d-flex align-items-center">
@@ -157,11 +161,8 @@
                             </div>
                         </td>
                         <td>
-                            @php
-                                $employeeCount = \App\Models\Employee::where('supervisor_username', $hierarchy->supervisor_username)->count();
-                            @endphp
-                            <span class="badge bg-{{ $employeeCount > 0 ? 'success' : 'secondary' }}">
-                                {{ $employeeCount }}
+                            <span class="badge bg-{{ $hierarchy->employees_count > 0 ? 'success' : 'secondary' }}">
+                                {{ $hierarchy->employees_count }}
                             </span>
                         </td>
                         <td>

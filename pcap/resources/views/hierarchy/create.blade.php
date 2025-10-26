@@ -110,11 +110,11 @@
                                 <div class="col-md-6">
                                     <label for="manager_username" class="form-label">
                                         <i class="fas fa-user-tie text-success"></i> Manager
-                                        <span class="text-danger">*</span>
+                                        <span class="text-muted">(opcjonalny)</span>
                                     </label>
                                     <select class="form-select @error('manager_username') is-invalid @enderror" 
-                                            id="manager_username" name="manager_username" required>
-                                        <option value="">Wybierz managera</option>
+                                            id="manager_username" name="manager_username">
+                                        <option value="">Brak managera (bezpośrednio pod headem)</option>
                                         @foreach($users->where('role', 'manager') as $user)
                                             <option value="{{ $user->username }}" {{ old('manager_username') === $user->username ? 'selected' : '' }}>
                                                 {{ $user->name }} ({{ $user->username }})
@@ -124,6 +124,7 @@
                                     @error('manager_username')
                                         <div class="invalid-feedback">{{ $message }}</div>
                                     @enderror
+                                    <div class="form-text">Zostaw puste jeśli pracownicy mają pracować bezpośrednio pod headem</div>
                                 </div>
                             </div>
 
@@ -238,10 +239,21 @@
             const manager = managerSelect.options[managerSelect.selectedIndex]?.text;
             const head = headSelect.options[headSelect.selectedIndex]?.text;
 
-            if (department && supervisor && manager && head) {
+            if (department && head) {
                 document.getElementById('department-preview').textContent = department;
-                document.getElementById('supervisor-preview').textContent = supervisor;
-                document.getElementById('manager-preview').textContent = manager;
+                
+                if (supervisor && supervisor !== 'Brak supervisora (bezpośrednio pod managerem)') {
+                    document.getElementById('supervisor-preview').textContent = supervisor;
+                } else {
+                    document.getElementById('supervisor-preview').textContent = 'Brak supervisora';
+                }
+                
+                if (manager && manager !== 'Brak managera (bezpośrednio pod headem)') {
+                    document.getElementById('manager-preview').textContent = manager;
+                } else {
+                    document.getElementById('manager-preview').textContent = 'Brak managera';
+                }
+                
                 document.getElementById('head-preview').textContent = head;
                 preview.style.display = 'block';
             } else {
