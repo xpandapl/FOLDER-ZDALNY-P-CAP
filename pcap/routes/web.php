@@ -102,30 +102,109 @@ Route::middleware(['auth'])->group(function () {
 
 
 
-// Manager panel
-Route::post('/manager-panel/update', [ManagerController::class, 'update'])
+// Legacy manager panel (old interface)
+Route::get('/manager-panel-old', [ManagerController::class, 'index'])
+    ->name('manager_panel_old')
+    ->middleware(['auth', 'manager']);
+
+Route::post('/manager-panel-old/update', [ManagerController::class, 'update'])
     ->middleware('enforce.active.cycle.manager')
     ->name('manager.panel.update');
 
-Route::get('/manager-panel', [ManagerController::class, 'index'])
-    ->name('manager_panel')
-    ->middleware(['auth', 'manager']);
-
-Route::get('/manager-panel/generate-pdf/{employeeId}', [ManagerController::class, 'generatePdf'])
+Route::get('/manager-panel-old/generate-pdf/{employeeId}', [ManagerController::class, 'generatePdf'])
     ->name('manager.generate_pdf')
     ->middleware('manager');
 
-Route::get('/manager-panel/generate-xls/{employeeId}', [ManagerController::class, 'generateXls'])
+Route::get('/manager-panel-old/generate-xls/{employeeId}', [ManagerController::class, 'generateXls'])
     ->name('manager.generate_xls')
     ->middleware('manager');
 
-// Generate access code for an employee for the active cycle
-Route::post('/manager-panel/access-code/{employeeId}', [ManagerController::class, 'generateAccessCode'])
+// Generate access code for an employee for the active cycle (legacy endpoint)
+Route::post('/manager-panel-old/access-code/{employeeId}', [ManagerController::class, 'generateAccessCode'])
     ->name('manager.generate_access_code')
     ->middleware(['auth','manager']);
 
 Route::post('/manager/download-team-report', [ManagerController::class, 'downloadTeamReport'])->name('manager.download_team_report');
 Route::get('/department/export', [ManagerController::class, 'exportDepartment'])->name('department.export');
+
+// Main manager panel (new interface)
+Route::get('/manager-panel', [ManagerController::class, 'showNew'])
+    ->name('manager_panel')
+    ->middleware(['auth', 'manager']);
+
+// Cycle comparison endpoints
+Route::get('/manager/cycle-comparison', [ManagerController::class, 'cycleComparison'])
+    ->name('manager.cycle_comparison')
+    ->middleware(['auth', 'manager']);
+
+Route::get('/manager/employee-history', [ManagerController::class, 'employeeHistory'])
+    ->name('manager.employee_history')
+    ->middleware(['auth', 'manager']);
+
+// Code management endpoints
+Route::post('/manager/generate-all-codes', [ManagerController::class, 'generateAllCodes'])
+    ->name('manager.generate_all_codes')
+    ->middleware(['auth', 'manager']);
+
+Route::post('/manager/revoke-code/{employeeId}', [ManagerController::class, 'revokeCode'])
+    ->name('manager.revoke_code')
+    ->middleware(['auth', 'manager']);
+
+Route::post('/manager/revoke-all-codes', [ManagerController::class, 'revokeAllCodes'])
+    ->name('manager.revoke_all_codes')
+    ->middleware(['auth', 'manager']);
+
+Route::get('/manager/export-codes', [ManagerController::class, 'exportCodes'])
+    ->name('manager.export_codes')
+    ->middleware(['auth', 'manager']);
+
+// New: Get full access code for employee
+Route::get('/manager/get-full-code/{employeeId}', [ManagerController::class, 'getFullAccessCode'])
+    ->name('manager.get_full_code')
+    ->middleware(['auth', 'manager']);
+
+// New: Export access codes with full codes
+Route::get('/manager/export-access-codes', [ManagerController::class, 'exportAccessCodes'])
+    ->name('manager.export_access_codes')
+    ->middleware(['auth', 'manager']);
+
+// Manager password change
+Route::post('/manager/change-password', [ManagerController::class, 'changePassword'])
+    ->name('manager.change_password')
+    ->middleware(['auth', 'manager']);
+
+// Export endpoints
+Route::get('/manager/export-team-pdf', [ManagerController::class, 'exportTeamPdf'])
+    ->name('manager.export_team_pdf')
+    ->middleware(['auth', 'manager']);
+
+Route::get('/manager/export-team-excel', [ManagerController::class, 'exportTeamExcel'])
+    ->name('manager.export_team_excel')
+    ->middleware(['auth', 'manager']);
+
+Route::get('/manager/export-organization-pdf', [ManagerController::class, 'exportOrganizationPdf'])
+    ->name('manager.export_organization_pdf')
+    ->middleware(['auth', 'manager']);
+
+Route::get('/manager/export-organization-excel', [ManagerController::class, 'exportOrganizationExcel'])
+    ->name('manager.export_organization_excel')
+    ->middleware(['auth', 'manager']);
+
+Route::get('/manager/export-statistics-excel', [ManagerController::class, 'exportStatisticsExcel'])
+    ->name('manager.export_statistics_excel')
+    ->middleware(['auth', 'manager']);
+
+Route::post('/manager/generate-comprehensive-report', [ManagerController::class, 'generateComprehensiveReport'])
+    ->name('manager.generate_comprehensive_report')
+    ->middleware(['auth', 'manager']);
+
+Route::post('/manager/generate-department-summary', [ManagerController::class, 'generateDepartmentSummary'])
+    ->name('manager.generate_department_summary')
+    ->middleware(['auth', 'manager']);
+
+Route::get('/department/export-analytics', [ManagerController::class, 'exportDepartmentAnalytics'])
+    ->name('department.export_analytics')
+    ->middleware(['auth', 'manager']);
 
 // Uwierzytelnianie
 Auth::routes();

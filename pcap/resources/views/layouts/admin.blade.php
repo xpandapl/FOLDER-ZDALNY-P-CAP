@@ -791,6 +791,38 @@
                 });
             }
         });
+        
+        // Loading state for manager panel link
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.btn-manager')) {
+                // Create loading overlay
+                if (!document.getElementById('manager-loading-overlay')) {
+                    const overlay = document.createElement('div');
+                    overlay.id = 'manager-loading-overlay';
+                    overlay.style.cssText = `
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0, 0, 0, 0.5);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        z-index: 9999;
+                        color: white;
+                        font-size: 18px;
+                    `;
+                    overlay.innerHTML = `
+                        <div style="text-align: center;">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 32px; margin-bottom: 16px;"></i>
+                            <div>Ładowanie panelu managera...</div>
+                        </div>
+                    `;
+                    document.body.appendChild(overlay);
+                }
+            }
+        });
     </script>
 
     @stack('scripts')

@@ -8,6 +8,7 @@ use App\Models\CompetencyTeamValue;
 use App\Exports\TeamReportExport;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use PDF;
 use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Support\Facades\DB;
@@ -109,6 +110,12 @@ class ManagerController extends Controller
 
     // Dla head - używamy nowej logiki hierarchii
     if ($manager->role == 'head') {
+        // Pobierz wszystkie działy gdzie head ma struktury hierarchii
+        $headDepartments = \App\Models\HierarchyStructure::where('head_username', $manager->username)
+            ->pluck('department')
+            ->unique()
+            ->toArray();
+            
         $departmentEmployees = Employee::with([
                 'team:id,name',
                 'team.competencyTeamValues:id,team_id,competency_id,value',
@@ -121,10 +128,11 @@ class ManagerController extends Controller
                     $q->select('id','level');
                 },
             ])
-            ->where(function($q) use ($manager) {
+            ->where(function($q) use ($manager, $headDepartments) {
                 $q->where('head_username', $manager->username)
                   ->orWhere('manager_username', $manager->username)
-                  ->orWhere('supervisor_username', $manager->username);
+                  ->orWhere('supervisor_username', $manager->username)
+                  ->orWhereIn('department', $headDepartments);
             })
             ->get(['id','name','job_title','department']);
     } else {
@@ -157,6 +165,7 @@ class ManagerController extends Controller
                 $earnedPointsEmployee = 0;
                 $earnedPointsManager = 0;
                 $maxPoints = 0;
+                $competencyCount = $levelResults->count();
             
             foreach ($levelResults as $result) {
                 $competencyValue = $employee->getCompetencyValue($result->competency_id) ?? 0;
@@ -183,13 +192,14 @@ class ManagerController extends Controller
                 $percentageEmployee = $maxPoints > 0 ? ($earnedPointsEmployee / $maxPoints) * 100 : 'N/D';
                 $percentageManager = $maxPoints > 0 ? ($earnedPointsManager / $maxPoints) * 100 : 'N/D';
 
-                // Store in levelSummaries
+                // Store in levelSummaries with all required keys
                 $levelSummaries[$level] = [
-                    'earnedPointsEmployee' => $earnedPointsEmployee,
-                    'earnedPointsManager' => $earnedPointsManager,
-                    'maxPoints' => $maxPoints,
-                    'percentageEmployee' => $percentageEmployee,
-                    'percentageManager' => $percentageManager,
+                    'earnedPointsEmployee' => $earnedPointsEmployee ?? 0,
+                    'earnedPointsManager' => $earnedPointsManager ?? 0,
+                    'maxPoints' => $maxPoints ?? 0,
+                    'percentageEmployee' => $percentageEmployee ?? 'N/D',
+                    'percentageManager' => $percentageManager ?? 'N/D',
+                    'count' => $competencyCount ?? 0,
                 ];
             }
             // Fetch overridden values
@@ -359,11 +369,15 @@ class ManagerController extends Controller
             ->first();
         if ($existing) {
             $existing->update($payload);
+            $existing->setFullCode($code); // Zapisz zaszyfrowany pełny kod
+            $existing->save();
         } else {
-            EmployeeCycleAccessCode::create(array_merge($payload, [
+            $accessCode = EmployeeCycleAccessCode::create(array_merge($payload, [
                 'employee_id' => $employee->id,
                 'cycle_id' => $cycleId,
             ]));
+            $accessCode->setFullCode($code); // Zapisz zaszyfrowany pełny kod
+            $accessCode->save();
         }
 
         return redirect()->back()->with([
@@ -395,7 +409,7 @@ class ManagerController extends Controller
         $levelNames = $this->levelNames;
 
         // Cycle-aware filtering
-        $cycleId = $request->query('cycle') ?: $this->activeCycleId();
+        $cycleId = $request->query('cycle') ?: $this->selectedCycleId($request);
 
         // Fetch the department employees data
         $departmentEmployees = Employee::with([
@@ -522,8 +536,8 @@ class ManagerController extends Controller
                     }
                 }
 
-                $percentageEmployee = $maxPoints > 0 ? ($earnedPointsEmployee / $maxPoints) * 100 : 'N/D';
-                $percentageManager = $maxPoints > 0 ? ($earnedPointsManager / $maxPoints) * 100 : 'N/D';
+                $percentageEmployee = $maxPoints > 0 ? ($earnedPointsEmployee / $maxPoints) * 100 : 0;
+                $percentageManager = $maxPoints > 0 ? ($earnedPointsManager / $maxPoints) * 100 : 0;
 
 
 
@@ -569,8 +583,10 @@ class ManagerController extends Controller
 
             // Add data to employeesData
             $employeesData[] = [
+                'id' => $emp->id,
                 'name' => $emp->name ?? 'Brak danych',
                 'job_title' => $emp->job_title ?? 'Brak danych',
+                'department' => $emp->department ?? 'Brak danych',
                 'levelPercentagesEmployee' => $levelPercentagesEmployee,
                 'levelPercentagesManager' => $levelPercentagesManager,
                 'highestLevelEmployee' => $highestLevelEmployee,
@@ -592,7 +608,7 @@ class ManagerController extends Controller
         $team = Team::findOrFail($teamId);
     
         // Cycle-aware
-        $cycleId = $request->query('cycle') ?: $this->activeCycleId();
+        $cycleId = $request->query('cycle') ?: $this->selectedCycleId($request);
 
         // Fetch employees of the team based on department
         $employees = Employee::with([
@@ -798,7 +814,7 @@ class ManagerController extends Controller
         }
 
         // Cycle-aware results
-        $cycleId = request()->query('cycle') ?: $this->activeCycleId();
+        $cycleId = request()->query('cycle') ?: $this->selectedCycleId(request());
         $results = Result::where('employee_id', $employeeId)
             ->when($cycleId, function($q) use ($cycleId){ $q->where('cycle_id', $cycleId); })
             ->with('competency')
@@ -836,7 +852,7 @@ class ManagerController extends Controller
         }
 
         // Fetch results with necessary relationships (cycle-aware)
-        $cycleId = request()->query('cycle') ?: $this->activeCycleId();
+        $cycleId = request()->query('cycle') ?: $this->selectedCycleId(request());
         $results = Result::where('employee_id', $employeeId)
             ->when($cycleId, function($q) use ($cycleId){ $q->where('cycle_id', $cycleId); })
             ->with([
@@ -1043,11 +1059,8 @@ class ManagerController extends Controller
                 })->get();
                 
             case 'head':
-                return $query->where(function($q) use ($manager) {
-                    $q->where('head_username', $manager->username)
-                      ->orWhere('manager_username', $manager->username)
-                      ->orWhere('supervisor_username', $manager->username);
-                })->get();
+                // Head w zakładkach individual/zespół widzi tylko bezpośrednio podlegających
+                return $query->where('head_username', $manager->username)->get();
                 
             case 'supermanager':
                 // Supermanager w zakładkach zespołowych powinien widzieć tylko swoich bezpośrednich
@@ -1082,6 +1095,59 @@ class ManagerController extends Controller
                 } elseif ($relationship['through'] === 'manager') {
                     $grouped['managers']->push($employee);
                 }
+            }
+        }
+        
+        return $grouped;
+    }
+
+    private function groupEmployeesByCompetencyLevel($employees, $selectedCycleId)
+    {
+        $grouped = [
+            1 => collect(),
+            2 => collect(),
+            3 => collect(),
+            4 => collect(),
+            5 => collect(),
+        ];
+        
+        if (!$selectedCycleId) {
+            return $grouped;
+        }
+        
+        foreach ($employees as $employee) {
+            try {
+                // Pobierz wyniki dla danego pracownika w wybranym cyklu
+                $results = Result::where('employee_id', $employee->id)
+                    ->where('cycle_id', $selectedCycleId)
+                    ->with('competency:id,level')
+                    ->get();
+                    
+                if ($results->isNotEmpty()) {
+                    // Oblicz średni poziom kompetencji dla pracownika
+                    $levels = $results->map(function($result) {
+                        if ($result->competency && is_numeric($result->competency->level)) {
+                            return (float) $result->competency->level;
+                        }
+                        return 1.0; // Domyślny poziom jeśli brak danych
+                    })->filter(); // Usuń puste wartości
+                    
+                    if ($levels->isNotEmpty()) {
+                        $avgLevel = $levels->avg();
+                        // Zaokrąglij do najbliższego poziomu (1-5)
+                        $level = max(1, min(5, round($avgLevel)));
+                        $grouped[$level]->push($employee);
+                    } else {
+                        // Brak prawidłowych poziomów - domyślnie poziom 1
+                        $grouped[1]->push($employee);
+                    }
+                } else {
+                    // Brak wyników - domyślnie poziom 1
+                    $grouped[1]->push($employee);
+                }
+            } catch (\Exception $e) {
+                // W przypadku błędu - domyślnie poziom 1
+                $grouped[1]->push($employee);
             }
         }
         
@@ -1142,14 +1208,808 @@ class ManagerController extends Controller
                    $employee->supervisor_username == $manager->username;
         }
         
-        // Head widzi wszystkich w swojej hierarchii
+        // Head widzi wszystkich w swojej hierarchii - sprawdzamy wszystkie struktury hierarchii gdzie head jest przypisany
         if ($manager->role == 'head') {
-            return $employee->head_username == $manager->username ||
-                   $employee->manager_username == $manager->username ||
-                   $employee->supervisor_username == $manager->username;
+            // Sprawdź bezpośrednie przypisanie
+            if ($employee->head_username == $manager->username ||
+                $employee->manager_username == $manager->username ||
+                $employee->supervisor_username == $manager->username) {
+                return true;
+            }
+            
+            // Sprawdź czy head ma dostęp przez struktury hierarchii w różnych działach
+            $hasAccess = \App\Models\HierarchyStructure::where('head_username', $manager->username)
+                ->where('department', $employee->department)
+                ->exists();
+                
+            return $hasAccess;
         }
         
         return false;
+    }
+
+    /**
+     * Show the new modern manager panel
+     */
+    public function showNew(Request $request)
+    {
+        // Reuse the same logic as index() but return the new view
+        $data = $this->getManagerPanelData($request);
+        return view('manager_panel_new', $data);
+    }
+
+    /**
+     * Extract common data preparation logic
+     */
+    private function getManagerPanelData(Request $request)
+    {
+        $manager = auth()->user();
+
+        if (!$manager) {
+            abort(403, 'Użytkownik nie jest zalogowany.');
+        }
+
+        $levelNames = $this->levelNames;
+
+        // Cycles
+        $selectedCycleId = $this->selectedCycleId($request);
+        $selectedCycle = $selectedCycleId ? AssessmentCycle::find($selectedCycleId) : null;
+        $isSelectedCycleActive = $selectedCycle ? (bool)$selectedCycle->is_active : false;
+        $cycles = AssessmentCycle::orderByDesc('year')->orderByDesc('period')->get();
+
+        // Get the employee ID from the request (if selected)
+        $employeeId = $request->input('employee');
+
+        // Pobierz pracowników według nowej hierarchii
+        $employees = $this->getEmployeesForManager($manager, $selectedCycleId);
+        
+        // Grupowanie pracowników według poziomu hierarchii
+        $employeesByLevel = $this->groupEmployeesByLevel($employees, $manager);
+        
+        // Grupowanie według poziomów kompetencji (1-5) dla dashboardu
+        $employeesByCompetencyLevel = $this->groupEmployeesByCompetencyLevel($employees, $selectedCycleId);
+        
+        // Statystyki dla zakładek
+        $stats = $this->calculateEmployeeStats($employees, $manager);
+
+        // For supermanagers, fetch all employees with necessary relationships
+        if ($manager->role == 'supermanager') {
+            $allEmployees = Employee::with([
+                    'team:id,name',
+                    'team.competencyTeamValues:id,team_id,competency_id,value',
+                    'overriddenCompetencyValues:id,employee_id,competency_id,value',
+                    'results' => function ($q) use ($selectedCycleId) {
+                        $q->select('id','employee_id','competency_id','score','score_manager','cycle_id')
+                          ->when($selectedCycleId, function($qq) use ($selectedCycleId){ $qq->where('cycle_id', $selectedCycleId); });
+                    },
+                    'results.competency' => function ($q) {
+                        $q->select('id','level');
+                    },
+                ])
+                ->get(['id','name','job_title','department']);
+        } else {
+            $allEmployees = collect(); // Empty collection for non-supermanagers
+        }
+
+        // Dla head - używamy nowej logiki hierarchii
+        if ($manager->role == 'head') {
+            // Pobierz wszystkie działy gdzie head ma struktury hierarchii
+            $headDepartments = \App\Models\HierarchyStructure::where('head_username', $manager->username)
+                ->pluck('department')
+                ->unique()
+                ->toArray();
+                
+            $departmentEmployees = Employee::with([
+                    'team:id,name',
+                    'team.competencyTeamValues:id,team_id,competency_id,value',
+                    'overriddenCompetencyValues:id,employee_id,competency_id,value',
+                    'results' => function ($q) use ($selectedCycleId) {
+                        $q->select('id','employee_id','competency_id','score','score_manager','cycle_id')
+                          ->when($selectedCycleId, function($qq) use ($selectedCycleId){ $qq->where('cycle_id', $selectedCycleId); });
+                    },
+                    'results.competency' => function ($q) {
+                        $q->select('id','level');
+                    },
+                ])
+                ->where(function($q) use ($manager, $headDepartments) {
+                    $q->where('head_username', $manager->username)
+                      ->orWhere('manager_username', $manager->username)
+                      ->orWhere('supervisor_username', $manager->username)
+                      ->orWhereIn('department', $headDepartments);
+                })
+                ->get(['id','name','job_title','department']);
+        } else {
+            $departmentEmployees = collect(); // Empty collection for non-heads
+        }
+
+        // Initialize variables
+        $employee = null;
+        $results = collect();
+        $levelSummaries = [];
+        $overriddenValues = collect();
+        $accessCode = null;
+        $previousCycleResults = collect();
+
+        if ($employeeId) {
+            $employee = Employee::with(['team', 'manager', 'supervisor', 'head', 'results.competency.competencyTeamValues'])->find($employeeId);
+
+            // Check if manager has access to this employee
+            if ($employee && $this->hasAccessToEmployee($manager, $employee)) {
+                $results = $employee->results()
+                    ->when($selectedCycleId, function($q) use ($selectedCycleId){ $q->where('cycle_id', $selectedCycleId); })
+                    ->with('competency.competencyTeamValues')->get();
+
+                // Get previous cycle results for comparison
+                $previousCycleResults = collect();
+                if ($selectedCycleId) {
+                    $previousCycle = AssessmentCycle::where('id', '<', $selectedCycleId)
+                        ->orderBy('id', 'desc')
+                        ->first();
+                    
+                    if ($previousCycle) {
+                        $previousCycleResults = $employee->results()
+                            ->where('cycle_id', $previousCycle->id)
+                            ->with('competency.competencyTeamValues')
+                            ->get()
+                            ->keyBy('competency_id');
+                    }
+                }
+
+                // Initialize level summaries
+                $levelSummaries = [];
+
+                // Calculate per-level summaries for individual tab
+                $levels = $results->groupBy('competency.level');
+                foreach ($levels as $level => $levelResults) {
+                    $earnedPointsEmployee = 0;
+                    $earnedPointsManager = 0;
+                    $maxPoints = 0;
+                    $competencyCount = $levelResults->count();
+                
+                    foreach ($levelResults as $result) {
+                        $competencyValue = $employee->getCompetencyValue($result->competency_id) ?? 0;
+
+                        // Employee's score
+                        $scoreEmployee = $result->score;
+
+                        // Manager's score (if exists, else employee's score)
+                        $scoreManager = ($result->score_manager !== null) ? $result->score_manager : $result->score;
+
+                        // Calculate earned points if score > 0
+                        if ($scoreEmployee > 0 && $competencyValue > 0) {
+                            $earnedPointsEmployee += $competencyValue * $scoreEmployee;
+                        }
+                        if ($scoreManager > 0 && $competencyValue > 0) {
+                            $earnedPointsManager += $competencyValue * $scoreManager;
+                        }
+                        
+                        // Add to maxPoints only if either employee or manager scored > 0 (not "Nie dotyczy")
+                        if (($scoreEmployee > 0 || $scoreManager > 0) && $competencyValue > 0) {
+                            $maxPoints += $competencyValue;
+                        }
+                    }
+                    
+                    // Calculate percentages
+                    $percentageEmployee = $maxPoints > 0 ? ($earnedPointsEmployee / $maxPoints) * 100 : 'N/D';
+                    $percentageManager = $maxPoints > 0 ? ($earnedPointsManager / $maxPoints) * 100 : 'N/D';
+
+                    // Store in levelSummaries with all required keys
+                    $levelSummaries[$level] = [
+                        'earnedPointsEmployee' => $earnedPointsEmployee ?? 0,
+                        'earnedPointsManager' => $earnedPointsManager ?? 0,
+                        'maxPoints' => $maxPoints ?? 0,
+                        'percentageEmployee' => $percentageEmployee ?? 'N/D',
+                        'percentageManager' => $percentageManager ?? 'N/D',
+                        'count' => $competencyCount ?? 0,
+                    ];
+                }
+
+                // Fetch overridden values
+                $overriddenValues = EmployeeCompetencyValue::where('employee_id', $employee->id)
+                    ->pluck('value', 'competency_id');
+
+                // Fetch existing access code
+                if ($selectedCycleId) {
+                    $accessCode = EmployeeCycleAccessCode::where('employee_id', $employee->id)
+                        ->where('cycle_id', $selectedCycleId)
+                        ->first();
+                }
+
+            } else {
+                abort(403, 'Nie masz dostępu do tego pracownika.');
+            }
+        }
+
+        // Prepare data for teams
+        $teamEmployeesData = $this->prepareEmployeesData($employees, $levelNames);
+
+        // Initialize variables for different roles
+        $hrData = [];
+        $organizationEmployeesData = [];
+        $departmentEmployeesData = [];
+        $teams = collect();
+
+        // Prepare role-specific data
+        if ($manager->role == 'supermanager') {
+            $teams = Team::with(['employees' => function($q) use ($selectedCycleId){
+                $q->select('id','department')->withCount(['results' => function($qq) use ($selectedCycleId){
+                    $qq->when($selectedCycleId, function($qqq) use ($selectedCycleId){ $qqq->where('cycle_id', $selectedCycleId); });
+                }]);
+            }])->get();
+
+            foreach ($teams as $team) {
+                $completedCount = $team->employees->where('results_count', '>', 0)->count();
+                $totalCount = $team->employees->count();
+                $hrData[] = [
+                    'team_name' => $team->name,
+                    'completed_count' => $completedCount,
+                    'total_count' => $totalCount,
+                ];
+            }
+
+            $organizationEmployeesData = $this->prepareEmployeesData($allEmployees, $levelNames);
+        }
+
+        if ($manager->role == 'head') {
+            $departmentEmployeesData = $this->prepareEmployeesData($departmentEmployees, $levelNames);
+        }
+
+        // Prepare access codes for the codes section
+        $employeeAccessCodes = collect();
+        if ($selectedCycleId) {
+            $allEmployeesForCodes = collect();
+            if ($manager->role == 'supermanager') {
+                $allEmployeesForCodes = $allEmployees;
+            } elseif ($manager->role == 'head') {
+                $allEmployeesForCodes = $departmentEmployees;
+            } else {
+                $allEmployeesForCodes = $employees;
+            }
+
+            $codes = EmployeeCycleAccessCode::where('cycle_id', $selectedCycleId)
+                ->whereIn('employee_id', $allEmployeesForCodes->pluck('id'))
+                ->get()
+                ->keyBy('employee_id');
+            
+            $employeeAccessCodes = $codes;
+        }
+
+        return compact(
+            'manager',
+            'levelNames',
+            'selectedCycleId',
+            'selectedCycle',
+            'isSelectedCycleActive',
+            'cycles',
+            'employees',
+            'allEmployees',
+            'departmentEmployees',
+            'employee',
+            'results',
+            'levelSummaries',
+            'overriddenValues',
+            'accessCode',
+            'teamEmployeesData',
+            'hrData',
+            'organizationEmployeesData',
+            'departmentEmployeesData',
+            'teams',
+            'employeeAccessCodes',
+            'employeesByLevel',
+            'employeesByCompetencyLevel',
+            'stats',
+            'previousCycleResults'
+        );
+    }
+
+    /**
+     * Get cycle comparison data for an employee
+     */
+    public function cycleComparison(Request $request)
+    {
+        $manager = auth()->user();
+        $employeeId = $request->input('employee');
+        $comparisonCycleId = $request->input('cycle');
+        $currentCycleId = $request->input('current');
+        
+        if (!$employeeId || !$comparisonCycleId || !$currentCycleId) {
+            return response()->json(['success' => false, 'message' => 'Missing parameters']);
+        }
+        
+        $employee = Employee::find($employeeId);
+        if (!$employee || !$this->hasAccessToEmployee($manager, $employee)) {
+            return response()->json(['success' => false, 'message' => 'Access denied']);
+        }
+        
+        // Get current cycle data
+        $currentResults = $employee->results()->where('cycle_id', $currentCycleId)->get();
+        $currentCompleted = $currentResults->count();
+        
+        // Get comparison cycle data
+        $comparisonResults = $employee->results()->where('cycle_id', $comparisonCycleId)->get();
+        $comparisonCompleted = $comparisonResults->count();
+        
+        $currentCycle = AssessmentCycle::find($currentCycleId);
+        $comparisonCycle = AssessmentCycle::find($comparisonCycleId);
+        
+        return response()->json([
+            'success' => true,
+            'current' => [
+                'cycle_name' => $currentCycle->label ?? 'Nieznany',
+                'completed' => $currentCompleted,
+            ],
+            'previous' => [
+                'cycle_name' => $comparisonCycle->label ?? 'Nieznany', 
+                'completed' => $comparisonCompleted,
+            ],
+            'difference' => $currentCompleted - $comparisonCompleted
+        ]);
+    }
+
+    /**
+     * Get employee history across cycles
+     */
+    public function employeeHistory(Request $request)
+    {
+        $manager = auth()->user();
+        $employeeId = $request->input('employee');
+        $historyCycleId = $request->input('cycle');
+        $currentCycleId = $request->input('current');
+        
+        if (!$employeeId || !$historyCycleId || !$currentCycleId) {
+            return response()->json(['success' => false, 'message' => 'Missing parameters']);
+        }
+        
+        $employee = Employee::find($employeeId);
+        if (!$employee || !$this->hasAccessToEmployee($manager, $employee)) {
+            return response()->json(['success' => false, 'message' => 'Access denied']);
+        }
+        
+        // Get data for both cycles
+        $currentResults = $employee->results()->where('cycle_id', $currentCycleId)->get();
+        $historyResults = $employee->results()->where('cycle_id', $historyCycleId)->get();
+        
+        $currentCycle = AssessmentCycle::find($currentCycleId);
+        $historyCycle = AssessmentCycle::find($historyCycleId);
+        
+        $currentSelfAvg = $currentResults->avg('score') ?: 0;
+        $currentManagerAvg = $currentResults->avg('score_manager') ?: 0;
+        $historySelfAvg = $historyResults->avg('score') ?: 0;
+        $historyManagerAvg = $historyResults->avg('score_manager') ?: 0;
+        
+        return response()->json([
+            'success' => true,
+            'current' => [
+                'cycle_name' => $currentCycle->label ?? 'Nieznany',
+                'self_avg' => round($currentSelfAvg, 2),
+                'manager_avg' => round($currentManagerAvg, 2),
+                'completed' => $currentResults->count(),
+            ],
+            'previous' => [
+                'cycle_name' => $historyCycle->label ?? 'Nieznany',
+                'self_avg' => round($historySelfAvg, 2),
+                'manager_avg' => round($historyManagerAvg, 2),
+                'completed' => $historyResults->count(),
+            ],
+            'change' => [
+                'self_change' => round($currentSelfAvg - $historySelfAvg, 2),
+                'manager_change' => round($currentManagerAvg - $historyManagerAvg, 2),
+            ]
+        ]);
+    }
+
+    /**
+     * Generate access codes for all employees in manager's scope
+     */
+    public function generateAllCodes(Request $request)
+    {
+        $manager = auth()->user();
+        $cycleId = $request->input('cycle_id');
+        
+        if (!$cycleId) {
+            return response()->json(['success' => false, 'message' => 'Cycle ID required']);
+        }
+        
+        $cycle = AssessmentCycle::find($cycleId);
+        if (!$cycle || !$cycle->is_active) {
+            return response()->json(['success' => false, 'message' => 'Invalid or inactive cycle']);
+        }
+        
+        // Use same logic as codes section to determine which employees to include
+        $codesEmployees = collect();
+        if ($manager->role == 'supermanager') {
+            // For supermanager, get all employees
+            $codesEmployees = Employee::all();
+        } elseif ($manager->role == 'head') {
+            // For head, get all department employees (same as department tab)
+            $codesEmployees = Employee::whereIn('department', $this->getHeadDepartments($manager))->get();
+        } else {
+            // For manager/supervisor, use standard employee list
+            $codesEmployees = $this->getEmployeesForManager($manager, $cycleId);
+        }
+        
+        $generated = 0;
+        
+        foreach ($codesEmployees as $employee) {
+            // Generate access code for each employee
+            $accessCode = $this->generateHumanCode(12);
+            
+            $codeRecord = EmployeeCycleAccessCode::updateOrCreate(
+                [
+                    'employee_id' => $employee->id,
+                    'cycle_id' => $cycleId,
+                ],
+                [
+                    'code_hash' => password_hash($accessCode, PASSWORD_BCRYPT),
+                    'raw_last4' => substr($accessCode, -4),
+                    'expires_at' => now()->addDays(30),
+                    'updated_at' => now(),
+                ]
+            );
+            
+            // Zapisz zaszyfrowany pełny kod
+            $codeRecord->setFullCode($accessCode);
+            $codeRecord->save();
+            
+            $generated++;
+        }
+        
+        return response()->json([
+            'success' => true,
+            'message' => "Wygenerowano kody dla {$generated} pracowników",
+            'count' => $generated
+        ]);
+    }
+
+    // Endpoint do pobrania pełnego kodu dostępu
+    public function getFullAccessCode(Request $request, $employeeId)
+    {
+        $manager = auth()->user();
+        $employee = Employee::findOrFail($employeeId);
+        $selectedCycleId = $this->selectedCycleId($request);
+
+        // Access check
+        if (!$this->hasAccessToEmployee($manager, $employee)) {
+            return response()->json(['success' => false, 'message' => 'Brak uprawnień'], 403);
+        }
+
+        $accessCode = EmployeeCycleAccessCode::where('employee_id', $employee->id)
+            ->where('cycle_id', $selectedCycleId)
+            ->first();
+
+        if (!$accessCode || !$accessCode->hasFullCode()) {
+            return response()->json(['success' => false, 'message' => 'Kod nie został znaleziony']);
+        }
+
+        $fullCode = $accessCode->getFullCode();
+        if (!$fullCode) {
+            return response()->json(['success' => false, 'message' => 'Nie można odszyfrować kodu']);
+        }
+
+        return response()->json([
+            'success' => true, 
+            'code' => $fullCode,
+            'employee_name' => $employee->name,
+            'last4' => $accessCode->raw_last4
+        ]);
+    }
+
+    // Eksport wszystkich kodów dostępu
+    public function exportAccessCodes(Request $request)
+    {
+        $manager = auth()->user();
+        $cycleId = $request->input('cycle');
+        
+        if (!$cycleId) {
+            return redirect()->back()->with('error', 'Brak wybranego cyklu');
+        }
+
+        // Determine which employees to include
+        $codesEmployees = collect();
+        if ($manager->role == 'supermanager') {
+            $codesEmployees = Employee::all();
+        } elseif ($manager->role == 'head') {
+            $codesEmployees = Employee::whereIn('department', $this->getHeadDepartments($manager))->get();
+        } else {
+            $codesEmployees = $this->getEmployeesForManager($manager, $cycleId);
+        }
+
+        $codes = EmployeeCycleAccessCode::with('employee')
+            ->whereIn('employee_id', $codesEmployees->pluck('id'))
+            ->where('cycle_id', $cycleId)
+            ->get();
+
+        $data = [];
+        foreach ($codes as $code) {
+            $fullCode = $code->getFullCode();
+            $data[] = [
+                'Pracownik' => $code->employee->name ?? 'Nieznany',
+                'Stanowisko' => $code->employee->job_title ?? '',
+                'Dział' => $code->employee->department ?? '',
+                'Pełny kod' => $fullCode ?? 'Błąd odczytu',
+                'Ostatnie 4 cyfry' => $code->raw_last4 ?? '',
+                'Data wygaśnięcia' => $code->expires_at ? $code->expires_at->format('Y-m-d H:i') : 'Brak',
+                'Status' => $code->expires_at && $code->expires_at->isFuture() ? 'Aktywny' : ($code->expires_at ? 'Wygasły' : 'Bez terminu')
+            ];
+        }
+
+        $filename = 'kody_dostepu_' . date('Y-m-d_H-i') . '.csv';
+        
+        $callback = function() use ($data) {
+            $file = fopen('php://output', 'w');
+            
+            // UTF-8 BOM for proper Excel encoding
+            fputs($file, "\xEF\xBB\xBF");
+            
+            if (!empty($data)) {
+                // Headers
+                fputcsv($file, array_keys($data[0]), ';');
+                
+                // Data
+                foreach ($data as $row) {
+                    fputcsv($file, $row, ';');
+                }
+            }
+            
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
+     * Revoke access code for specific employee
+     */
+    public function revokeCode(Request $request, $employeeId)
+    {
+        $manager = auth()->user();
+        $employee = Employee::find($employeeId);
+        
+        if (!$employee || !$this->hasAccessToEmployee($manager, $employee)) {
+            return response()->json(['success' => false, 'message' => 'Access denied']);
+        }
+        
+        $deleted = EmployeeCycleAccessCode::where('employee_id', $employeeId)->delete();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Kod dostępu został unieważniony'
+        ]);
+    }
+
+    /**
+     * Revoke all access codes in manager's scope
+     */
+    public function revokeAllCodes(Request $request)
+    {
+        $manager = auth()->user();
+        
+        // Use same logic as codes section to determine which employees to include
+        $codesEmployees = collect();
+        if ($manager->role == 'supermanager') {
+            // For supermanager, get all employees
+            $codesEmployees = Employee::all();
+        } elseif ($manager->role == 'head') {
+            // For head, get all department employees (same as department tab)
+            $codesEmployees = Employee::whereIn('department', $this->getHeadDepartments($manager))->get();
+        } else {
+            // For manager/supervisor, use standard employee list
+            $codesEmployees = $this->getEmployeesForManager($manager, null);
+        }
+        
+        $deleted = EmployeeCycleAccessCode::whereIn('employee_id', $codesEmployees->pluck('id'))->delete();
+        
+        return response()->json([
+            'success' => true,
+            'message' => "Unieważniono {$deleted} kodów dostępu"
+        ]);
+    }
+
+    /**
+     * Export access codes list
+     */
+    public function exportCodes(Request $request)
+    {
+        $manager = auth()->user();
+        $cycleId = $request->input('cycle');
+        
+        // This would generate Excel/PDF with access codes
+        // Implementation would depend on your export library preferences
+        
+        return response()->json(['success' => false, 'message' => 'Export not yet implemented']);
+    }
+
+    /**
+     * Export team results to Excel
+     */
+    public function exportTeam(Request $request)
+    {
+        $manager = auth()->user();
+        $cycleId = $request->input('cycle');
+        $format = $request->input('format', 'xlsx');
+        
+        $employees = $this->getEmployeesForManager($manager, $cycleId);
+        $employeesData = $this->prepareEmployeesData($employees, $this->levelNames);
+        
+        // This would implement the Excel export using your preferred library
+        // For now, return a placeholder response
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Export team functionality - to be implemented',
+            'count' => $employees->count()
+        ]);
+    }
+
+    /**
+     * Export organization results (supermanager only)
+     */
+    public function exportOrganization(Request $request)
+    {
+        $manager = auth()->user();
+        
+        if ($manager->role !== 'supermanager') {
+            return response()->json(['success' => false, 'message' => 'Access denied']);
+        }
+        
+        $cycleId = $request->input('cycle');
+        $format = $request->input('format', 'xlsx');
+        
+        // Get all employees for organization export
+        $allEmployees = Employee::with([
+            'team:id,name',
+            'results' => function ($q) use ($cycleId) {
+                $q->when($cycleId, function($qq) use ($cycleId){ $qq->where('cycle_id', $cycleId); });
+            }
+        ])->get();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Export organization functionality - to be implemented',
+            'count' => $allEmployees->count()
+        ]);
+    }
+
+    /**
+     * Export analytics data
+     */
+    public function exportAnalytics(Request $request)
+    {
+        $manager = auth()->user();
+        $cycleId = $request->input('cycle');
+        $format = $request->input('format', 'xlsx');
+        $type = $request->input('type', 'summary');
+        
+        if ($manager->role !== 'supermanager') {
+            return response()->json(['success' => false, 'message' => 'Access denied']);
+        }
+        
+        // This would implement analytics export
+        return response()->json([
+            'success' => true,
+            'message' => 'Export analytics functionality - to be implemented',
+            'type' => $type
+        ]);
+    }
+
+    /**
+     * Get HR dashboard data for supermanager
+     */
+    public function getHRData(Request $request)
+    {
+        $manager = auth()->user();
+        
+        if ($manager->role !== 'supermanager') {
+            return response()->json(['success' => false, 'message' => 'Access denied']);
+        }
+        
+        $cycleId = $request->input('cycle');
+        
+        $teams = Team::with(['employees' => function($q) use ($cycleId){
+            $q->select('id','team_id','department')->withCount(['results' => function($qq) use ($cycleId){
+                $qq->when($cycleId, function($qqq) use ($cycleId){ $qqq->where('cycle_id', $cycleId); });
+            }]);
+        }])->get();
+
+        $hrData = [];
+        foreach ($teams as $team) {
+            $completedCount = $team->employees->where('results_count', '>', 0)->count();
+            $totalCount = $team->employees->count();
+            $hrData[] = [
+                'team_name' => $team->name,
+                'completed_count' => $completedCount,
+                'total_count' => $totalCount,
+                'completion_rate' => $totalCount > 0 ? round(($completedCount / $totalCount) * 100, 1) : 0,
+            ];
+        }
+        
+        return response()->json([
+            'success' => true,
+            'data' => $hrData
+        ]);
+    }
+
+    /**
+     * Regenerate access code for specific employee
+     */
+    public function regenerateCode(Request $request, $employeeId)
+    {
+        $manager = auth()->user();
+        $employee = Employee::find($employeeId);
+        $cycleId = $request->input('cycle_id');
+        
+        if (!$employee || !$this->hasAccessToEmployee($manager, $employee)) {
+            return response()->json(['success' => false, 'message' => 'Access denied']);
+        }
+        
+        if (!$cycleId) {
+            return response()->json(['success' => false, 'message' => 'Cycle ID required']);
+        }
+        
+        $accessCode = \Str::random(8);
+        
+        EmployeeCycleAccessCode::updateOrCreate(
+            [
+                'employee_id' => $employee->id,
+                'cycle_id' => $cycleId,
+            ],
+            [
+                'access_code' => bcrypt($accessCode),
+                'raw_last4' => substr($accessCode, -4),
+                'expires_at' => now()->addDays(30),
+                'updated_at' => now(),
+            ]
+        );
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Kod dostępu został wygenerowany ponownie',
+            'code_last4' => substr($accessCode, -4)
+        ]);
+    }
+
+    /**
+     * Get departments that a head manages
+     */
+    private function getHeadDepartments($manager)
+    {
+        return \App\Models\HierarchyStructure::where('head_username', $manager->username)
+            ->pluck('department')
+            ->unique()
+            ->toArray();
+    }
+
+    /**
+     * Change manager password
+     */
+    public function changePassword(Request $request)
+    {
+        $manager = auth()->user();
+        
+        $request->validate([
+            'current_password' => 'required',
+            'new_password' => 'required|min:6|confirmed',
+        ]);
+
+        // Check if current password is correct
+        if (!Hash::check($request->current_password, $manager->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Obecne hasło jest nieprawidłowe'
+            ], 400);
+        }
+
+        // Update password
+        $manager->password = Hash::make($request->new_password);
+        $manager->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Hasło zostało zmienione pomyślnie'
+        ]);
     }
 
 }

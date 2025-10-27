@@ -463,6 +463,113 @@
         
         return fetch(url, { ...defaultOptions, ...options });
     }
+
+    // Manager functions - made global to work with dynamic content
+    window.editManager = function(managerId) {
+        fetch(`/admin/manager/${managerId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.id) {
+                    // Populate edit form
+                    document.getElementById('edit_user_id').value = data.id;
+                    document.getElementById('edit_name').value = data.name || '';
+                    document.getElementById('edit_username').value = data.username || '';
+                    document.getElementById('edit_email').value = data.email || '';
+                    document.getElementById('edit_role').value = data.role || '';
+                    document.getElementById('edit_department').value = data.department || '';
+                    
+                    // Open modal
+                    openModal('editManagerModal');
+                } else {
+                    showNotification('Nie udało się pobrać danych managera', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Wystąpił błąd podczas pobierania danych managera', 'error');
+            });
+    };
+    
+    window.resetPassword = function(managerId) {
+        fetch(`/admin/manager/${managerId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.id) {
+                    document.getElementById('reset_user_id').value = data.id;
+                    document.getElementById('reset_user_name').textContent = data.name;
+                    document.getElementById('new_password').value = '';
+                    document.getElementById('confirm_password').value = '';
+                    
+                    openModal('resetPasswordModal');
+                } else {
+                    showNotification('Nie udało się pobrać danych managera', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Wystąpił błąd podczas pobierania danych managera', 'error');
+            });
+    };
+    
+    window.deleteManager = function(managerId) {
+        if (confirm('Czy na pewno chcesz usunąć tego managera? Ta operacja jest nieodwracalna.')) {
+            fetch(`/admin/manager/${managerId}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    // Reload the section
+                    loadSection('managers');
+                } else {
+                    showNotification(data.message || 'Wystąpił błąd', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Wystąpił błąd podczas usuwania managera', 'error');
+            });
+        }
+    };
+
+    // Employee functions - made global to work with dynamic content  
+    window.editEmployee = function(employeeId) {
+        fetch(`/admin/employee/${employeeId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const employee = data.employee;
+                    document.getElementById('employee_id_to_edit').value = employee.id;
+                    document.getElementById('edit_first_name').value = employee.first_name || '';
+                    document.getElementById('edit_last_name').value = employee.last_name || '';
+                    document.getElementById('edit_job_title').value = employee.job_title;
+                    
+                    // Set hierarchy structure if exists
+                    if (employee.hierarchy_structure_id) {
+                        document.getElementById('edit_hierarchy_structure').value = employee.hierarchy_structure_id;
+                    }
+                    
+                    openModal('editEmployeeModal');
+                } else {
+                    showNotification('Nie udało się pobrać danych pracownika', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Wystąpił błąd podczas pobierania danych', 'error');
+            });
+    };
+
+    window.deleteEmployee = function(employeeId) {
+        document.getElementById('employee_id_to_delete').value = employeeId;
+        openModal('deleteEmployeeModal');
+    };
 </script>
 
 <style>
@@ -626,6 +733,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 const event = new Event('DOMContentLoaded');
                 document.dispatchEvent(event);
             }
+        } else if (section === 'employees') {
+            // Initialize employee search
+            setTimeout(() => {
+                setupSearch('employee-search', 'employee-table-body');
+            }, 100);
+        } else if (section === 'managers') {
+            // Initialize managers section JavaScript
+            setTimeout(() => {
+                // Re-attach event listeners for manager functions if needed
+                console.log('Managers section initialized');
+            }, 100);
         }
     }
 });

@@ -148,17 +148,42 @@ class Employee extends Model
         if ($manager->role == 'manager') {
             // Manager widzi pracowników swoich supervisorów
             if ($this->supervisor_username && $this->supervisor_username != $manager->username) {
-                return ['type' => 'indirect', 'through' => 'supervisor'];
+                // Sprawdź czy supervisor jest pod tym managerem
+                $supervisor = User::where('username', $this->supervisor_username)->first();
+                if ($supervisor) {
+                    $supervisorEmployee = Employee::where('manager_username', $manager->username)
+                                                 ->where(function($q) use ($supervisor) {
+                                                     $q->where('name', $supervisor->name)
+                                                       ->orWhere('supervisor_username', $supervisor->username);
+                                                 })
+                                                 ->first();
+                    if ($supervisorEmployee || 
+                        \App\Models\HierarchyStructure::where('supervisor_username', $this->supervisor_username)
+                                                      ->where('manager_username', $manager->username)
+                                                      ->exists()) {
+                        return ['type' => 'indirect', 'through' => 'supervisor'];
+                    }
+                }
             }
         }
         
         if ($manager->role == 'head') {
-            // Head widzi pracowników przez managerów i supervisorów
+            // Head widzi pracowników przez managerów i supervisorów w swojej hierarchii
             if ($this->manager_username && $this->manager_username != $manager->username) {
-                return ['type' => 'indirect', 'through' => 'manager'];
+                // Sprawdź czy manager jest pod tym headem
+                if (\App\Models\HierarchyStructure::where('manager_username', $this->manager_username)
+                                                  ->where('head_username', $manager->username)
+                                                  ->exists()) {
+                    return ['type' => 'indirect', 'through' => 'manager'];
+                }
             }
             if ($this->supervisor_username && $this->supervisor_username != $manager->username) {
-                return ['type' => 'indirect', 'through' => 'supervisor'];
+                // Sprawdź czy supervisor jest pod tym headem
+                if (\App\Models\HierarchyStructure::where('supervisor_username', $this->supervisor_username)
+                                                  ->where('head_username', $manager->username)
+                                                  ->exists()) {
+                    return ['type' => 'indirect', 'through' => 'supervisor'];
+                }
             }
         }
         

@@ -256,42 +256,13 @@
 </div>
 
 <script>
-    // Setup search functionality
-    setupSearch('employee-search', 'employee-table-body');
+    // Functions are now defined globally in admin_panel_new.blade.php
     
-    // Edit employee function
-    function editEmployee(employeeId) {
-        fetch(`/admin/employee/${employeeId}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    const employee = data.employee;
-                    document.getElementById('employee_id_to_edit').value = employee.id;
-                    document.getElementById('edit_first_name').value = employee.first_name || '';
-                    document.getElementById('edit_last_name').value = employee.last_name || '';
-                    document.getElementById('edit_job_title').value = employee.job_title;
-                    
-                    // Set hierarchy structure if exists
-                    if (employee.hierarchy_structure_id) {
-                        document.getElementById('edit_hierarchy_structure').value = employee.hierarchy_structure_id;
-                    }
-                    
-                    openModal('editEmployeeModal');
-                } else {
-                    showNotification('Nie udało się pobrać danych pracownika', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showNotification('Wystąpił błąd podczas pobierania danych', 'error');
-            });
-    }
-    
-    // Delete employee function
-    function deleteEmployee(employeeId) {
-        document.getElementById('employee_id_to_delete').value = employeeId;
-        openModal('deleteEmployeeModal');
-    }
+    // Setup search functionality after DOM is loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        setupSearch('employee-search', 'employee-table-body');
+    });
+</script>
 </script>
 
 <style>

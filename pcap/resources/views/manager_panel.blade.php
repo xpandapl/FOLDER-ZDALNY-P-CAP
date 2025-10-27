@@ -1916,15 +1916,17 @@
         @endphp
 
         @php
-        function pluralForm($number, $forms) {
-            $number = abs($number);
-            if ($number == 1) {
+        if (!function_exists('pluralForm')) {
+            function pluralForm($number, $forms) {
+                $number = abs($number);
+                if ($number == 1) {
                 return $forms[0];
             } elseif ($number % 10 >= 2 && $number % 10 <= 4 && ($number % 100 < 10 || $number % 100 >= 20)) {
                 return $forms[1];
             } else {
                 return $forms[2];
             }
+        }
         }
         @endphp
 
