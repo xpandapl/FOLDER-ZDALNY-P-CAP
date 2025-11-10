@@ -985,16 +985,72 @@
         // Password change functions
         function showPasswordModal() {
             document.getElementById('passwordModal').style.display = 'flex';
+            initPasswordValidation();
         }
         
         function closePasswordModal() {
             document.getElementById('passwordModal').style.display = 'none';
             document.getElementById('passwordForm').reset();
             clearPasswordErrors();
+            clearPasswordIndicator();
         }
         
         function clearPasswordErrors() {
             document.querySelectorAll('.password-error').forEach(el => el.remove());
+        }
+        
+        function clearPasswordIndicator() {
+            const indicator = document.getElementById('password-match-indicator');
+            if (indicator) {
+                indicator.textContent = '';
+                indicator.style.color = '';
+            }
+        }
+        
+        function initPasswordValidation() {
+            const newPassword = document.getElementById('newPassword');
+            const confirmPassword = document.getElementById('confirmPassword');
+            const indicator = document.getElementById('password-match-indicator');
+            const submitBtn = document.getElementById('passwordSubmitBtn');
+            
+            function validatePasswords() {
+                if (!newPassword || !confirmPassword || !indicator) return;
+                
+                const newPwd = newPassword.value;
+                const confirmPwd = confirmPassword.value;
+                
+                // Check minimum length
+                if (newPwd.length > 0 && newPwd.length < 6) {
+                    indicator.textContent = '⚠ Hasło musi mieć co najmniej 6 znaków';
+                    indicator.style.color = 'var(--warning)';
+                    if (submitBtn) submitBtn.disabled = true;
+                    return;
+                }
+                
+                // Check if passwords match
+                if (confirmPwd.length > 0) {
+                    if (newPwd === confirmPwd && newPwd.length >= 6) {
+                        indicator.textContent = '✓ Hasła są identyczne';
+                        indicator.style.color = 'var(--success)';
+                        confirmPassword.setCustomValidity('');
+                        if (submitBtn) submitBtn.disabled = false;
+                    } else if (newPwd !== confirmPwd) {
+                        indicator.textContent = '✗ Hasła nie są identyczne';
+                        indicator.style.color = 'var(--danger)';
+                        confirmPassword.setCustomValidity('Hasła nie są identyczne');
+                        if (submitBtn) submitBtn.disabled = true;
+                    }
+                } else {
+                    indicator.textContent = '';
+                    confirmPassword.setCustomValidity('');
+                    if (submitBtn && newPwd.length >= 6) submitBtn.disabled = false;
+                }
+            }
+            
+            if (newPassword && confirmPassword) {
+                newPassword.addEventListener('input', validatePasswords);
+                confirmPassword.addEventListener('input', validatePasswords);
+            }
         }
         
         function submitPasswordChange() {
@@ -1078,18 +1134,23 @@
                         <input type="password" id="currentPassword" required style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input); color: var(--text);">
                     </div>
                     <div style="margin-bottom: 16px;">
-                        <label style="display: block; margin-bottom: 6px; color: var(--text); font-weight: 500;">Nowe hasło</label>
-                        <input type="password" id="newPassword" required style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input); color: var(--text);">
+                        <label style="display: block; margin-bottom: 6px; color: var(--text); font-weight: 500;">
+                            Nowe hasło
+                            <small style="color: var(--muted); font-weight: normal;">(minimum 6 znaków)</small>
+                        </label>
+                        <input type="password" id="newPassword" minlength="6" required style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input); color: var(--text);">
+                        <small style="display: block; margin-top: 4px; color: var(--muted); font-size: 12px;">Hasło musi zawierać co najmniej 6 znaków</small>
                     </div>
                     <div style="margin-bottom: 20px;">
                         <label style="display: block; margin-bottom: 6px; color: var(--text); font-weight: 500;">Potwierdź nowe hasło</label>
-                        <input type="password" id="confirmPassword" required style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input); color: var(--text);">
+                        <input type="password" id="confirmPassword" minlength="6" required style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--input); color: var(--text);">
+                        <small id="password-match-indicator" style="display: block; margin-top: 4px; font-size: 12px;"></small>
                     </div>
                     <div style="display: flex; gap: 12px;">
                         <button type="button" onclick="closePasswordModal()" class="btn btn-secondary" style="flex: 1;">
                             Anuluj
                         </button>
-                        <button type="submit" class="btn btn-primary" style="flex: 1;">
+                        <button type="submit" id="passwordSubmitBtn" class="btn btn-primary" style="flex: 1;">
                             <i class="fas fa-save"></i> Zmień hasło
                         </button>
                     </div>

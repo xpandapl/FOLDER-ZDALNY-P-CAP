@@ -163,6 +163,11 @@ class SelfAssessmentController extends Controller
     public function uploadExcel(Request $request)
     {
         $this->ensureAdmin();
+        
+        // Zwiększ limit czasu dla dużych plików
+        set_time_limit(300); // 5 minut
+        ini_set('memory_limit', '512M');
+        
         try {
             Log::info('Rozpoczęto przesyłanie pliku Excel.');
     
@@ -178,75 +183,113 @@ class SelfAssessmentController extends Controller
             // Process the data
             $rows = $sheet->toArray(null, true, true, true); // Use column letters as keys
             $updatedCount = 0;
-    
-            foreach ($rows as $key => $row) {
-                if ($key == 1) continue; // Skip headers
-    
-                // Check if competency_name is empty (now in column C)
-                if (empty($row['C'])) {
-                    Log::info("Pominięto wiersz $key - brak nazwy kompetencji.");
-                    continue; // Skip the row if competency_name is empty
-                }
-    
-                // Read data from the correct columns and trim whitespace
-                $level = trim($row['A']); // Excel Column A
-                $competencyType = trim($row['B']); // Excel Column B
-                $competencyName = trim($row['C']); // Excel Column C
-                $description075to1 = trim($row['D'] ?? '');
-                $description025 = trim($row['F'] ?? ''); // NOWA definicja dla 0,25 (kolumna F)
-                $description0to05 = trim($row['E'] ?? '');
-                $descriptionAboveExpectations = trim($row['G'] ?? ''); // above expectations teraz w G
-    
-                // Read team values (columns H to P)
-                $teamValues = [
-                    'Production' => isset($row['I']) ? intval($row['I']) : 0, // Column I
-                    'Sales' => isset($row['J']) ? intval($row['J']) : 0, // Column J
-                    'Growth' => isset($row['K']) ? intval($row['K']) : 0, // Column K
-                    'Logistyka' => isset($row['L']) ? intval($row['L']) : 0, // Column L
-                    'People & Culture' => isset($row['M']) ? intval($row['M']) : 0, // Column M
-                    'Zarząd' => isset($row['N']) ? intval($row['N']) : 0, // Column N
-                    'Order Care' => isset($row['O']) ? intval($row['O']) : 0, // Column O
-                    'Finanse i Kadry' => isset($row['P']) ? intval($row['P']) : 0, // Column P
-                ];
-    
-                // Create or update the competency
-                $competency = Competency::updateOrCreate(
-                    [
-                        'competency_name' => $competencyName,
-                        'level' => $level,
-                        'competency_type' => $competencyType,
-                    ],
-                    [
-                        'description_075_to_1' => $description075to1,
-                        'description_025' => $description025, // dodaj do fillable i migracji jeśli nie ma
-                        'description_0_to_05' => $description0to05,
-                        'description_above_expectations' => $descriptionAboveExpectations,
-                    ]
-                );
-    
-                Log::info("Zaktualizowano lub utworzono kompetencję: $competencyName (ID: {$competency->id}).");
-    
-                // Update or create competency team values
-                foreach ($teamValues as $teamName => $value) {
-                    $teamNameTrimmed = trim($teamName);
-    
-                    if (!isset($teams[$teamNameTrimmed])) {
-                        Log::error("Zespół nie znaleziony: $teamNameTrimmed");
-                        continue;
+            
+            // Tablica do śledzenia kompetencji z Excela
+            $competenciesInExcel = [];
+            
+            // Użyj transakcji dla lepszej wydajności
+            \DB::transaction(function () use ($rows, $teams, &$updatedCount, &$competenciesInExcel) {
+                foreach ($rows as $key => $row) {
+                    if ($key == 1) continue; // Skip headers
+        
+                    // Check if competency_name is empty (now in column C)
+                    if (empty($row['C'])) {
+                        Log::info("Pominięto wiersz $key - brak nazwy kompetencji.");
+                        continue; // Skip the row if competency_name is empty
                     }
-    
-                    $teamId = $teams[$teamNameTrimmed];
-    
-                    CompetencyTeamValue::updateOrCreate(
-                        ['competency_id' => $competency->id, 'team_id' => $teamId],
-                        ['value' => $value]
+        
+                    // Read data from the correct columns and trim whitespace
+                    $level = trim($row['A']); // Excel Column A
+                    $competencyType = trim($row['B']); // Excel Column B
+                    $competencyName = trim($row['C']); // Excel Column C
+                    $description075to1 = trim($row['D'] ?? '');
+                    $description025 = trim($row['F'] ?? ''); // NOWA definicja dla 0,25 (kolumna F)
+                    $description0to05 = trim($row['E'] ?? '');
+                    $descriptionAboveExpectations = trim($row['G'] ?? ''); // above expectations teraz w G
+        
+                    // Read team values (columns K to V - przesunięte o 2 kolumny w prawo + nowe działy)
+                    $teamValues = [
+                        'Production' => isset($row['K']) ? intval($row['K']) : 0, // Column K (było I)
+                        'Sales' => isset($row['L']) ? intval($row['L']) : 0, // Column L (było J)
+                        'Growth' => isset($row['M']) ? intval($row['M']) : 0, // Column M (było K)
+                        'Logistyka' => isset($row['N']) ? intval($row['N']) : 0, // Column N (było L)
+                        'People & Culture' => isset($row['O']) ? intval($row['O']) : 0, // Column O (było M)
+                        'Zarząd' => isset($row['P']) ? intval($row['P']) : 0, // Column P (było N)
+                        'Order Care' => isset($row['Q']) ? intval($row['Q']) : 0, // Column Q (było O)
+                        'Finanse i Kadry' => isset($row['R']) ? intval($row['R']) : 0, // Column R (było P)
+                        'Expo Designer' => isset($row['S']) ? intval($row['S']) : 0, // Column S - nowy dział
+                        'Sales Innovation PM' => isset($row['T']) ? intval($row['T']) : 0, // Column T - nowy dział
+                        'NPI' => isset($row['U']) ? intval($row['U']) : 0, // Column U - nowy dział
+                        'Production Support' => isset($row['V']) ? intval($row['V']) : 0, // Column V - nowy dział
+                    ];
+                    
+                    // Create or update the competency
+                    $competency = Competency::updateOrCreate(
+                        [
+                            'competency_name' => $competencyName,
+                            'level' => $level,
+                            'competency_type' => $competencyType,
+                        ],
+                        [
+                            'description_075_to_1' => $description075to1,
+                            'description_025' => $description025,
+                            'description_0_to_05' => $description0to05,
+                            'description_above_expectations' => $descriptionAboveExpectations,
+                            'active' => true, // Kompetencje w Excelu są aktywne
+                        ]
                     );
-    
-                    Log::info("Zaktualizowano wartość zespołu: $teamNameTrimmed dla kompetencji ID: {$competency->id} (Wartość: $value).");
+                    
+                    // Zapisz ID kompetencji z Excela
+                    $competenciesInExcel[] = $competency->id;
+        
+                    // Batch update team values - znacznie szybsze
+                    $teamValuesToInsert = [];
+                    $now = now(); // Obecny timestamp dla created_at i updated_at
+                    
+                    foreach ($teamValues as $teamName => $value) {
+                        $teamNameTrimmed = trim($teamName);
+        
+                        if (!isset($teams[$teamNameTrimmed])) {
+                            Log::error("Zespół nie znaleziony: $teamNameTrimmed");
+                            continue;
+                        }
+        
+                        $teamId = $teams[$teamNameTrimmed];
+                        
+                        $teamValuesToInsert[] = [
+                            'competency_id' => $competency->id,
+                            'team_id' => $teamId,
+                            'value' => $value,
+                            'created_at' => $now,
+                            'updated_at' => $now
+                        ];
+                    }
+                    
+                    // Usuń stare wartości i wstaw nowe (szybsze niż updateOrCreate w pętli)
+                    if (!empty($teamValuesToInsert)) {
+                        CompetencyTeamValue::where('competency_id', $competency->id)->delete();
+                        CompetencyTeamValue::insert($teamValuesToInsert);
+                    }
+        
+                    $updatedCount++;
+                    
+                    // Co 50 wierszy wyczyść pamięć
+                    if ($updatedCount % 50 == 0) {
+                        Log::info("Przetworzono $updatedCount pytań...");
+                    }
                 }
-    
-                $updatedCount++;
-            }
+                
+                // Dezaktywuj kompetencje, których nie ma w Excelu
+                if (!empty($competenciesInExcel)) {
+                    $deactivatedCount = Competency::whereNotIn('id', $competenciesInExcel)
+                        ->where('active', true)
+                        ->update(['active' => false]);
+                    
+                    if ($deactivatedCount > 0) {
+                        Log::info("Dezaktywowano $deactivatedCount kompetencji, które nie występują w pliku Excel.");
+                    }
+                }
+            });
     
             Log::info("Przesyłanie zakończone. Zaktualizowano $updatedCount pytań.");
             
@@ -258,7 +301,8 @@ class SelfAssessmentController extends Controller
     
         } catch (\Exception $e) {
             Log::error('Błąd podczas przetwarzania pliku Excel: ' . $e->getMessage());
-            return redirect()->back()->with('error', 'Wystąpił błąd podczas przetwarzania pliku Excel. Proszę spróbować ponownie.');
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return redirect()->back()->with('error', 'Wystąpił błąd podczas przetwarzania pliku Excel: ' . $e->getMessage());
         }
     }
 
@@ -275,13 +319,20 @@ class SelfAssessmentController extends Controller
             'F' => 'Opis 0,25',
             'G' => 'Powyżej oczekiwań',
             'H' => 'Rezerwowe/nieużywane',
-            'I' => 'Produkcja (wartość)',
-            'J' => 'Sprzedaż (wartość)',
-            'K' => 'Growth (wartość)',
-            'L' => 'Logistyka (wartość)',
-            'M' => 'People & Culture (wartość)',
-            'N' => 'Zarząd (wartość)',
-            'O' => 'Order Care (wartość)',
+            'I' => 'Rezerwowe/nieużywane',
+            'J' => 'Rezerwowe/nieużywane',
+            'K' => 'Produkcja (wartość)',
+            'L' => 'Sprzedaż (wartość)',
+            'M' => 'Growth (wartość)',
+            'N' => 'Logistyka (wartość)',
+            'O' => 'People & Culture (wartość)',
+            'P' => 'Zarząd (wartość)',
+            'Q' => 'Order Care (wartość)',
+            'R' => 'Finanse i Kadry (wartość)',
+            'S' => 'Expo Designer (wartość)',
+            'T' => 'Sales Innovation PM (wartość)',
+            'U' => 'NPI (wartość)',
+            'V' => 'Production Support (wartość)',
         ];
         $data = [array_values($headers)];
         return \Maatwebsite\Excel\Facades\Excel::download(
@@ -527,6 +578,10 @@ public function showStep1Form()
             'Order Care' => 'O',
             'People & Culture' => 'H',
             'Finanse i Kadry' => 'F',
+            'Expo Designer' => 'Ex',
+            'Sales Innovation PM' => 'PM',
+            'NPI' => 'N',
+            'Production Support' => 'PS',
         ];
 
         // Pobranie wybranego działu z danych pracownika
@@ -544,6 +599,7 @@ public function showStep1Form()
         // Pobranie kompetencji dla danego poziomu i działu
         $competencies = DB::table('competencies')
             ->where('level', 'like', "{$level}%")
+            ->where('active', true) // Tylko aktywne kompetencje w formularzu
             ->where(function ($query) use ($departmentCode) {
                 if ($departmentCode) {
                     $query->where('competency_type', 'not like', '3.%')
@@ -632,7 +688,8 @@ public function showStep1Form()
             
             // Spróbuj załadować poprzednie dane z relacji parent
             if ($result->parent) {
-                $prevAnswers['score'][$result->competency_id] = $result->parent->score;
+                // Jeśli manager ocenił w poprzednim cyklu, użyj jego oceny; w przeciwnym razie ocenę pracownika
+                $prevAnswers['score'][$result->competency_id] = $result->parent->score_manager ?? $result->parent->score;
                 if ($result->parent->above_expectations) {
                     $prevAnswers['above_expectations'][$result->competency_id] = 1;
                 }
@@ -649,7 +706,8 @@ public function showStep1Form()
         foreach ($competencies as $competency) {
             if (!isset($prevAnswers['score'][$competency->id]) && isset($previousResults[$competency->id])) {
                 $prevResult = $previousResults[$competency->id];
-                $prevAnswers['score'][$competency->id] = $prevResult->score;
+                // Jeśli manager ocenił w poprzednim cyklu, użyj jego oceny; w przeciwnym razie ocenę pracownika
+                $prevAnswers['score'][$competency->id] = $prevResult->score_manager ?? $prevResult->score;
                 if ($prevResult->above_expectations) {
                     $prevAnswers['above_expectations'][$competency->id] = 1;
                 }

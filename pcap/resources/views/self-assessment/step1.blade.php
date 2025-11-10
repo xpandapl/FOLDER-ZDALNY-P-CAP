@@ -73,6 +73,12 @@
                 <option value="Sales">Sprzedaż</option>
                 <option value="Order Care">Order Care</option>
                 <option value="People & Culture">People & Culture</option>
+                <option value="Finanse i Kadry">Finanse i Kadry</option>
+                <option value="Zarząd">Zarząd</option>
+                <option value="Expo Designer">Expo Designer</option>
+                <option value="Sales Innovation PM">Sales Innovation PM</option>
+                <option value="NPI">NPI</option>
+                <option value="Production Support">Production Support</option>
             </select>
         </div>
         <div class="form-group">

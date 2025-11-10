@@ -362,16 +362,6 @@
                         </div>
                     </button>
                     
-                    <button class="export-option" onclick="exportDetailedReport()">
-                        <div class="export-icon detailed">
-                            <i class="fas fa-file-alt"></i>
-                        </div>
-                        <div class="export-text">
-                            <div class="export-title">Raport szczegółowy</div>
-                            <div class="export-subtitle">Wszystkie dane</div>
-                        </div>
-                    </button>
-                    
                     @if(isset($manager) && $manager->role == 'supermanager')
                         <button class="export-option" onclick="window.open('{{ route('admin.panel') }}', '_blank')">
                             <div class="export-icon summary">
@@ -786,13 +776,6 @@
         showLoading();
         const cycleId = $('#cycle-select').val();
         window.location.href = `/manager/export-team-pdf?cycle=${cycleId}`;
-        setTimeout(hideLoading, 2000);
-    }
-
-    function exportDetailedReport() {
-        showLoading();
-        const cycleId = $('#cycle-select').val();
-        window.location.href = `/manager/export-team-excel?cycle=${cycleId}&detailed=1`;
         setTimeout(hideLoading, 2000);
     }
 </script>

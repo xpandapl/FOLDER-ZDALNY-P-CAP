@@ -18,6 +18,11 @@ class Competency extends Model
         'description_above_expectations',
         'value',
         'description_025',
+        'active',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
     ];
 
     public function competencyTeamValues()

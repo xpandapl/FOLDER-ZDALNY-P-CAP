@@ -26,7 +26,18 @@
                 
                 // Count filled surveys and levels
                 foreach($departmentEmployeesData as $emp) {
+                    // Check if employee has any non-null percentage values (meaning they filled the survey)
+                    $hasFilledSurvey = false;
                     if (!empty($emp['levelPercentagesManager'])) {
+                        foreach ($emp['levelPercentagesManager'] as $percentage) {
+                            if ($percentage !== null && $percentage > 0) {
+                                $hasFilledSurvey = true;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if ($hasFilledSurvey) {
                         $filledSurveyCount++;
                     }
                     
@@ -158,7 +169,6 @@
                                 <tr>
                                     <th>Pracownik</th>
                                     <th>Stanowisko</th>
-                                    <th>Zespół</th>
                                     @foreach($levelNames as $levelName)
                                         <th style="text-align: center; white-space: nowrap; font-size: 12px;">{{ $levelName }}</th>
                                     @endforeach
@@ -168,22 +178,6 @@
                             </thead>
                             <tbody id="department-table-body">
                                 @foreach($departmentEmployeesData as $emp)
-                                    @php
-                                        $structure = \App\Models\HierarchyStructure::where('department', $emp['department'])
-                                            ->where(function($query) use ($emp) {
-                                                if (isset($emp['supervisor_username'])) {
-                                                    $query->where('supervisor_username', $emp['supervisor_username']);
-                                                } else if (isset($emp['manager_username'])) {
-                                                    $query->where('manager_username', $emp['manager_username'])
-                                                          ->whereNull('supervisor_username');
-                                                } else if (isset($emp['head_username'])) {
-                                                    $query->where('head_username', $emp['head_username'])
-                                                          ->whereNull('supervisor_username')
-                                                          ->whereNull('manager_username');
-                                                }
-                                            })
-                                            ->first();
-                                    @endphp
                                     <tr data-level="{{ $emp['highestLevelManager'] ?? '' }}">
                                         <td>
                                             <div style="display: flex; align-items: center; gap: 12px;">
@@ -193,7 +187,18 @@
                                                 <div>
                                                     <div style="font-weight: 600;">{{ $emp['name'] }}</div>
                                                     <div style="font-size: 12px; color: var(--muted);">
-                                                        @if(!empty($emp['levelPercentagesManager']))
+                                                        @php
+                                                            $hasFilledSurvey = false;
+                                                            if (!empty($emp['levelPercentagesManager'])) {
+                                                                foreach ($emp['levelPercentagesManager'] as $percentage) {
+                                                                    if ($percentage !== null && $percentage > 0) {
+                                                                        $hasFilledSurvey = true;
+                                                                        break;
+                                                                    }
+                                                                }
+                                                            }
+                                                        @endphp
+                                                        @if($hasFilledSurvey)
                                                             <i class="fas fa-check" style="color: var(--accent);"></i> Wypełnione
                                                         @else
                                                             <i class="fas fa-clock" style="color: var(--warning);"></i> Oczekuje
@@ -203,22 +208,6 @@
                                             </div>
                                         </td>
                                         <td>{{ $emp['job_title'] ?? 'Brak stanowiska' }}</td>
-                                        <td>
-                                            <div style="font-size: 13px;">
-                                                {{ $structure->team_name ?? 'Brak struktury' }}
-                                                @if($structure)
-                                                    <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
-                                                        @if(isset($emp['supervisor_username']))
-                                                            Supervisor: {{ $emp['supervisor_username'] }}
-                                                        @elseif(isset($emp['manager_username']))
-                                                            Manager: {{ $emp['manager_username'] }}
-                                                        @else
-                                                            Head: {{ $emp['head_username'] ?? 'Brak' }}
-                                                        @endif
-                                                    </div>
-                                                @endif
-                                            </div>
-                                        </td>
                                         
                                         @foreach($levelNames as $levelName)
                                             <td style="text-align: center;">

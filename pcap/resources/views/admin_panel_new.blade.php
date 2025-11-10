@@ -640,6 +640,16 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Check if there are validation errors and reopen the reset password modal
+    @if($errors->any() && session('_old_input.user_id'))
+        setTimeout(function() {
+            const userId = {{ session('_old_input.user_id') }};
+            if (userId) {
+                resetPassword(userId);
+            }
+        }, 100);
+    @endif
+    
     // AJAX Section Switching
     const sectionLinks = document.querySelectorAll('.section-link');
     const contentContainer = document.getElementById('admin-content');

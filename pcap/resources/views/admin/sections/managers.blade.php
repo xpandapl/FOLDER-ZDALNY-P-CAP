@@ -267,19 +267,35 @@
             <input type="hidden" id="reset_user_id" name="user_id">
             
             <div class="modal-body">
+                @if ($errors->any())
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <ul style="margin: 0; padding-left: 20px;">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+                
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i>
                     Czy na pewno chcesz zresetować hasło dla użytkownika <strong id="reset_user_name"></strong>?
                 </div>
                 
                 <div class="form-group">
-                    <label for="new_password" class="form-label">Nowe hasło</label>
-                    <input type="password" class="form-control" id="new_password" name="password" required>
+                    <label for="new_password" class="form-label">
+                        Nowe hasło
+                        <small class="text-muted">(minimum 8 znaków)</small>
+                    </label>
+                    <input type="password" class="form-control" id="new_password" name="password" minlength="8" required>
+                    <small class="form-text text-muted">Hasło musi zawierać co najmniej 8 znaków</small>
                 </div>
                 
                 <div class="form-group">
                     <label for="confirm_password" class="form-label">Potwierdź hasło</label>
-                    <input type="password" class="form-control" id="confirm_password" name="password_confirmation" required>
+                    <input type="password" class="form-control" id="confirm_password" name="password_confirmation" minlength="8" required>
+                    <small class="form-text text-muted" id="password-match-message"></small>
                 </div>
             </div>
             
@@ -298,15 +314,60 @@
     document.addEventListener('DOMContentLoaded', function() {
         const newPassword = document.getElementById('new_password');
         const confirmPassword = document.getElementById('confirm_password');
+        const matchMessage = document.getElementById('password-match-message');
+        const submitButton = document.querySelector('#resetPasswordModal button[type="submit"]');
+        
+        function validatePasswords() {
+            if (!newPassword || !confirmPassword || !matchMessage) return;
+            
+            const newPwd = newPassword.value;
+            const confirmPwd = confirmPassword.value;
+            
+            // Check minimum length
+            if (newPwd.length > 0 && newPwd.length < 8) {
+                matchMessage.textContent = 'Hasło musi mieć co najmniej 8 znaków';
+                matchMessage.style.color = 'red';
+                if (submitButton) submitButton.disabled = true;
+                return;
+            }
+            
+            // Check if passwords match
+            if (confirmPwd.length > 0) {
+                if (newPwd === confirmPwd) {
+                    matchMessage.textContent = '✓ Hasła są identyczne';
+                    matchMessage.style.color = 'green';
+                    confirmPassword.setCustomValidity('');
+                    if (submitButton) submitButton.disabled = false;
+                } else {
+                    matchMessage.textContent = '✗ Hasła nie są identyczne';
+                    matchMessage.style.color = 'red';
+                    confirmPassword.setCustomValidity('Hasła nie są identyczne');
+                    if (submitButton) submitButton.disabled = true;
+                }
+            } else {
+                matchMessage.textContent = '';
+                confirmPassword.setCustomValidity('');
+                if (submitButton) submitButton.disabled = false;
+            }
+        }
         
         if (newPassword && confirmPassword) {
-            confirmPassword.addEventListener('input', function() {
-                if (this.value && newPassword.value && this.value !== newPassword.value) {
-                    this.setCustomValidity('Hasła nie są identyczne');
-                } else {
-                    this.setCustomValidity('');
-                }
-            });
+            newPassword.addEventListener('input', validatePasswords);
+            confirmPassword.addEventListener('input', validatePasswords);
+            
+            // Clear validation when modal closes
+            const resetModal = document.getElementById('resetPasswordModal');
+            if (resetModal) {
+                const closeButtons = resetModal.querySelectorAll('[onclick*="closeModal"]');
+                closeButtons.forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        if (newPassword) newPassword.value = '';
+                        if (confirmPassword) confirmPassword.value = '';
+                        if (matchMessage) matchMessage.textContent = '';
+                        if (submitButton) submitButton.disabled = false;
+                    });
+                });
+            }
         }
     });
 </script>

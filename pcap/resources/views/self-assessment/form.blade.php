@@ -1678,7 +1678,20 @@ document.querySelectorAll('.question').forEach(function(q){
         const d075 = q.getAttribute('data-description075to1') || '';
         const dAbove = q.getAttribute('data-description-above-expectations') || '';
         let text = '';
-        if (parseFloat(val) >= 0.75) text = d075; else if (parseFloat(val) >= 0.25) text = d025; else text = d0;
+        
+        // Poprawna kolejność zgodnie z wartościami:
+        // 0, 0.25 -> description_025
+        // 0.5 -> description_0_to_05
+        // 0.75, 1 -> description_075_to_1
+        const numVal = parseFloat(val);
+        if (numVal >= 0.75) {
+            text = d075;
+        } else if (numVal >= 0.5) {
+            text = d0;
+        } else {
+            text = d025;
+        }
+        
         if (parseInt(starInput.value)) text = dAbove || text;
         if (text){ defBubble.style.display='block'; defContent.textContent = text; } else { defBubble.style.display='none'; }
     }

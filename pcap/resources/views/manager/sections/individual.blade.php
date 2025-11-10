@@ -272,18 +272,21 @@
                                                     $competencyValue = $employee->getCompetencyValue($result->competency_id) ?? 0;
                                                     $overriddenValue = isset($overriddenValues[$result->competency_id]) ? $overriddenValues[$result->competency_id] : null;
                                                     $displayValue = $overriddenValue !== null ? $overriddenValue : $competencyValue;
+                                                    $canEditWeight = isset($manager) && $manager->role === 'head';
                                                 @endphp
                                                 <div class="competency-value-container" data-competency-id="{{ $competency->id }}" data-team-value="{{ $competencyValue }}">
                                                     <span class="competency-value-display {{ $overriddenValue !== null ? 'competency-value-overridden' : '' }}">
                                                         {{ $displayValue }}
                                                     </span>
-                                                    <input type="number" step="0.01" min="0" max="5" value="{{ $displayValue }}" 
-                                                           style="display: none; width: 80px;"
-                                                           {{ $overriddenValue !== null ? 'name=competency_values[' . $competency->id . ']' : '' }}>
-                                                    <div class="icon-wrapper">
-                                                        <i class="fas {{ $overriddenValue !== null ? 'fa-trash remove-overridden-value-button' : 'fa-pencil-alt edit-competency-value-button' }}" 
-                                                           data-competency-id="{{ $competency->id }}"></i>
-                                                    </div>
+                                                    @if($canEditWeight)
+                                                        <input type="number" step="0.01" min="0" max="5" value="{{ $displayValue }}" 
+                                                               style="display: none; width: 80px;"
+                                                               {{ $overriddenValue !== null ? 'name=competency_values[' . $competency->id . ']' : '' }}>
+                                                        <div class="icon-wrapper">
+                                                            <i class="fas {{ $overriddenValue !== null ? 'fa-trash remove-overridden-value-button' : 'fa-pencil-alt edit-competency-value-button' }}" 
+                                                               data-competency-id="{{ $competency->id }}"></i>
+                                                        </div>
+                                                    @endif
                                                 </div>
                                             </td>
                                             <td>
@@ -411,8 +414,77 @@
 </div>
 
 @push('scripts')
+<style>
+    .error-border {
+        border: 2px solid #dc3545 !important;
+        background-color: #fff5f5 !important;
+    }
+    .error-border:focus {
+        border-color: #dc3545 !important;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+    }
+</style>
 <script>
     $(document).ready(function() {
+        // Validation for feedback requirement when score is changed
+        $('form[action="{{ route('manager.panel.update') }}"]').on('submit', function(e) {
+            let hasErrors = false;
+            let errorMessages = [];
+            
+            // Clear previous error styles
+            $('.feedback-textarea').removeClass('error-border');
+            
+            // Check each score_manager dropdown
+            $('select[name^="score_manager"]').each(function() {
+                const scoreSelect = $(this);
+                const scoreValue = scoreSelect.val();
+                const resultId = scoreSelect.attr('name').match(/\[(\d+)\]/)[1];
+                const feedbackTextarea = $('textarea[name="feedback_manager[' + resultId + ']"]');
+                const feedbackValue = feedbackTextarea.val().trim();
+                
+                // If score is changed (not empty = "Ok" and not the original score), require feedback
+                if (scoreValue !== '' && scoreValue !== null) {
+                    if (feedbackValue === '') {
+                        hasErrors = true;
+                        feedbackTextarea.addClass('error-border');
+                        
+                        // Get competency name from the row
+                        const competencyName = scoreSelect.closest('tr').find('strong').first().text();
+                        errorMessages.push('Kompetencja "' + competencyName + '" wymaga feedbacku od managera');
+                    }
+                }
+            });
+            
+            if (hasErrors) {
+                e.preventDefault();
+                
+                // Show error message
+                let errorHtml = '<div class="alert alert-danger" style="margin-bottom: 20px;"><i class="fas fa-exclamation-triangle"></i> <strong>Błędy walidacji:</strong><ul style="margin: 10px 0 0 20px;">';
+                errorMessages.forEach(function(msg) {
+                    errorHtml += '<li>' + msg + '</li>';
+                });
+                errorHtml += '</ul></div>';
+                
+                // Remove existing error alerts
+                $('.alert-danger').remove();
+                
+                // Add error alert before form buttons
+                $('form[action="{{ route('manager.panel.update') }}"] .table-responsive').after(errorHtml);
+                
+                // Scroll to first error
+                $('html, body').animate({
+                    scrollTop: $('.error-border').first().offset().top - 100
+                }, 500);
+                
+                return false;
+            }
+        });
+        
+        // Remove error styling when user starts typing
+        $('.feedback-textarea').on('input', function() {
+            $(this).removeClass('error-border');
+        });
+        
         // Cycle comparison functionality
         $('#comparison-cycle').on('change', function() {
             const comparisonCycleId = $(this).val();

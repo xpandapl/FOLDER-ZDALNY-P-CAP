@@ -18,7 +18,18 @@
             
             // Count filled surveys and levels
             foreach($organizationEmployeesData as $emp) {
+                // Check if employee has any non-null percentage values (meaning they filled the survey)
+                $hasFilledSurvey = false;
                 if (!empty($emp['levelPercentagesManager'])) {
+                    foreach ($emp['levelPercentagesManager'] as $percentage) {
+                        if ($percentage !== null && $percentage > 0) {
+                            $hasFilledSurvey = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if ($hasFilledSurvey) {
                     $filledSurveyCount++;
                 }
                 

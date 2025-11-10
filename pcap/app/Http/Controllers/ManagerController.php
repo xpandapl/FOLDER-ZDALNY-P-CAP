@@ -671,17 +671,26 @@ class ManagerController extends Controller
             $data = [];
             foreach ($employeesData as $empData) {
                 $row = [
-                    $empData['name'],
-                    $empData['job_title'],
+                    $empData['name'] ?? '',
+                    $empData['job_title'] ?? '',
                 ];
+                
+                // Iteruj przez WSZYSTKIE poziomy z $this->levelNames w ustalonej kolejności
                 foreach ($this->levelNames as $levelName) {
                     // Korzystamy z managerowskich procentów
                     $percentageValueManager = $empData['levelPercentagesManager'][$levelName] ?? null;
-                    $percentageManager = is_numeric($percentageValueManager) ? number_format($percentageValueManager, 2) . '%' : 'N/D';
-                    $row[] = $percentageManager;
+                    
+                    if ($percentageValueManager === null) {
+                        $row[] = 'N/D';
+                    } else if (is_numeric($percentageValueManager)) {
+                        $row[] = number_format($percentageValueManager, 2) . '%';
+                    } else {
+                        $row[] = 'N/D';
+                    }
                 }
+                
                 // Używamy najwyższego poziomu menedżerskiego
-                $row[] = $empData['highestLevelManager'];
+                $row[] = $empData['highestLevelManager'] ?? 'N/D';
                 $data[] = $row;
             }
     
@@ -698,9 +707,122 @@ class ManagerController extends Controller
         }
     }
 
+    /**
+     * Export team report as PDF (GET request for new manager panel)
+     */
+    public function exportTeamPdf(Request $request)
+    {
+        $manager = auth()->user();
+        $cycleId = $request->query('cycle') ?: $this->selectedCycleId($request);
+        
+        // Get manager's team employees based on role
+        $employees = $this->getEmployeesForManager($manager, $cycleId);
+        
+        if ($employees->isEmpty()) {
+            return redirect()->back()->with('error', 'Brak pracowników w zespole.');
+        }
+        
+        // Prepare data
+        $employeesData = $this->prepareEmployeesData($employees, $this->levelNames);
+        
+        // Sanitize against legacy level 6
+        $allowedLevelKeys = array_values($this->levelNames);
+        $allowedMap = array_fill_keys($allowedLevelKeys, true);
+        foreach ($employeesData as &$empData) {
+            if (isset($empData['levelPercentagesManager']) && is_array($empData['levelPercentagesManager'])) {
+                $empData['levelPercentagesManager'] = array_intersect_key($empData['levelPercentagesManager'], $allowedMap);
+            }
+            if (!empty($empData['highestLevelManager'])) {
+                $hl = (string)$empData['highestLevelManager'];
+                if (strpos($hl, '6') === 0 || stripos($hl, 'Head of') !== false) {
+                    $empData['highestLevelManager'] = '5. Manager';
+                }
+            }
+        }
+        unset($empData);
+        
+        // Generate PDF
+        $pdf = PDF::loadView('exports.team_report_pdf', [
+            'team' => (object)['name' => 'Zespół ' . $manager->name],
+            'employeesData' => $employeesData,
+            'levelNames' => $this->levelNames
+        ])->setPaper('a4', 'landscape');
+        
+        $date = now()->format('Y-m-d_H-i');
+        $cycle = $cycleId ? AssessmentCycle::find($cycleId) : null;
+        $cycleSuffix = $cycle ? ('_' . $cycle->label) : '';
+        
+        return $pdf->download('P-CAP_Raport_Zespol_' . $date . $cycleSuffix . '.pdf');
+    }
+
+    /**
+     * Export team report as Excel (GET request for new manager panel)
+     */
+    public function exportTeamExcel(Request $request)
+    {
+        $manager = auth()->user();
+        $cycleId = $request->query('cycle') ?: $this->selectedCycleId($request);
+        
+        // Get manager's team employees based on role
+        $employees = $this->getEmployeesForManager($manager, $cycleId);
+        
+        if ($employees->isEmpty()) {
+            return redirect()->back()->with('error', 'Brak pracowników w zespole.');
+        }
+        
+        // Prepare data
+        $employeesData = $this->prepareEmployeesData($employees, $this->levelNames);
+        
+        // Prepare headers
+        $headers = ['Imię i nazwisko', 'Nazwa stanowiska'];
+        foreach ($this->levelNames as $levelName) {
+            $headers[] = $levelName;
+        }
+        $headers[] = 'Poziom';
+        
+        // Build data rows
+        $data = [];
+        foreach ($employeesData as $empData) {
+            $row = [
+                $empData['name'] ?? '',
+                $empData['job_title'] ?? '',
+            ];
+            
+            // Iteruj przez WSZYSTKIE poziomy z $this->levelNames w ustalonej kolejności
+            foreach ($this->levelNames as $levelName) {
+                // Pobierz wartość lub ustaw jako 'N/D' jeśli brak
+                $percentageValueManager = $empData['levelPercentagesManager'][$levelName] ?? null;
+                
+                if ($percentageValueManager === null) {
+                    $row[] = 'N/D';
+                } else if (is_numeric($percentageValueManager)) {
+                    $row[] = number_format($percentageValueManager, 2) . '%';
+                } else {
+                    $row[] = 'N/D';
+                }
+            }
+            
+            // Dodaj najwyższy poziom na końcu
+            $row[] = $empData['highestLevelManager'] ?? 'N/D';
+            $data[] = $row;
+        }
+        
+        $date = now()->format('Y-m-d_H-i');
+        $cycle = $cycleId ? AssessmentCycle::find($cycleId) : null;
+        $cycleSuffix = $cycle ? ('_' . $cycle->label) : '';
+        $filename = "P-CAP_Raport_Zespol_{$date}{$cycleSuffix}.xlsx";
+        
+        return Excel::download(
+            new TeamReportExport($data, $headers),
+            $filename
+        );
+    }
+
 
     public function update(Request $request)
     {
+        $manager = auth()->user();
+        
         // Only allow updates for results in the active cycle
         $activeCycleId = $this->activeCycleId();
         if (!$activeCycleId) {
@@ -737,28 +859,30 @@ class ManagerController extends Controller
         $employeeId = $request->input('employee_id');
         $employee = Employee::find($employeeId);
 
-         // Handle overridden competency values
-    $competencyValues = (array) $request->input('competency_values', []);
-    $deleteCompetencyValues = (array) $request->input('delete_competency_values', []);
+        // Handle overridden competency values - TYLKO dla head
+        if ($manager->role === 'head') {
+            $competencyValues = (array) $request->input('competency_values', []);
+            $deleteCompetencyValues = (array) $request->input('delete_competency_values', []);
 
-        // Process deletions
-        foreach ($deleteCompetencyValues as $competencyId) {
-            EmployeeCompetencyValue::where('employee_id', $employeeId)
-                ->where('competency_id', $competencyId)
-                ->delete();
-        }
+            // Process deletions
+            foreach ($deleteCompetencyValues as $competencyId) {
+                EmployeeCompetencyValue::where('employee_id', $employeeId)
+                    ->where('competency_id', $competencyId)
+                    ->delete();
+            }
 
-        // Save or update overridden competency values
-        foreach ($competencyValues as $competencyId => $value) {
-            EmployeeCompetencyValue::updateOrCreate(
-                [
-                    'employee_id' => $employeeId,
-                    'competency_id' => $competencyId,
-                ],
-                [
-                    'value' => $value,
-                ]
-            );
+            // Save or update overridden competency values
+            foreach ($competencyValues as $competencyId => $value) {
+                EmployeeCompetencyValue::updateOrCreate(
+                    [
+                        'employee_id' => $employeeId,
+                        'competency_id' => $competencyId,
+                    ],
+                    [
+                        'value' => $value,
+                    ]
+                );
+            }
         }
 
         // Redirect back to the manager panel with the employee parameter and cycle context

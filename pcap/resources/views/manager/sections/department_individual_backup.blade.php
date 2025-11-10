@@ -1,20 +1,19 @@
-@if($manager->role == 'supermanager')
 <div class="card">
     <div class="card-header">
-        <h2 class="card-title">HR - Indywidualne oceny</h2>
-        <p class="card-description">Zarządzaj oceną kompetencji wszystkich pracowników w organizacji</p>
+        <h2 class="card-title">Indywidualne oceny pracowników</h2>
+        <p class="card-description">Zarządzaj oceną kompetencji indywidualnych pracowników z Twojego zespołu</p>
     </div>
     <div class="card-content">
         <!-- Employee Selection -->
         <div class="form-group">
-            <label class="form-label" for="hr-employee-select">
-                <i class="fas fa-users"></i> Wybierz pracownika z organizacji
+            <label class="form-label" for="employee-select">
+                <i class="fas fa-user"></i> Wybierz pracownika
             </label>
-            <select id="hr-employee-select" class="form-control select2" onchange="filterByHrEmployee()">
+            <select id="employee-select" class="form-control select2" onchange="filterByEmployee()">
                 <option value="">-- Wybierz pracownika --</option>
-                @foreach($allEmployees as $emp)
+                @foreach($employees as $emp)
                     <option value="{{ $emp->id }}" {{ isset($employee) && $employee->id == $emp->id ? 'selected' : '' }}>
-                        {{ $emp->name }} - {{ $emp->department }} - {{ $emp->job_title ?? 'Brak stanowiska' }}
+                        {{ $emp->name }}
                     </option>
                 @endforeach
             </select>
@@ -406,101 +405,63 @@
         @else
             <!-- No Employee Selected -->
             <div class="no-data">
-                <i class="fas fa-users"></i>
+                <i class="fas fa-user-plus"></i>
                 <h3>Wybierz pracownika</h3>
-                <p>Aby zobaczyć indywidualne oceny, wybierz pracownika z organizacji z listy rozwijanej powyżej.</p>
+                <p>Aby zobaczyć indywidualne oceny, wybierz pracownika z listy rozwijanej powyżej.</p>
             </div>
         @endif
     </div>
 </div>
 
 @push('scripts')
-<style>
-    .error-border {
-        border: 2px solid #dc3545 !important;
-        background-color: #fff5f5 !important;
-    }
-    .error-border:focus {
-        border-color: #dc3545 !important;
-        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
-    }
-</style>
 <script>
     $(document).ready(function() {
-        // Validation for feedback requirement when score is changed
-        $('form[action="{{ route('manager.panel.update') }}"]').on('submit', function(e) {
-            let hasErrors = false;
-            let errorMessages = [];
+        // Cycle comparison functionality
+        $('#comparison-cycle').on('change', function() {
+            const comparisonCycleId = $(this).val();
+            const currentEmployeeId = {{ isset($employee) ? $employee->id : 'null' }};
             
-            // Clear previous error styles
-            $('.feedback-textarea').removeClass('error-border');
-            
-            // Check each score_manager dropdown
-            $('select[name^="score_manager"]').each(function() {
-                const scoreSelect = $(this);
-                const scoreValue = scoreSelect.val();
-                const resultId = scoreSelect.attr('name').match(/\[(\d+)\]/)[1];
-                const feedbackTextarea = $('textarea[name="feedback_manager[' + resultId + ']"]');
-                const feedbackValue = feedbackTextarea.val().trim();
-                
-                // If score is changed (not empty = "Ok" and not the original score), require feedback
-                if (scoreValue !== '' && scoreValue !== null) {
-                    if (feedbackValue === '') {
-                        hasErrors = true;
-                        feedbackTextarea.addClass('error-border');
-                        
-                        // Get competency name from the row
-                        const competencyName = scoreSelect.closest('tr').find('strong').first().text();
-                        errorMessages.push('Kompetencja "' + competencyName + '" wymaga feedbacku od managera');
-                    }
-                }
-            });
-            
-            if (hasErrors) {
-                e.preventDefault();
-                
-                // Show error message
-                let errorHtml = '<div class="alert alert-danger" style="margin-bottom: 20px;"><i class="fas fa-exclamation-triangle"></i> <strong>Błędy walidacji:</strong><ul style="margin: 10px 0 0 20px;">';
-                errorMessages.forEach(function(msg) {
-                    errorHtml += '<li>' + msg + '</li>';
-                });
-                errorHtml += '</ul></div>';
-                
-                // Remove existing error alerts
-                $('.alert-danger').remove();
-                
-                // Add error alert before form buttons
-                $('form[action="{{ route('manager.panel.update') }}"] .table-responsive').after(errorHtml);
-                
-                // Scroll to first error
-                $('html, body').animate({
-                    scrollTop: $('.error-border').first().offset().top - 100
-                }, 500);
-                
-                return false;
+            if (comparisonCycleId && currentEmployeeId) {
+                loadCycleComparison(currentEmployeeId, comparisonCycleId);
+            } else {
+                $('#comparison-content').hide();
             }
-        });
-        
-        // Remove error styling when user starts typing
-        $('.feedback-textarea').on('input', function() {
-            $(this).removeClass('error-border');
         });
     });
     
-    function filterByHrEmployee() {
-        const employeeId = document.getElementById('hr-employee-select').value;
-        if (employeeId) {
-            const cycleId = document.getElementById('cycle-select') ? document.getElementById('cycle-select').value : '';
-            window.location.href = `?section=hr_individual&employee=${employeeId}&cycle=${cycleId}`;
-        }
+    function loadCycleComparison(employeeId, comparisonCycleId) {
+        $('#comparison-content').html('<div style="text-align: center; padding: 20px;"><i class="fas fa-spinner fa-spin"></i> Ładowanie porównania...</div>').show();
+        
+        // This would make an AJAX call to get comparison data
+        fetch(`/manager/cycle-comparison?employee=${employeeId}&cycle=${comparisonCycleId}&current={{ $selectedCycleId }}`)
+            .then(response => response.json())
+            .then(data => {
+                displayCycleComparison(data);
+            })
+            .catch(error => {
+                $('#comparison-content').html('<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Nie udało się załadować danych porównania</div>');
+            });
+    }
+    
+    function displayCycleComparison(data) {
+        // This would render the comparison data
+        const html = `
+            <div class="cycle-comparison-content">
+                <div class="cycle-data">
+                    <div class="cycle-label">Obecny cykl</div>
+                    <div class="cycle-value">Kompetencje wypełnione: ${data.current.completed || 0}</div>
+                </div>
+                <div class="cycle-data">
+                    <div class="cycle-label">Poprzedni cykl</div>
+                    <div class="cycle-value">Kompetencje wypełnione: ${data.previous.completed || 0}</div>
+                </div>
+                <div class="cycle-data">
+                    <div class="cycle-label">Różnica</div>
+                    <div class="cycle-value">Postęp: ${data.difference > 0 ? '+' : ''}${data.difference || 0}</div>
+                </div>
+            </div>
+        `;
+        $('#comparison-content').html(html);
     }
 </script>
 @endpush
-
-@else
-    <div class="no-data">
-        <i class="fas fa-ban"></i>
-        <h3>Brak dostępu</h3>
-        <p>Ta sekcja jest dostępna tylko dla HR (supermanager).</p>
-    </div>
-@endif

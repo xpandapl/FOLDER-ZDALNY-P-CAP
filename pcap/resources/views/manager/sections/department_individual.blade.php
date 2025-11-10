@@ -31,7 +31,7 @@
                 </a>
             </div>
 
-            <!-- Employee Details with Department Context -->
+            <!-- Employee Details -->
             <div class="employee-details">
                 <h3 style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
                     <i class="fas fa-id-card"></i> Informacje o pracowniku
@@ -55,52 +55,120 @@
                     </div>
                     <div class="employee-detail-item">
                         <i class="fas fa-user-tie"></i>
-                        <strong>Przełożony:</strong> {{ $employee->manager_username }}
+                        <strong>Przełożony:</strong> 
+                        @if($employee->supervisor)
+                            {{ $employee->supervisor->name ?? $employee->supervisor->username }}
+                        @elseif($employee->manager && $employee->manager->id !== auth()->id())
+                            {{ $employee->manager->name ?? $employee->manager->username }}
+                        @elseif($employee->head && $employee->head->id !== auth()->id())
+                            {{ $employee->head->name ?? $employee->head->username }} (Head)
+                        @else
+                            Brak przypisanego przełożonego
+                        @endif
                     </div>
                     <div class="employee-detail-item">
                         <i class="fas fa-clipboard"></i>
                         <strong>Stanowisko:</strong> {{ $employee->job_title }}
                     </div>
-                    <!-- Additional department context -->
-                    <div class="employee-detail-item">
-                        <i class="fas fa-sitemap"></i>
-                        <strong>Zespół:</strong> 
-                        @php
-                            $structure = \App\Models\HierarchyStructure::where('department', $employee->department)
-                                ->where(function($query) use ($employee) {
-                                    if ($employee->supervisor_username) {
-                                        $query->where('supervisor_username', $employee->supervisor_username);
-                                    } else if ($employee->manager_username) {
-                                        $query->where('manager_username', $employee->manager_username)
-                                              ->whereNull('supervisor_username');
-                                    } else if ($employee->head_username) {
-                                        $query->where('head_username', $employee->head_username)
-                                              ->whereNull('supervisor_username')
-                                              ->whereNull('manager_username');
-                                    }
-                                })
-                                ->first();
-                        @endphp
-                        {{ $structure->team_name ?? 'Brak struktury' }}
-                    </div>
-                    <div class="employee-detail-item">
-                        <i class="fas fa-clock"></i>
-                        <strong>Status oceny:</strong> 
-                        @if($results->where('self_assessment', '!=', null)->count() > 0)
-                            <span style="color: var(--accent); font-weight: 600;">Wypełniona</span>
-                        @else
-                            <span style="color: var(--danger); font-weight: 600;">Niewypełniona</span>
-                        @endif
-                    </div>
                 </div>
             </div>
 
-            <!-- Assessment Form with Department Head Capabilities -->
+            <!-- Cycle Comparison Feature -->
+            @if(count($cycles) > 1)
+                <div class="cycle-comparison">
+                    <div class="cycle-comparison-header">
+                        <i class="fas fa-chart-line"></i>
+                        <h4>Porównanie z poprzednimi cyklami</h4>
+                        <select id="comparison-cycle" class="form-control" style="width: 200px; margin-left: auto;">
+                            <option value="">-- Wybierz cykl do porównania --</option>
+                            @foreach($cycles as $cycle)
+                                @if($cycle->id != $selectedCycleId)
+                                    <option value="{{ $cycle->id }}">{{ $cycle->label }}</option>
+                                @endif
+                            @endforeach
+                        </select>
+                    </div>
+                    <div id="comparison-content" style="display: none;">
+                        <!-- Comparison data will be loaded here -->
+                    </div>
+                </div>
+            @endif
+
+            <!-- New Code Generation Alert -->
+            @if(session('generated_code') && session('generated_code_employee_id') == $employee->id)
+                <div class="alert alert-success">
+                    <i class="fas fa-key"></i>
+                    <div>
+                        <strong>Nowy kod dostępu wygenerowany:</strong>
+                        <code style="font-family: monospace; background: rgba(0,0,0,0.1); padding: 2px 6px; border-radius: 4px; margin: 0 8px;">{{ session('generated_code') }}</code>
+                        <button class="btn btn-sm btn-secondary" onclick="copyText('{{ session('generated_code') }}')">
+                            <i class="fas fa-copy"></i> Kopiuj
+                        </button>
+                        <br><small style="color: #666; margin-top: 4px; display: block;">Zapisz teraz – nie będzie już widoczny w całości</small>
+                    </div>
+                </div>
+            @endif
+
+            <!-- Assessment Form -->
             <div class="card" style="margin-top: 24px;">
                 <div class="card-header">
-                    <h3 class="card-title">Ocena kompetencji (widok kierownika działu)</h3>
-                    <p class="card-description">Edytuj oceny i dodawaj komentarze jako kierownik działu</p>
+                    <h3 class="card-title">Ocena kompetencji</h3>
+                    <p class="card-description">Oceń poziom kompetencji pracownika w różnych obszarach</p>
                 </div>
+                
+                <!-- Level Summaries - Top -->
+                @if(isset($levelSummaries) && !empty($levelSummaries))
+                    <div style="margin: 20px 24px;">
+                        <h4 style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px; font-size: 16px;">
+                            <i class="fas fa-chart-pie"></i> Podsumowanie poziomów
+                        </h4>
+                        <div class="stats-grid">
+                            @foreach($levelSummaries as $level => $summary)
+                                @php
+                                    $levelNumber = (int)substr($level, 0, 1);
+                                    $iconClass = 'level-' . $levelNumber;
+                                    if ($levelNumber == 1) $icon = 'fa-user-graduate';
+                                    elseif ($levelNumber == 2) $icon = 'fa-user';
+                                    elseif ($levelNumber == 3) $icon = 'fa-user-tie';
+                                    elseif ($levelNumber == 4) $icon = 'fa-chalkboard-teacher';
+                                    elseif ($levelNumber == 5) $icon = 'fa-user-cog';
+                                    else $icon = 'fa-briefcase';
+                                @endphp
+                                <div class="stat-card">
+                                    <div class="stat-icon {{ $iconClass }}">
+                                        <i class="fas {{ $icon }}"></i>
+                                    </div>
+                                    <div class="stat-value">
+                                        @if(isset($summary['percentageManager']) && is_numeric($summary['percentageManager']))
+                                            {{ number_format($summary['percentageManager'], 1) }}%
+                                        @elseif(isset($summary['percentageManager']))
+                                            {{ $summary['percentageManager'] }}
+                                        @else
+                                            N/D
+                                        @endif
+                                    </div>
+                                    <div class="stat-label">{{ $level }}</div>
+                                    <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">
+                                        {{ $summary['count'] ?? 0 }} kompetencji
+                                    </div>
+                                    <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+                                        {{ $summary['earnedPointsManager'] ?? 0 }} / {{ $summary['maxPoints'] ?? 0 }} pkt.
+                                    </div>
+                                    <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+                                        @if(isset($summary['percentageEmployee']) && is_numeric($summary['percentageEmployee']))
+                                            Samoocena: {{ number_format($summary['percentageEmployee'], 1) }}%
+                                        @elseif(isset($summary['percentageEmployee']))
+                                            Samoocena: {{ $summary['percentageEmployee'] }}
+                                        @else
+                                            Samoocena: N/D
+                                        @endif
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+                
                 <div class="card-content">
                     <form action="{{ route('manager.panel.update') }}" method="POST">
                         @csrf
@@ -110,34 +178,47 @@
                             <table class="data-table">
                                 <thead>
                                     <tr>
-                                        <th style="width: 22%;">Kompetencja</th>
-                                        <th style="width: 10%;">Samoocena</th>
-                                        <th style="width: 12%;">Ocena managera</th>
-                                        <th style="width: 12%;">Ocena kierownika</th>
-                                        <th style="width: 12%;">Wartość zespołu</th>
-                                        <th style="width: 32%;">Komentarz kierownika</th>
+                                        <th style="width: 20%;">Kompetencja</th>
+                                        <th style="width: 10%;">Ocena użytkownika</th>
+                                        <th style="width: 10%;">Powyżej oczekiwań</th>
+                                        <th style="width: 20%;">Argumentacja użytkownika</th>
+                                        <th style="width: 10%;">Wartość zespołu</th>
+                                        <th style="width: 10%;">Ocena managera</th>
+                                        <th style="width: 20%;">Feedback od managera</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @php
                                         $currentLevel = null;
+                                        $levelCounts = [];
+                                        $levelTotals = [];
                                     @endphp
                                     @foreach($results->sortBy('competency.level') as $result)
                                         @php
                                             $level = $result->competency->level ?? 'Brak poziomu';
                                             $competency = $result->competency;
                                             
+                                            if (!isset($levelCounts[$level])) {
+                                                $levelCounts[$level] = 0;
+                                                $levelTotals[$level] = 0;
+                                            }
+                                            
+                                            if ($result->score_manager) {
+                                                $levelCounts[$level]++;
+                                                $levelTotals[$level] += $result->score_manager;
+                                            }
+                                            
                                             // Determine competency category for badge
                                             $category = 'zawodowe-inne';
-                                            if (str_contains(strtolower($competency->category), 'osobiste')) {
+                                            if (str_contains(strtolower($competency->competency_type), 'osobiste')) {
                                                 $category = 'osobiste';
-                                            } elseif (str_contains(strtolower($competency->category), 'społeczne')) {
+                                            } elseif (str_contains(strtolower($competency->competency_type), 'społeczne')) {
                                                 $category = 'spoleczne';
-                                            } elseif (str_contains(strtolower($competency->category), 'liderskie')) {
+                                            } elseif (str_contains(strtolower($competency->competency_type), 'liderskie')) {
                                                 $category = 'liderskie';
-                                            } elseif (str_contains(strtolower($competency->category), 'logistics')) {
+                                            } elseif (str_contains(strtolower($competency->competency_type), 'logistics')) {
                                                 $category = 'zawodowe-logistics';
-                                            } elseif (str_contains(strtolower($competency->category), 'growth')) {
+                                            } elseif (str_contains(strtolower($competency->competency_type), 'growth')) {
                                                 $category = 'zawodowe-growth';
                                             }
                                         @endphp
@@ -145,13 +226,13 @@
                                         @if($currentLevel !== $level)
                                             @if($currentLevel !== null)
                                                 <tr style="background: var(--bg); font-weight: 600;">
-                                                    <td colspan="6" style="padding: 12px 16px; border-top: 2px solid var(--border);">
+                                                    <td colspan="7" style="padding: 12px 16px; border-top: 2px solid var(--border);">
                                                         <i class="fas fa-chart-bar"></i> Koniec poziomu: {{ $currentLevel }}
                                                     </td>
                                                 </tr>
                                             @endif
-                                            <tr style="background: var(--primary); color: white; font-weight: 600;">
-                                                <td colspan="6" style="padding: 12px 16px;">
+                                            <tr style="background: var(--primary-600) !important; color: white !important; font-weight: 600;">
+                                                <td colspan="7" style="padding: 12px 16px; color: white !important; background: var(--primary-600) !important;">
                                                     <i class="fas fa-layer-group"></i> {{ $level }}
                                                 </td>
                                             </tr>
@@ -161,7 +242,7 @@
                                         <tr>
                                             <td>
                                                 <div style="margin-bottom: 8px;">
-                                                    <strong>{{ $competency->name }}</strong>
+                                                    <strong>{{ $competency->competency_name }}</strong>
                                                     <button type="button" class="btn btn-sm" onclick="showDefinitionModal({{ $competency->id }})" 
                                                             style="padding: 2px 6px; margin-left: 8px; font-size: 11px;">
                                                         <i class="fas fa-info-circle"></i>
@@ -169,47 +250,61 @@
                                                 </div>
                                                 <div class="competency-badges">
                                                     <span class="badge level">{{ $level }}</span>
-                                                    <span class="badge {{ $category }}">{{ $competency->category }}</span>
-                                                </div>
-                                            </td>
-                                            <td style="text-align: center;">
-                                                <div style="font-weight: 600; font-size: 16px;">
-                                                    {{ $result->self_assessment ?? '—' }}
-                                                </div>
-                                            </td>
-                                            <td style="text-align: center;">
-                                                <div style="font-weight: 600; font-size: 16px; color: {{ $result->manager_assessment ? 'var(--primary)' : 'var(--muted)' }};">
-                                                    {{ $result->manager_assessment ?? '—' }}
+                                                    <span class="badge {{ $category }}">{{ $competency->competency_type }}</span>
                                                 </div>
                                             </td>
                                             <td>
-                                                <select name="head_assessment[{{ $result->id }}]" class="form-control" 
-                                                        {{ (!$isSelectedCycleActive) ? 'disabled' : '' }}>
-                                                    <option value="">—</option>
-                                                    @for ($i = 1; $i <= 5; $i++)
-                                                        <option value="{{ $i }}" {{ $result->head_assessment == $i ? 'selected' : '' }}>
-                                                            {{ $i }}
-                                                        </option>
-                                                    @endfor
-                                                </select>
+                                                <div style="text-align: center; font-weight: 600; font-size: 16px;">
+                                                    {{ $result->score > 0 ? $result->score : 'N/D' }}
+                                                </div>
                                             </td>
-                                            <td style="text-align: center;">
+                                            <td>
+                                                <div style="text-align: center;">
+                                                    {{ $result->above_expectations ? 'Tak' : 'Nie' }}
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div style="font-size: 14px; line-height: 1.4;">
+                                                    {{ $result->comments ?? '—' }}
+                                                </div>
+                                            </td>
+                                            <td>
                                                 @php
-                                                    $teamValue = $result->competency_team_value->value ?? '—';
-                                                    $overriddenValue = $result->overridden_competency_value;
-                                                    $displayValue = $overriddenValue !== null ? $overriddenValue : $teamValue;
+                                                    $competencyValue = $employee->getCompetencyValue($result->competency_id) ?? 0;
+                                                    $overriddenValue = isset($overriddenValues[$result->competency_id]) ? $overriddenValues[$result->competency_id] : null;
+                                                    $displayValue = $overriddenValue !== null ? $overriddenValue : $competencyValue;
+                                                    $canEditWeight = isset($manager) && $manager->role === 'head';
                                                 @endphp
-                                                <div style="font-weight: 600; color: {{ $overriddenValue !== null ? 'var(--primary)' : 'var(--text)' }};">
-                                                    {{ $displayValue }}
-                                                    @if($overriddenValue !== null)
-                                                        <i class="fas fa-edit" style="font-size: 12px; margin-left: 4px;" title="Wartość została nadpisana"></i>
+                                                <div class="competency-value-container" data-competency-id="{{ $competency->id }}" data-team-value="{{ $competencyValue }}">
+                                                    <span class="competency-value-display {{ $overriddenValue !== null ? 'competency-value-overridden' : '' }}">
+                                                        {{ $displayValue }}
+                                                    </span>
+                                                    @if($canEditWeight)
+                                                        <input type="number" step="0.01" min="0" max="5" value="{{ $displayValue }}" 
+                                                               style="display: none; width: 80px;"
+                                                               {{ $overriddenValue !== null ? 'name=competency_values[' . $competency->id . ']' : '' }}>
+                                                        <div class="icon-wrapper">
+                                                            <i class="fas {{ $overriddenValue !== null ? 'fa-trash remove-overridden-value-button' : 'fa-pencil-alt edit-competency-value-button' }}" 
+                                                               data-competency-id="{{ $competency->id }}"></i>
+                                                        </div>
                                                     @endif
                                                 </div>
                                             </td>
                                             <td>
-                                                <textarea name="head_feedback[{{ $result->id }}]" class="feedback-textarea" 
-                                                          placeholder="Komentarz kierownika działu..." rows="2"
-                                                          {{ (!$isSelectedCycleActive) ? 'disabled' : '' }}>{{ $result->head_feedback ?? '' }}</textarea>
+                                                <select name="score_manager[{{ $result->id }}]" class="form-control" 
+                                                        {{ (!$isSelectedCycleActive) ? 'disabled' : '' }}>
+                                                    <option value="" {{ is_null($result->score_manager) ? 'selected' : '' }}>Ok</option>
+                                                    <option value="0" {{ $result->score_manager === 0.0 && !$result->above_expectations_manager ? 'selected' : '' }}>N/D</option>
+                                                    <option value="0.25" {{ $result->score_manager === 0.25 ? 'selected' : '' }}>0.25</option>
+                                                    <option value="0.5" {{ $result->score_manager === 0.5 ? 'selected' : '' }}>0.5</option>
+                                                    <option value="0.75" {{ $result->score_manager === 0.75 ? 'selected' : '' }}>0.75</option>
+                                                    <option value="1" {{ $result->score_manager === 1.0 && !$result->above_expectations_manager ? 'selected' : '' }}>1</option>
+                                                </select>
+                                            </td>
+                                            <td>
+                                                <textarea name="feedback_manager[{{ $result->id }}]" class="feedback-textarea" 
+                                                          placeholder="Wpisz komentarz..." rows="2"
+                                                          {{ (!$isSelectedCycleActive) ? 'disabled' : '' }}>{{ $result->feedback_manager }}</textarea>
                                             </td>
                                         </tr>
                                     @endforeach
@@ -217,13 +312,86 @@
                             </table>
                         </div>
 
+                        <!-- Level Summaries -->
+                        @if(isset($levelSummaries))
+                            @if(!empty($levelSummaries))
+                                <div style="margin-top: 32px;">
+                                    <h4 style="margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+                                        <i class="fas fa-chart-pie"></i> Podsumowanie poziomów
+                                    </h4>
+                                    <div class="stats-grid">
+                                        @foreach($levelSummaries as $level => $summary)
+                                            @php
+                                                $levelNumber = (int)substr($level, 0, 1);
+                                                $iconClass = 'level-' . $levelNumber;
+                                                if ($levelNumber == 1) $icon = 'fa-user-graduate';
+                                                elseif ($levelNumber == 2) $icon = 'fa-user';
+                                                elseif ($levelNumber == 3) $icon = 'fa-user-tie';
+                                                elseif ($levelNumber == 4) $icon = 'fa-chalkboard-teacher';
+                                                elseif ($levelNumber == 5) $icon = 'fa-user-cog';
+                                                else $icon = 'fa-briefcase';
+                                            @endphp
+                                            <div class="stat-card">
+                                                <div class="stat-icon {{ $iconClass }}">
+                                                    <i class="fas {{ $icon }}"></i>
+                                                </div>
+                                                <div class="stat-value">
+                                                    @if(isset($summary['percentageManager']) && is_numeric($summary['percentageManager']))
+                                                        {{ number_format($summary['percentageManager'], 1) }}%
+                                                    @elseif(isset($summary['percentageManager']))
+                                                        {{ $summary['percentageManager'] }}
+                                                    @else
+                                                        N/D
+                                                    @endif
+                                                </div>
+                                                <div class="stat-label">{{ $level }}</div>
+                                                <div style="font-size: 12px; color: var(--muted); margin-top: 4px;">
+                                                    {{ $summary['count'] ?? 0 }} kompetencji
+                                                </div>
+                                                <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+                                                    {{ $summary['earnedPointsManager'] ?? 0 }} / {{ $summary['maxPoints'] ?? 0 }} pkt.
+                                                </div>
+                                                <div style="font-size: 11px; color: var(--muted); margin-top: 2px;">
+                                                    @if(isset($summary['percentageEmployee']) && is_numeric($summary['percentageEmployee']))
+                                                        Samoocena: {{ number_format($summary['percentageEmployee'], 1) }}%
+                                                    @elseif(isset($summary['percentageEmployee']))
+                                                        Samoocena: {{ $summary['percentageEmployee'] }}
+                                                    @else
+                                                        Samoocena: N/D
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @else
+                                <div style="margin-top: 32px; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center; color: #666;">
+                                    <i class="fas fa-info-circle"></i> Brak danych do podsumowania poziomów (levelSummaries jest puste)
+                                </div>
+                            @endif
+                        @else
+                            <div style="margin-top: 32px; padding: 20px; background: #f8f9fa; border-radius: 8px; text-align: center; color: #666;">
+                                <i class="fas fa-exclamation-triangle"></i> Zmienna levelSummaries nie została przekazana do widoku
+                            </div>
+                        @endif
+
                         <!-- Form Actions -->
                         <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; gap: 16px; align-items: center;">
                             <button type="submit" class="btn btn-primary" 
                                     {{ (!$isSelectedCycleActive) ? 'disabled' : '' }}>
                                 <i class="fas fa-save"></i>
-                                Zapisz oceny kierownika
+                                Zapisz zmiany
                             </button>
+                            
+                            @if($isSelectedCycleActive)
+                                <form action="{{ route('manager.generate_access_code', ['employeeId' => $employee->id]) }}" method="POST" style="display: inline;">
+                                    @csrf
+                                    <button type="submit" class="btn btn-secondary" title="Wygeneruj kod dla aktywnego cyklu">
+                                        <i class="fas fa-key"></i>
+                                        Wygeneruj kod dostępu
+                                    </button>
+                                </form>
+                            @endif
                             
                             @if(!$isSelectedCycleActive)
                                 <div class="alert alert-warning" style="margin: 0; flex: 1;">
@@ -235,72 +403,6 @@
                     </form>
                 </div>
             </div>
-
-            <!-- Manager vs Head Assessment Comparison -->
-            @php
-                $managerAssessments = $results->pluck('manager_assessment', 'competency.name')->filter();
-                $headAssessments = $results->pluck('head_assessment', 'competency.name')->filter();
-                $differences = [];
-                
-                foreach($managerAssessments as $competencyName => $managerScore) {
-                    $headScore = $headAssessments[$competencyName] ?? null;
-                    if ($headScore !== null) {
-                        $diff = $headScore - $managerScore;
-                        if (abs($diff) >= 1) { // Show only significant differences
-                            $differences[$competencyName] = [
-                                'manager' => $managerScore,
-                                'head' => $headScore,
-                                'difference' => $diff
-                            ];
-                        }
-                    }
-                }
-            @endphp
-            
-            @if(!empty($differences))
-                <div class="card" style="margin-top: 24px;">
-                    <div class="card-header">
-                        <h3 class="card-title">Różnice w ocenach</h3>
-                        <p class="card-description">Porównanie ocen managera i kierownika działu</p>
-                    </div>
-                    <div class="card-content">
-                        <div class="table-responsive">
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Kompetencja</th>
-                                        <th style="text-align: center;">Ocena managera</th>
-                                        <th style="text-align: center;">Ocena kierownika</th>
-                                        <th style="text-align: center;">Różnica</th>
-                                        <th style="text-align: center;">Interpretacja</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($differences as $competencyName => $data)
-                                        <tr>
-                                            <td><strong>{{ $competencyName }}</strong></td>
-                                            <td style="text-align: center; font-weight: 600;">{{ $data['manager'] }}</td>
-                                            <td style="text-align: center; font-weight: 600;">{{ $data['head'] }}</td>
-                                            <td style="text-align: center;">
-                                                <span style="color: {{ $data['difference'] > 0 ? 'var(--accent)' : 'var(--danger)' }}; font-weight: 600;">
-                                                    {{ $data['difference'] > 0 ? '+' : '' }}{{ $data['difference'] }}
-                                                </span>
-                                            </td>
-                                            <td style="text-align: center;">
-                                                @if($data['difference'] > 0)
-                                                    <span class="badge" style="background: #dcfce7; color: #166534;">Kierownik wyżej</span>
-                                                @else
-                                                    <span class="badge" style="background: #fee2e2; color: #991b1b;">Manager wyżej</span>
-                                                @endif
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            @endif
         @else
             <!-- No Employee Selected -->
             <div class="no-data">
@@ -311,6 +413,89 @@
         @endif
     </div>
 </div>
+
+@push('scripts')
+<style>
+    .error-border {
+        border: 2px solid #dc3545 !important;
+        background-color: #fff5f5 !important;
+    }
+    .error-border:focus {
+        border-color: #dc3545 !important;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25) !important;
+    }
+</style>
+<script>
+    $(document).ready(function() {
+        // Validation for feedback requirement when score is changed
+        $('form[action="{{ route('manager.panel.update') }}"]').on('submit', function(e) {
+            let hasErrors = false;
+            let errorMessages = [];
+            
+            // Clear previous error styles
+            $('.feedback-textarea').removeClass('error-border');
+            
+            // Check each score_manager dropdown
+            $('select[name^="score_manager"]').each(function() {
+                const scoreSelect = $(this);
+                const scoreValue = scoreSelect.val();
+                const resultId = scoreSelect.attr('name').match(/\[(\d+)\]/)[1];
+                const feedbackTextarea = $('textarea[name="feedback_manager[' + resultId + ']"]');
+                const feedbackValue = feedbackTextarea.val().trim();
+                
+                // If score is changed (not empty = "Ok" and not the original score), require feedback
+                if (scoreValue !== '' && scoreValue !== null) {
+                    if (feedbackValue === '') {
+                        hasErrors = true;
+                        feedbackTextarea.addClass('error-border');
+                        
+                        // Get competency name from the row
+                        const competencyName = scoreSelect.closest('tr').find('strong').first().text();
+                        errorMessages.push('Kompetencja "' + competencyName + '" wymaga feedbacku od managera');
+                    }
+                }
+            });
+            
+            if (hasErrors) {
+                e.preventDefault();
+                
+                // Show error message
+                let errorHtml = '<div class="alert alert-danger" style="margin-bottom: 20px;"><i class="fas fa-exclamation-triangle"></i> <strong>Błędy walidacji:</strong><ul style="margin: 10px 0 0 20px;">';
+                errorMessages.forEach(function(msg) {
+                    errorHtml += '<li>' + msg + '</li>';
+                });
+                errorHtml += '</ul></div>';
+                
+                // Remove existing error alerts
+                $('.alert-danger').remove();
+                
+                // Add error alert before form buttons
+                $('form[action="{{ route('manager.panel.update') }}"] .table-responsive').after(errorHtml);
+                
+                // Scroll to first error
+                $('html, body').animate({
+                    scrollTop: $('.error-border').first().offset().top - 100
+                }, 500);
+                
+                return false;
+            }
+        });
+        
+        // Remove error styling when user starts typing
+        $('.feedback-textarea').on('input', function() {
+            $(this).removeClass('error-border');
+        });
+    });
+    
+    function filterByDepartmentEmployee() {
+        const employeeId = document.getElementById('department-employee-select').value;
+        if (employeeId) {
+            const cycleId = document.getElementById('cycle-select') ? document.getElementById('cycle-select').value : '';
+            window.location.href = `?section=department_individual&employee=${employeeId}&cycle=${cycleId}`;
+        }
+    }
+</script>
+@endpush
 
 @else
     <div class="no-data">
