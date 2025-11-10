@@ -9,21 +9,39 @@
 <div class="dates-container">
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title">Ustawienia dat</h3>
+            <h3 class="card-title">Ustawienia dat blokady</h3>
         </div>
         <div class="card-body">
             <form method="POST" action="{{ route('admin.update_dates') }}">
                 @csrf
+                
                 <div class="form-group">
-                    <label for="block_date" class="form-label">Data blokady formularzy</label>
+                    <label for="block_new_submissions_date" class="form-label">
+                        <i class="fas fa-user-plus"></i> Data blokady dla nowych formularzy (świeżacy)
+                    </label>
                     <input type="datetime-local" 
                            class="form-control date-input" 
-                           id="block_date" 
-                           name="block_date" 
-                           value="{{ $blockDate->format('Y-m-d\TH:i') }}"
+                           id="block_new_submissions_date" 
+                           name="block_new_submissions_date" 
+                           value="{{ $blockDate->block_new_submissions_date ? $blockDate->block_new_submissions_date->format('Y-m-d\TH:i') : '' }}"
                            required>
                     <small class="text-muted">
-                        Po tej dacie użytkownicy nie będą mogli edytować swoich formularzy samooceny.
+                        Po tej dacie nowi pracownicy (świeżacy) nie będą mogli wypełnić nowego formularza.
+                    </small>
+                </div>
+                
+                <div class="form-group mt-4">
+                    <label for="block_edits_date" class="form-label">
+                        <i class="fas fa-user-edit"></i> Data blokady dla edycji formularzy (weterani)
+                    </label>
+                    <input type="datetime-local" 
+                           class="form-control date-input" 
+                           id="block_edits_date" 
+                           name="block_edits_date" 
+                           value="{{ $blockDate->block_edits_date ? $blockDate->block_edits_date->format('Y-m-d\TH:i') : '' }}"
+                           required>
+                    <small class="text-muted">
+                        Po tej dacie pracownicy z istniejącymi formularzami (weterani) nie będą mogli edytować swoich odpowiedzi.
                     </small>
                 </div>
                 
@@ -33,7 +51,7 @@
                 
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary">
-                        Zapisz zmiany
+                        <i class="fas fa-save"></i> Zapisz zmiany
                     </button>
                 </div>
             </form>
@@ -81,10 +99,11 @@
             <i class="fas fa-info-circle text-primary" style="font-size: 24px;"></i>
             <div>
                 <h4 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600;">Informacje o datach</h4>
-                <p style="margin: 0; color: var(--muted); font-size: 14px;">
-                    Data blokady określa moment, po którym użytkownicy nie będą mogli już edytować swoich formularzy samooceny.
-                    Upewnij się, że data jest ustawiona z odpowiednim wyprzedzeniem.
-                </p>
+                <ul style="margin: 0; color: var(--muted); font-size: 14px; padding-left: 20px;">
+                    <li><strong>Nowi pracownicy (świeżacy):</strong> Blokada dotyczy wypełnienia nowego formularza po raz pierwszy</li>
+                    <li><strong>Weterani:</strong> Blokada dotyczy edycji już istniejących formularzy z bieżącego cyklu</li>
+                    <li>Możesz ustawić różne daty dla każdej grupy (np. nowi do 30 listopada, edycje do 10 grudnia)</li>
+                </ul>
             </div>
         </div>
     </div>

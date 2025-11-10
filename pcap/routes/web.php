@@ -57,6 +57,17 @@ Route::middleware(['auth'])->group(function(){
     Route::get('/upload-excel', [SelfAssessmentController::class, 'showUploadForm'])->name('upload.excel');
     Route::post('/upload-excel', [SelfAssessmentController::class, 'uploadExcel'])->name('upload.excel.post');
     Route::get('/upload-excel/template', [SelfAssessmentController::class, 'downloadTemplate'])->name('upload.excel.template');
+    
+    // Clear all cache - admin only
+    Route::get('/clear-all-cache', function() {
+        if (auth()->user()->role !== 'admin') {
+            abort(403, 'Unauthorized');
+        }
+        \Artisan::call('view:clear');
+        \Artisan::call('config:clear');
+        \Artisan::call('cache:clear');
+        return 'Cache cleared successfully';
+    })->name('admin.clear_cache');
 });
 
 // Admin panel
@@ -220,29 +231,5 @@ Route::get('/self-assessment/generate-xls/{uuid}', [SelfAssessmentController::cl
 // Trasa autosave
 Route::post('/self-assessment/autosave', [SelfAssessmentController::class, 'autosave'])->name('self_assessment.autosave');
 
-
-// Trasa debugowania (opcjonalnie)
-Route::get('/debug', function () {
-    dd(auth()->user());
-});
-
-// Trasy testowe (opcjonalnie)
-Route::get('/test-login', function () {
-    return '<form method="POST" action="/test-login">' .
-           csrf_field() .
-           '<input type="text" name="username" placeholder="Username">' .
-           '<input type="password" name="password" placeholder="Password">' .
-           '<button type="submit">Login</button>' .
-           '</form>';
-});
-
-Route::post('/test-login', function (\Illuminate\Http\Request $request) {
-    $credentials = $request->only('username', 'password');
-    if (\Auth::attempt($credentials)) {
-        return 'Zalogowano pomyślnie';
-    } else {
-        return 'Niepoprawne dane logowania';
-    }
-});
-
 Route::get('/form/edit/{uuid}', [SelfAssessmentController::class, 'edit'])->name('form.edit');
+

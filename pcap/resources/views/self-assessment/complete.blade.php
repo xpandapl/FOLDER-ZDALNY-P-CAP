@@ -102,9 +102,16 @@ div.actions.main-actions {
     border-color: #d1d5db !important;
 }
 .sa-complete .dropdown-container { 
-    position: relative; 
-    display: inline-block; 
-    flex: 0 1 auto; 
+    position: relative !important; 
+    display: inline-block !important; 
+    flex: 0 1 auto !important;
+    overflow: visible !important;
+    isolation: isolate !important;
+}
+
+.sa-complete .actions,
+.sa-complete .main-actions {
+    position: static !important;
 }
 .sa-complete .dropdown-trigger { 
     display: flex; 
@@ -119,35 +126,70 @@ div.actions.main-actions {
 .sa-complete .dropdown-trigger.active .dropdown-arrow { 
     transform: rotate(180deg); 
 }
-.sa-complete .dropdown-menu { 
-    position: absolute; 
-    top: 100%; 
-    left: 0; 
-    right: 0; 
-    background: white; 
-    border: 1px solid #e5e7eb; 
-    border-radius: 8px; 
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); 
-    z-index: 1000; 
-    margin-top: 4px;
-    overflow: hidden;
+
+/* Dropdown menu - ultra specific styles with ID */
+#downloadMenu {
+    position: fixed !important; 
+    /* Position will be set by JavaScript */
+    background: white !important; 
+    border: 1px solid #e5e7eb !important; 
+    border-radius: 8px !important; 
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important; 
+    z-index: 999999 !important; 
+    margin: 0 !important;
+    overflow: hidden !important;
+    list-style: none !important;
+    padding: 0 !important;
+    min-width: 200px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    transition: opacity 0.2s, visibility 0.2s !important;
+    pointer-events: none !important;
 }
-.sa-complete .dropdown-item { 
-    display: flex; 
-    align-items: center; 
-    gap: 8px; 
-    padding: 12px 16px; 
-    color: #374151; 
-    text-decoration: none; 
-    transition: background-color 0.2s; 
-    font-size: 0.9em;
+
+#downloadMenu.hidden {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
 }
-.sa-complete .dropdown-item:hover { 
-    background: #f3f4f6; 
+
+#downloadMenu.visible {
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
 }
-.sa-complete .dropdown-item i { 
-    width: 16px; 
-    text-align: center; 
+
+#downloadMenu a {
+    display: flex !important; 
+    align-items: center !important; 
+    gap: 8px !important; 
+    padding: 12px 16px !important; 
+    color: #374151 !important; 
+    text-decoration: none !important; 
+    transition: background-color 0.2s !important; 
+    font-size: 0.9em !important;
+    list-style: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
+}
+
+#downloadMenu a:hover {
+    background: #f3f4f6 !important;
+}
+
+#downloadMenu a i {
+    width: 16px !important;
+    text-align: center !important;
+}
+
+#downloadMenu a::before,
+#downloadMenu a::after {
+    display: none !important;
+    content: none !important;
 }
 
 /* Additional Options - Subtle link toggle */
@@ -430,11 +472,11 @@ div.actions.main-actions {
         <!-- Main Actions - Clean and focused -->
         <div class="actions main-actions">
             <div class="dropdown-container">
-                <button onclick="toggleDownload()" class="btn btn-primary dropdown-trigger" id="downloadBtn">
+                <button class="btn btn-primary dropdown-trigger" id="downloadBtn">
                     <i class="fas fa-download"></i> Pobierz
                     <i class="fas fa-chevron-down dropdown-arrow"></i>
                 </button>
-                <div class="dropdown-menu" id="downloadMenu" style="display: none;">
+                <div class="dropdown-menu hidden" id="downloadMenu">
                     <a href="{{ route('self.assessment.generate_pdf', ['uuid' => $uuid]) }}" target="_blank" class="dropdown-item">
                         <i class="fas fa-file-pdf"></i> Pobierz w PDF
                     </a>
@@ -450,7 +492,7 @@ div.actions.main-actions {
 
         <!-- Additional Options - Clean toggle for link -->
         <div class="additional-options">
-            <button onclick="toggleLinkSection()" class="btn-link" id="linkToggleBtn">
+            <button class="btn-link" id="linkToggleBtn">
                 <i class="fas fa-link"></i> Kopiuj link do edycji
             </button>
         </div>
@@ -509,42 +551,65 @@ function showCopyFeedback() {
     }, 2000);
 }
 
-function toggleDownload() {
-    const downloadMenu = document.getElementById('downloadMenu');
+// Initialize dropdown functionality
+document.addEventListener('DOMContentLoaded', function() {
     const downloadBtn = document.getElementById('downloadBtn');
-    
-    if (downloadMenu.style.display === 'none' || downloadMenu.style.display === '') {
-        downloadMenu.style.display = 'block';
-        downloadBtn.classList.add('active');
-    } else {
-        downloadMenu.style.display = 'none';
-        downloadBtn.classList.remove('active');
-    }
-}
-
-function toggleLinkSection() {
+    const downloadMenu = document.getElementById('downloadMenu');
+    const linkToggleBtn = document.getElementById('linkToggleBtn');
     const linkSection = document.getElementById('linkSection');
-    const toggleBtn = document.getElementById('linkToggleBtn');
     
-    if (linkSection.style.display === 'none' || linkSection.style.display === '') {
-        linkSection.style.display = 'block';
-        toggleBtn.innerHTML = '<i class="fas fa-link"></i> Ukryj link';
-    } else {
-        linkSection.style.display = 'none';
-        toggleBtn.innerHTML = '<i class="fas fa-link"></i> Kopiuj link do edycji';
+    // Dropdown toggle
+    if (downloadBtn && downloadMenu) {
+        downloadBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            
+            // Calculate position relative to button
+            const btnRect = downloadBtn.getBoundingClientRect();
+            
+            // Position dropdown below button
+            downloadMenu.style.top = (btnRect.bottom + 4) + 'px';
+            downloadMenu.style.left = btnRect.left + 'px';
+            downloadMenu.style.minWidth = btnRect.width + 'px';
+            
+            if (downloadMenu.classList.contains('hidden') || !downloadMenu.classList.contains('visible')) {
+                downloadMenu.classList.remove('hidden');
+                downloadMenu.classList.add('visible');
+                downloadBtn.classList.add('active');
+            } else {
+                downloadMenu.classList.remove('visible');
+                downloadMenu.classList.add('hidden');
+                downloadBtn.classList.remove('active');
+            }
+        });
     }
-}
-
-// Close dropdown when clicking outside
-document.addEventListener('click', function(event) {
-    const dropdown = document.querySelector('.dropdown-container');
-    const downloadMenu = document.getElementById('downloadMenu');
-    const downloadBtn = document.getElementById('downloadBtn');
     
-    if (dropdown && !dropdown.contains(event.target)) {
-        downloadMenu.style.display = 'none';
-        downloadBtn.classList.remove('active');
+    // Link section toggle
+    if (linkToggleBtn) {
+        linkToggleBtn.addEventListener('click', function() {
+            if (linkSection.style.display === 'none' || linkSection.style.display === '') {
+                linkSection.style.display = 'block';
+                linkToggleBtn.innerHTML = '<i class="fas fa-link"></i> Ukryj link';
+            } else {
+                linkSection.style.display = 'none';
+                linkToggleBtn.innerHTML = '<i class="fas fa-link"></i> Kopiuj link do edycji';
+            }
+        });
     }
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+        const dropdown = document.querySelector('.dropdown-container');
+        
+        if (dropdown && !dropdown.contains(event.target)) {
+            if (downloadMenu) {
+                downloadMenu.classList.remove('visible');
+                downloadMenu.classList.add('hidden');
+            }
+            if (downloadBtn) {
+                downloadBtn.classList.remove('active');
+            }
+        }
+    });
 });
 </script>
 @endsection

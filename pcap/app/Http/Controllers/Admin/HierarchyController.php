@@ -312,8 +312,10 @@ class HierarchyController extends Controller
 
     public function getOrphanedEmployees()
     {
-        $orphaned = Employee::whereNull('supervisor_username')
-                           ->orWhereDoesntHave('supervisor')
+        $orphaned = Employee::where(function($q) {
+                               $q->whereNull('supervisor_username')
+                                 ->orWhereDoesntHave('supervisor');
+                           })
                            ->select('id', 'first_name', 'last_name', 'department', 'job_title')
                            ->get();
         

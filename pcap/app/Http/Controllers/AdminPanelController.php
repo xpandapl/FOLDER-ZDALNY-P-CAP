@@ -58,10 +58,15 @@ class AdminPanelController extends Controller
         $managerNameByUsername = $users->pluck('name', 'username');
         
         $blockDateRecord = \App\Models\BlockDate::first();
-        if ($blockDateRecord && $blockDateRecord->block_date) {
-            $blockDate = Carbon::parse($blockDateRecord->block_date);
+        if ($blockDateRecord) {
+            $blockDate = $blockDateRecord;
         } else {
-            $blockDate = Carbon::parse(config('app.block_date', '2025-12-15'));
+            // Utwórz domyślny rekord jeśli nie istnieje
+            $blockDate = \App\Models\BlockDate::create([
+                'block_date' => Carbon::parse('2025-12-15'),
+                'block_new_submissions_date' => Carbon::parse('2025-12-15'),
+                'block_edits_date' => Carbon::parse('2025-12-15'),
+            ]);
         }
         
         $teams = \App\Models\Team::pluck('name');
@@ -149,32 +154,28 @@ class AdminPanelController extends Controller
     public function updateDates(Request $request)
     {
         $request->validate([
-            'block_date' => 'required|date',
+            'block_new_submissions_date' => 'required|date',
+            'block_edits_date' => 'required|date',
         ]);
 
-        $blockDate = $request->input('block_date');
+        $blockNewSubmissionsDate = $request->input('block_new_submissions_date');
+        $blockEditsDate = $request->input('block_edits_date');
 
         // Zapisz do bazy danych
         $record = \App\Models\BlockDate::first();
         if ($record) {
-            $record->block_date = $blockDate;
+            $record->block_new_submissions_date = $blockNewSubmissionsDate;
+            $record->block_edits_date = $blockEditsDate;
             $record->save();
         } else {
-            \App\Models\BlockDate::create(['block_date' => $blockDate]);
+            \App\Models\BlockDate::create([
+                'block_date' => $blockNewSubmissionsDate, // Dla kompatybilności wstecznej
+                'block_new_submissions_date' => $blockNewSubmissionsDate,
+                'block_edits_date' => $blockEditsDate,
+            ]);
         }
 
-        // (Opcjonalnie) Zapisz do .env jeśli nadal chcesz
-        // $path = base_path('.env');
-        // if (file_exists($path)) {
-        //     file_put_contents($path, str_replace(
-        //         'APP_BLOCK_DATE=' . config('app.block_date'),
-        //         'APP_BLOCK_DATE=' . $blockDate,
-        //         file_get_contents($path)
-        //     ));
-        //     \Artisan::call('config:clear');
-        // }
-
-        return redirect()->route('admin.panel')->with('success', 'Data blokady została zaktualizowana.');
+        return redirect()->route('admin.panel', ['section' => 'dates'])->with('success', 'Daty blokady zostały zaktualizowane.');
     }
 
     
@@ -182,16 +183,13 @@ class AdminPanelController extends Controller
     {
         $employeeId = $request->input('employee_id');
     
-        // Usuń pracownika i powiązane wyniki
+        // Dezaktywuj pracownika zamiast usuwać
         $employee = \App\Models\Employee::find($employeeId);
         if ($employee) {
-            // Usuń powiązane wyniki
-            \App\Models\Result::where('employee_id', $employeeId)->delete();
+            $employee->active = false;
+            $employee->save();
     
-            // Usuń pracownika
-            $employee->delete();
-    
-            return redirect()->route('admin.panel')->with('success', 'Formularz został usunięty.');
+            return redirect()->route('admin.panel')->with('success', 'Pracownik został dezaktywowany.');
         }
     
         return redirect()->route('admin.panel')->with('error', 'Nie znaleziono pracownika.');
@@ -262,9 +260,11 @@ class AdminPanelController extends Controller
             }
 
             // Check if user has employees assigned
-            $assignedEmployees = \App\Models\Employee::where('supervisor_username', $user->username)
-                ->orWhere('manager_username', $user->username)
-                ->orWhere('head_username', $user->username)
+            $assignedEmployees = \App\Models\Employee::where(function($q) use ($user) {
+                    $q->where('supervisor_username', $user->username)
+                      ->orWhere('manager_username', $user->username)
+                      ->orWhere('head_username', $user->username);
+                })
                 ->count();
 
             if ($assignedEmployees > 0) {
@@ -511,12 +511,15 @@ class AdminPanelController extends Controller
             $employees = \App\Models\Employee::with(['results', 'supervisor', 'manager', 'head'])->get();
             $users = \App\Models\User::all();
             
-            // Fix blockDate handling
-            $blockDateRecord = \App\Models\BlockDate::first();
-            if ($blockDateRecord && $blockDateRecord->block_date) {
-                $blockDate = \Carbon\Carbon::parse($blockDateRecord->block_date);
-            } else {
-                $blockDate = \Carbon\Carbon::parse(config('app.block_date', '2025-12-15'));
+            // Get BlockDate model with all columns
+            $blockDate = \App\Models\BlockDate::first();
+            if (!$blockDate) {
+                // Create default if doesn't exist
+                $blockDate = \App\Models\BlockDate::create([
+                    'block_date' => \Carbon\Carbon::parse('2025-12-15'),
+                    'block_new_submissions_date' => \Carbon\Carbon::parse('2025-12-15'),
+                    'block_edits_date' => \Carbon\Carbon::parse('2025-12-15'),
+                ]);
             }
             
             $teams = \App\Models\Team::pluck('name');

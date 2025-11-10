@@ -58,7 +58,7 @@
             @endphp
             <div class="hierarchy-item" 
                  data-department="{{ $structure->department }}" 
-                 data-status="{{ $isComplete ? 'complete' : 'incomplete' }}">>
+                 data-status="{{ $isComplete ? 'complete' : 'incomplete' }}">
                 <div class="hierarchy-info">
                     <div class="position-name">{{ $structure->department }}</div>
                     <div class="position-details">

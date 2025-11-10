@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\Result;
+use App\Models\Competency;
 use App\Models\CompetencyTeamValue;
 use App\Exports\TeamReportExport;
 
@@ -1139,25 +1140,37 @@ class ManagerController extends Controller
     }
 
     // Nowe metody dla obsługi 3-poziomowej hierarchii
-    private function getEmployeesForManager($manager, $selectedCycleId)
+    private function getEmployeesForManager($manager, $selectedCycleId, $withResults = true)
     {
-        $query = Employee::with([
-            'team:id,name',
-            'supervisor:username,name',
-            'manager:username,name', 
-            'head:username,name',
-            'team.competencyTeamValues:id,team_id,competency_id,value',
-            'overriddenCompetencyValues:id,employee_id,competency_id,value',
-            'results' => function ($q) use ($selectedCycleId) {
-                $q->select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'cycle_id')
-                  ->when($selectedCycleId, function($qq) use ($selectedCycleId) {
-                      $qq->where('cycle_id', $selectedCycleId);
-                  });
-            },
-            'results.competency' => function ($q) {
-                $q->select('id', 'level');
-            },
+        \Log::info('getEmployeesForManager START', [
+            'role' => $manager->role,
+            'withResults' => $withResults,
+            'memory_usage' => memory_get_usage(true) / 1024 / 1024 . ' MB'
         ]);
+        
+        // Dla hr_individual - ładuj tylko podstawowe dane
+        if (!$withResults) {
+            $query = Employee::select('id', 'name', 'first_name', 'last_name', 'email', 'department', 'job_title', 'supervisor_username', 'manager_username', 'head_username');
+        } else {
+            // Dla innych sekcji - pełne dane z relacjami
+            $query = Employee::with([
+                'team:id,name',
+                'supervisor:username,name',
+                'manager:username,name', 
+                'head:username,name',
+                'team.competencyTeamValues:id,team_id,competency_id,value',
+                'overriddenCompetencyValues:id,employee_id,competency_id,value',
+                'results' => function ($q) use ($selectedCycleId) {
+                    $q->select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'cycle_id')
+                      ->when($selectedCycleId, function($qq) use ($selectedCycleId) {
+                          $qq->where('cycle_id', $selectedCycleId);
+                      });
+                },
+                'results.competency' => function ($q) {
+                    $q->select('id', 'level');
+                },
+            ]);
+        }
 
         // Sprawdź czy są struktury hierarchiczne (pracownicy z przypisaną hierarchią)
         $hasHierarchyStructures = Employee::where(function($q) {
@@ -1166,36 +1179,51 @@ class ManagerController extends Controller
               ->orWhereNotNull('head_username');
         })->exists();
         
+        \Log::info('getEmployeesForManager hierarchy check', [
+            'hasHierarchyStructures' => $hasHierarchyStructures,
+            'memory_usage' => memory_get_usage(true) / 1024 / 1024 . ' MB'
+        ]);
+        
         if (!$hasHierarchyStructures) {
             // Gdy brak struktur hierarchicznych, wszyscy (włącznie z supermanagerem) 
             // powinni mieć pustą kolekcję w zakładkach zespołowych
+            \Log::info('getEmployeesForManager returning empty collection - no hierarchy');
             return collect();
         }
 
         switch ($manager->role) {
             case 'supervisor':
-                return $query->where('supervisor_username', $manager->username)->get();
+                $result = $query->where('supervisor_username', $manager->username)->get();
+                \Log::info('getEmployeesForManager supervisor result', ['count' => $result->count()]);
+                return $result;
                 
             case 'manager':
-                return $query->where(function($q) use ($manager) {
+                $result = $query->where(function($q) use ($manager) {
                     $q->where('manager_username', $manager->username)
                       ->orWhere('supervisor_username', $manager->username);
                 })->get();
+                \Log::info('getEmployeesForManager manager result', ['count' => $result->count()]);
+                return $result;
                 
             case 'head':
                 // Head w zakładkach individual/zespół widzi tylko bezpośrednio podlegających
-                return $query->where('head_username', $manager->username)->get();
+                $result = $query->where('head_username', $manager->username)->get();
+                \Log::info('getEmployeesForManager head result', ['count' => $result->count()]);
+                return $result;
                 
             case 'supermanager':
                 // Supermanager w zakładkach zespołowych powinien widzieć tylko swoich bezpośrednich
                 // pracowników zgodnie z hierarchią (może być supervisor/manager/head w strukturze)
-                return $query->where(function($q) use ($manager) {
+                $result = $query->where(function($q) use ($manager) {
                     $q->where('head_username', $manager->username)
                       ->orWhere('manager_username', $manager->username)
                       ->orWhere('supervisor_username', $manager->username);
                 })->get();
+                \Log::info('getEmployeesForManager supermanager result', ['count' => $result->count()]);
+                return $result;
                 
             default:
+                \Log::info('getEmployeesForManager returning empty collection - unknown role');
                 return collect();
         }
     }
@@ -1358,8 +1386,19 @@ class ManagerController extends Controller
     public function showNew(Request $request)
     {
         // Reuse the same logic as index() but return the new view
-        $data = $this->getManagerPanelData($request);
-        return view('manager_panel_new', $data);
+        try {
+            $data = $this->getManagerPanelData($request);
+            
+            return view('manager_panel_new', $data);
+        } catch (\Exception $e) {
+            \Log::error('Manager Panel Error: ' . $e->getMessage(), [
+                'section' => $request->input('section', 'dashboard'),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return redirect()->route('manager_panel')
+                ->with('error', 'Wystąpił błąd podczas ładowania panelu managera. Spróbuj ponownie.');
+        }
     }
 
     /**
@@ -1383,40 +1422,51 @@ class ManagerController extends Controller
 
         // Get the employee ID from the request (if selected)
         $employeeId = $request->input('employee');
+        $section = $request->input('section', 'dashboard');
 
-        // Pobierz pracowników według nowej hierarchii
-        $employees = $this->getEmployeesForManager($manager, $selectedCycleId);
-        
-        // Grupowanie pracowników według poziomu hierarchii
-        $employeesByLevel = $this->groupEmployeesByLevel($employees, $manager);
-        
-        // Grupowanie według poziomów kompetencji (1-5) dla dashboardu
-        $employeesByCompetencyLevel = $this->groupEmployeesByCompetencyLevel($employees, $selectedCycleId);
-        
-        // Statystyki dla zakładek
-        $stats = $this->calculateEmployeeStats($employees, $manager);
-
-        // For supermanagers, fetch all employees with necessary relationships
-        if ($manager->role == 'supermanager') {
-            $allEmployees = Employee::with([
-                    'team:id,name',
-                    'team.competencyTeamValues:id,team_id,competency_id,value',
-                    'overriddenCompetencyValues:id,employee_id,competency_id,value',
-                    'results' => function ($q) use ($selectedCycleId) {
-                        $q->select('id','employee_id','competency_id','score','score_manager','cycle_id')
-                          ->when($selectedCycleId, function($qq) use ($selectedCycleId){ $qq->where('cycle_id', $selectedCycleId); });
-                    },
-                    'results.competency' => function ($q) {
-                        $q->select('id','level');
-                    },
-                ])
-                ->get(['id','name','job_title','department']);
+        // Pobierz pracowników według nowej hierarchii - ZAWSZE dla wyszukiwarki, ale bez results dla hr_individual
+        if ($section === 'hr_individual' || $section === 'individual') {
+            // Dla hr_individual - tylko podstawowe dane do wyszukiwarki, BEZ results
+            $employees = $this->getEmployeesForManager($manager, $selectedCycleId, false); // false = bez results
         } else {
-            $allEmployees = collect(); // Empty collection for non-supermanagers
+            // Dla innych sekcji - pełne dane z results
+            $employees = $this->getEmployeesForManager($manager, $selectedCycleId);
+        }
+        
+        // Grupowanie tylko gdy nie hr_individual
+        $employeesByLevel = [];
+        $employeesByCompetencyLevel = [];
+        $stats = [];
+        
+        if ($section !== 'hr_individual' && $section !== 'individual') {
+            // Grupowanie pracowników według poziomu hierarchii
+            $employeesByLevel = $this->groupEmployeesByLevel($employees, $manager);
+            
+            // Grupowanie według poziomów kompetencji (1-5) dla dashboardu
+            $employeesByCompetencyLevel = $this->groupEmployeesByCompetencyLevel($employees, $selectedCycleId);
+            
+            // Statystyki dla zakładek
+            $stats = $this->calculateEmployeeStats($employees, $manager);
         }
 
-        // Dla head - używamy nowej logiki hierarchii
-        if ($manager->role == 'head') {
+        // For supermanagers, fetch all employees - ZAWSZE potrzebne dla dropdownu
+        $allEmployees = collect();
+        if ($manager->role == 'supermanager') {
+            if ($section === 'hr_individual') {
+                // Tylko dla hr_individual - podstawowe dane do dropdownu
+                $allEmployees = Employee::select('id', 'name', 'first_name', 'last_name', 'department', 'job_title')
+                    ->orderBy('name')
+                    ->limit(1000) // TYMCZASOWY LIMIT
+                    ->get();
+            } else {
+                // Dla innych sekcji (włącznie z individual) - NIE ładuj wszystkich
+                $allEmployees = collect();
+            }
+        }
+
+        // Dla head - używamy nowej logiki hierarchii - TYLKO gdy potrzebne
+        $departmentEmployees = collect();
+        if ($manager->role == 'head' && $section !== 'hr_individual' && $section !== 'individual') {
             // Pobierz wszystkie działy gdzie head ma struktury hierarchii
             $headDepartments = \App\Models\HierarchyStructure::where('head_username', $manager->username)
                 ->pluck('department')
@@ -1442,8 +1492,6 @@ class ManagerController extends Controller
                       ->orWhereIn('department', $headDepartments);
                 })
                 ->get(['id','name','job_title','department']);
-        } else {
-            $departmentEmployees = collect(); // Empty collection for non-heads
         }
 
         // Initialize variables
@@ -1453,15 +1501,45 @@ class ManagerController extends Controller
         $overriddenValues = collect();
         $accessCode = null;
         $previousCycleResults = collect();
+        $teamEmployeesData = [];
+        $hrData = [];
+        $organizationEmployeesData = [];
+        $departmentEmployeesData = [];
+        $teams = collect();
+        $employeeAccessCodes = collect();
 
         if ($employeeId) {
-            $employee = Employee::with(['team', 'manager', 'supervisor', 'head', 'results.competency.competencyTeamValues'])->find($employeeId);
+            // Załaduj Employee z minimalnymi relacjami - tylko supervisor/manager/head dla widoku
+            $employee = Employee::select('id', 'name', 'first_name', 'last_name', 'email', 'department', 'job_title', 'manager_username', 'supervisor_username', 'head_username', 'created_at', 'updated_at')
+                ->with([
+                    'supervisor:id,username,name',
+                    'manager:id,username,name',
+                    'head:id,username,name'
+                ])
+                ->find($employeeId);
 
             // Check if manager has access to this employee
             if ($employee && $this->hasAccessToEmployee($manager, $employee)) {
-                $results = $employee->results()
-                    ->when($selectedCycleId, function($q) use ($selectedCycleId){ $q->where('cycle_id', $selectedCycleId); })
-                    ->with('competency.competencyTeamValues')->get();
+                // Załaduj TYLKO results dla wybranego cyklu - BEZ eager loading
+                $results = Result::select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'above_expectations', 'above_expectations_manager', 'comments', 'feedback_manager', 'cycle_id')
+                    ->where('employee_id', $employee->id)
+                    ->when($selectedCycleId, function($q) use ($selectedCycleId){ 
+                        $q->where('cycle_id', $selectedCycleId); 
+                    })
+                    ->get();
+                
+                // Załaduj competency osobno TYLKO dla tych competency_id które są w results
+                $competencyIds = $results->pluck('competency_id')->unique();
+                $competencies = Competency::select('id', 'competency_name', 'level', 'competency_type', 'description_075_to_1', 'description_0_to_05', 'description_above_expectations', 'description_025', 'value')
+                    ->whereIn('id', $competencyIds)
+                    ->get()
+                    ->keyBy('id');
+                
+                // Przypisz competency do results manualnie
+                $results = $results->map(function($result) use ($competencies) {
+                    $result->competency = $competencies->get($result->competency_id);
+                    return $result;
+                });
 
                 // Get previous cycle results for comparison
                 $previousCycleResults = collect();
@@ -1471,9 +1549,9 @@ class ManagerController extends Controller
                         ->first();
                     
                     if ($previousCycle) {
-                        $previousCycleResults = $employee->results()
+                        $previousCycleResults = Result::select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'cycle_id')
+                            ->where('employee_id', $employee->id)
                             ->where('cycle_id', $previousCycle->id)
-                            ->with('competency.competencyTeamValues')
                             ->get()
                             ->keyBy('competency_id');
                     }
@@ -1491,7 +1569,8 @@ class ManagerController extends Controller
                     $competencyCount = $levelResults->count();
                 
                     foreach ($levelResults as $result) {
-                        $competencyValue = $employee->getCompetencyValue($result->competency_id) ?? 0;
+                        // Użyj wartości z competency zamiast getCompetencyValue() - unikamy N+1
+                        $competencyValue = $result->competency ? $result->competency->value : 0;
 
                         // Employee's score
                         $scoreEmployee = $result->score;
@@ -1544,14 +1623,10 @@ class ManagerController extends Controller
             }
         }
 
-        // Prepare data for teams
-        $teamEmployeesData = $this->prepareEmployeesData($employees, $levelNames);
-
-        // Initialize variables for different roles
-        $hrData = [];
-        $organizationEmployeesData = [];
-        $departmentEmployeesData = [];
-        $teams = collect();
+        // Prepare data for teams - TYLKO gdy potrzebne (nie dla hr_individual)
+        if ($section !== 'hr_individual' && $section !== 'individual') {
+            $teamEmployeesData = $this->prepareEmployeesData($employees, $levelNames);
+        }
 
         // Prepare role-specific data
         if ($manager->role == 'supermanager') {
@@ -1579,7 +1654,6 @@ class ManagerController extends Controller
         }
 
         // Prepare access codes for the codes section
-        $employeeAccessCodes = collect();
         if ($selectedCycleId) {
             $allEmployeesForCodes = collect();
             if ($manager->role == 'supermanager') {
@@ -1689,9 +1763,16 @@ class ManagerController extends Controller
             return response()->json(['success' => false, 'message' => 'Access denied']);
         }
         
-        // Get data for both cycles
-        $currentResults = $employee->results()->where('cycle_id', $currentCycleId)->get();
-        $historyResults = $employee->results()->where('cycle_id', $historyCycleId)->get();
+        // Get data for both cycles - TYLKO potrzebne kolumny, BEZ relacji
+        $currentResults = Result::select('score', 'score_manager')
+            ->where('employee_id', $employeeId)
+            ->where('cycle_id', $currentCycleId)
+            ->get();
+            
+        $historyResults = Result::select('score', 'score_manager')
+            ->where('employee_id', $employeeId)
+            ->where('cycle_id', $historyCycleId)
+            ->get();
         
         $currentCycle = AssessmentCycle::find($currentCycleId);
         $historyCycle = AssessmentCycle::find($historyCycleId);

@@ -14,12 +14,17 @@ class Employee extends Model
         'first_name',
         'last_name',
         'email',
+        'active',
         'department',
         'manager_username',
         'supervisor_username',  // Bezpośredni przełożony
         'head_username',        // Head w hierarchii
         'job_title',
         'uuid',
+    ];
+
+    protected $casts = [
+        'active' => 'boolean',
     ];
 
     public function results()

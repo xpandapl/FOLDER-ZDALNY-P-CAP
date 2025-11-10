@@ -479,14 +479,15 @@ class SelfAssessmentController extends Controller
 
 public function showStep1Form()
 {
-    // Define the block date
+    // Check block date for new submissions (freshmen)
     $blockDateRecord = BlockDate::first();
-    $blockDate = $blockDateRecord ? \Carbon\Carbon::parse($blockDateRecord->block_date) : \Carbon\Carbon::parse('2025-12-15');
+    $blockDate = $blockDateRecord && $blockDateRecord->block_new_submissions_date 
+        ? \Carbon\Carbon::parse($blockDateRecord->block_new_submissions_date) 
+        : \Carbon\Carbon::parse('2025-12-15');
 
-    // Check if the current date is after the block date
+    // Check if the current date is after the block date for new submissions
     if (Carbon::now()->gt($blockDate)) {
-        // Redirect to a view that displays the message that submission is blocked
-        return view('self-assessment.blocked');
+        return view('self-assessment.blocked', ['message' => 'Termin na wypełnienie nowych formularzy został zakończony.']);
     }
 
     $departments = [
@@ -505,14 +506,15 @@ public function showStep1Form()
     // Obsługa przesłania pierwszego kroku formularza (przekierowanie do pytań)
     public function saveStep1(Request $request)
     {
-        // Define the block date
+        // Check block date for new submissions (freshmen)
         $blockDateRecord = BlockDate::first();
-        $blockDate = $blockDateRecord ? \Carbon\Carbon::parse($blockDateRecord->block_date) : \Carbon\Carbon::parse('2025-12-15');
+        $blockDate = $blockDateRecord && $blockDateRecord->block_new_submissions_date 
+            ? \Carbon\Carbon::parse($blockDateRecord->block_new_submissions_date) 
+            : \Carbon\Carbon::parse('2025-12-15');
     
-        // Check if the current date is after the block date
+        // Check if the current date is after the block date for new submissions
         if (Carbon::now()->gt($blockDate)) {
-            // Return the blocked view
-            return view('self-assessment.blocked');
+            return view('self-assessment.blocked', ['message' => 'Termin na wypełnienie nowych formularzy został zakończony.']);
         }
     
         // Clear session data
@@ -555,14 +557,19 @@ public function showStep1Form()
     // Wyświetlanie formularza samooceny (krok 2)
     public function showForm($level = 1, $uuid = null)
     {
+        \Log::info("showForm START", ['level' => $level, 'uuid' => $uuid]);
+        
         // Sprawdź czy istnieje aktywny cykl
         $activeCycleId = $this->activeCycleId();
+        \Log::info("activeCycleId retrieved", ['activeCycleId' => $activeCycleId]);
+        
         if (!$activeCycleId) {
             return redirect()->route('start.landing')->with('error', 'Samoocena jest obecnie zablokowana. Skontaktuj się z administratorem.');
         }
 
         // Pobierz pracownika na podstawie UUID
         $employee = Employee::where('uuid', $uuid)->first();
+        \Log::info("Employee loaded", ['employee_id' => $employee ? $employee->id : null]);
 
         if (!$employee) {
             return redirect()->route('start.landing')->withErrors('Nie znaleziono danych użytkownika.');
@@ -596,8 +603,9 @@ public function showStep1Form()
             return redirect()->route('self.assessment', ['level' => $maxLevel, 'uuid' => $uuid]);
         }
 
-        // Pobranie kompetencji dla danego poziomu i działu
+        // Pobranie kompetencji dla danego poziomu i działu - używamy DB::table dla wydajności
         $competencies = DB::table('competencies')
+            ->select('id', 'competency_name', 'level', 'competency_type', 'description_075_to_1', 'description_0_to_05', 'description_above_expectations', 'description_025', 'value')
             ->where('level', 'like', "{$level}%")
             ->where('active', true) // Tylko aktywne kompetencje w formularzu
             ->where(function ($query) use ($departmentCode) {
@@ -632,33 +640,58 @@ public function showStep1Form()
         $currentLevel = $level;
 
         $activeCycleId = $this->activeCycleId();
-        // Pobierz zapisane odpowiedzi z bazy danych dla tego pracownika i poziomu - BEZ filtrowania cyklu
-        // żeby eager loading parent mogło załadować dane z poprzedniego cyklu
-        $allResults = Result::where('employee_id', $employee->id)
-            ->whereHas('competency', function ($query) use ($level) {
-                $query->where('level', 'like', "{$level}%");
+        
+        \Log::info("Before competencyIds query");
+        
+        // Najpierw pobierz ID kompetencji dla tego poziomu (szybkie zapytanie)
+        $competencyIds = DB::table('competencies')
+            ->where('level', 'like', "{$level}%")
+            ->where('active', true)
+            ->where(function ($query) use ($departmentCode) {
+                if ($departmentCode) {
+                    $query->where('competency_type', 'not like', '3.%')
+                        ->orWhere('competency_type', 'like', '3.' . $departmentCode . '%');
+                } else {
+                    $query->where('competency_type', 'not like', '3.%');
+                }
             })
-            ->with(['competency','parent'])
+            ->pluck('id')
+            ->unique()
+            ->values();
+        
+        \Log::info("competencyIds loaded", ['count' => $competencyIds->count()]);
+        
+        // Jeśli brak kompetencji, zwróć błąd wcześniej
+        if ($competencyIds->isEmpty()) {
+            return redirect()->back()->with('error', "Brak pytań dla poziomu: {$level}");
+        }
+        
+        \Log::info("Before results query");
+        
+        // Pobierz wyniki tylko dla aktywnego cyklu z tymi kompetencjami - BEZ relacji
+        // Dodaj limit dla bezpieczeństwa
+        $results = Result::select('id', 'employee_id', 'competency_id', 'cycle_id', 'score', 'above_expectations', 'comments')
+            ->where('employee_id', $employee->id)
+            ->where('cycle_id', $activeCycleId)
+            ->whereIn('competency_id', $competencyIds->toArray())
+            ->limit(1000) // Bezpiecznik
             ->get();
-            
-        // Filtruj wyniki z aktywnego cyklu w PHP
-        $results = $allResults->where('cycle_id', $activeCycleId);
+        
+        \Log::info("results loaded", ['count' => $results->count()]);
 
         // Znajdź poprzedni cykl (najwyższy cycle_id różny od aktywnego)
-        // Może być wyższy lub niższy - nie zakładamy chronologii
         $previousCycleId = Result::where('employee_id', $employee->id)
             ->where('cycle_id', '!=', $activeCycleId)
+            ->whereIn('competency_id', $competencyIds)
             ->max('cycle_id');
 
-        // Załaduj dane z poprzedniego cyklu bezpośrednio
+        // Załaduj dane z poprzedniego cyklu bezpośrednio - BEZ relacji
         $previousResults = collect([]);
         if ($previousCycleId) {
-            $previousResults = Result::where('employee_id', $employee->id)
+            $previousResults = Result::select('id', 'employee_id', 'competency_id', 'cycle_id', 'score', 'above_expectations', 'comments', 'score_manager', 'feedback_manager')
+                ->where('employee_id', $employee->id)
                 ->where('cycle_id', $previousCycleId)
-                ->whereHas('competency', function ($query) use ($level) {
-                    $query->where('level', 'like', "{$level}%");
-                })
-                ->with('competency')
+                ->whereIn('competency_id', $competencyIds)
                 ->get()
                 ->keyBy('competency_id');
         }
@@ -671,13 +704,6 @@ public function showStep1Form()
             $savedAnswers['competency_id'][] = $result->competency_id;
             $savedAnswers['score'][$result->competency_id] = $result->score;
             
-            // DEBUG: Log każdego mapowania
-            \Log::info("Mapping result to savedAnswers", [
-                'competency_id' => $result->competency_id,
-                'score' => $result->score,
-                'result_id' => $result->id,
-                'cycle_id' => $result->cycle_id
-            ]);
             if ($result->above_expectations) {
                 $savedAnswers['above_expectations'][$result->competency_id] = 1;
             }
@@ -685,26 +711,11 @@ public function showStep1Form()
                 $savedAnswers['comments'][$result->competency_id] = $result->comments;
                 $savedAnswers['add_description'][$result->competency_id] = 1;
             }
-            
-            // Spróbuj załadować poprzednie dane z relacji parent
-            if ($result->parent) {
-                // Jeśli manager ocenił w poprzednim cyklu, użyj jego oceny; w przeciwnym razie ocenę pracownika
-                $prevAnswers['score'][$result->competency_id] = $result->parent->score_manager ?? $result->parent->score;
-                if ($result->parent->above_expectations) {
-                    $prevAnswers['above_expectations'][$result->competency_id] = 1;
-                }
-                if ($result->parent->comments) {
-                    $prevAnswers['comments'][$result->competency_id] = $result->parent->comments;
-                }
-                if ($result->parent->feedback_manager) {
-                    $prevAnswers['manager_feedback'][$result->competency_id] = $result->parent->feedback_manager;
-                }
-            }
         }
 
-        // Jeśli nie mamy danych z parent relacji, użyj bezpośredniego zapytania do poprzedniego cyklu
+        // Załaduj dane z poprzedniego cyklu
         foreach ($competencies as $competency) {
-            if (!isset($prevAnswers['score'][$competency->id]) && isset($previousResults[$competency->id])) {
+            if (isset($previousResults[$competency->id])) {
                 $prevResult = $previousResults[$competency->id];
                 // Jeśli manager ocenił w poprzednim cyklu, użyj jego oceny; w przeciwnym razie ocenę pracownika
                 $prevAnswers['score'][$competency->id] = $prevResult->score_manager ?? $prevResult->score;
@@ -720,70 +731,9 @@ public function showStep1Form()
             }
         }
 
-        // DEBUG: Lista wszystkich dostępnych cycle_id dla tego employee
-        $availableCycles = Result::where('employee_id', $employee->id)
-            ->distinct()
-            ->pluck('cycle_id')
-            ->sort()
-            ->values();
-            
-        // DEBUG: Log query results and prevAnswers
-        \Log::info('DEBUG - Form data:', [
-            'employee_id' => $employee->id,
-            'level' => $level,
-            'activeCycleId' => $activeCycleId,
-            'availableCycles' => $availableCycles,
-            'previousCycleId' => $previousCycleId,
-            'all_results_count' => $allResults->count(),
-            'filtered_results_count' => $results->count(),
-            'previous_results_count' => $previousResults->count(),
-            'results_with_parent' => $results->filter(function($r) { return $r->parent !== null; })->count(),
-            'results_with_parent_result_id' => $results->filter(function($r) { return $r->parent_result_id !== null; })->count(),
-            'prevAnswers' => $prevAnswers,
-            'previousResults_sample' => $previousResults->take(3)->map(function($r) {
-                return [
-                    'competency_id' => $r->competency_id,
-                    'score' => $r->score,
-                    'comments' => substr($r->comments ?? '', 0, 50),
-                    'cycle_id' => $r->cycle_id
-                ];
-            }),
-            'all_results_detailed' => $allResults->map(function($r) {
-                return [
-                    'id' => $r->id,
-                    'competency_id' => $r->competency_id,
-                    'cycle_id' => $r->cycle_id,
-                    'parent_result_id' => $r->parent_result_id,
-                    'has_parent_loaded' => $r->parent ? true : false,
-                    'parent_id' => $r->parent ? $r->parent->id : null,
-                    'parent_cycle_id' => $r->parent ? $r->parent->cycle_id : null,
-                    'parent_comments' => $r->parent ? $r->parent->comments : null,
-                ];
-            }),
-            'filtered_results_detailed' => $results->map(function($r) {
-                return [
-                    'id' => $r->id,
-                    'competency_id' => $r->competency_id,
-                    'cycle_id' => $r->cycle_id,
-                    'parent_result_id' => $r->parent_result_id,
-                    'has_parent_loaded' => $r->parent ? true : false,
-                    'parent_id' => $r->parent ? $r->parent->id : null,
-                    'parent_cycle_id' => $r->parent ? $r->parent->cycle_id : null,
-                    'parent_comments' => $r->parent ? $r->parent->comments : null,
-                ];
-            })
-        ]);
-        
-        // DEBUG: Final savedAnswers przed widokiem
-        \Log::info('DEBUG - Final savedAnswers:', [
-            'savedAnswers_scores' => $savedAnswers['score'] ?? [],
-            'competency_3_score' => $savedAnswers['score'][3] ?? 'NOT_SET',
-            'total_saved_scores' => count($savedAnswers['score'] ?? [])
-        ]);
-
         // Przekazanie zmiennych do widoku
-    $showPrev = true; // domyślnie pokażemy toggle, UI ukryje jeśli brak danych
-    return view('self-assessment.form', compact('competencies', 'currentLevel', 'currentLevelName', 'levelNames', 'savedAnswers', 'prevAnswers', 'uuid', 'employee', 'showPrev'));
+        $showPrev = true; // domyślnie pokażemy toggle, UI ukryje jeśli brak danych
+        return view('self-assessment.form', compact('competencies', 'currentLevel', 'currentLevelName', 'levelNames', 'savedAnswers', 'prevAnswers', 'uuid', 'employee', 'showPrev'));
     }
 
     public function sendCopy(Request $request)
@@ -1210,10 +1160,14 @@ public function generateXls($uuid)
             return redirect()->route('self.assessment.complete')->withErrors('Nie znaleziono użytkownika.');
         }
     
-        // Check if editing is allowed
-        $blockDate = Carbon::parse(config('app.block_date', '2025-12-15'));
+        // Check if editing is allowed (for veterans with existing forms)
+        $blockDateRecord = BlockDate::first();
+        $blockDate = $blockDateRecord && $blockDateRecord->block_edits_date 
+            ? \Carbon\Carbon::parse($blockDateRecord->block_edits_date) 
+            : \Carbon\Carbon::parse('2025-12-15');
+            
         if (Carbon::now()->gt($blockDate)) {
-            return redirect()->route('self.assessment.complete', ['uuid' => $uuid])->withErrors('Edycja formularza jest już zablokowana.');
+            return redirect()->route('self.assessment.complete', ['uuid' => $uuid])->withErrors('Termin edycji formularzy został zakończony.');
         }
     
         // Redirect to the first level of the form with UUID

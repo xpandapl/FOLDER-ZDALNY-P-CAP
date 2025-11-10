@@ -1455,10 +1455,19 @@ let autosaveInterval = setTimeout(() => {
                 @endphp
             @php
                 // Precompute values for initial state and data attributes
-                $current = $savedAnswers['score'][$competency->id] ?? 0;
+                // CRITICAL: savedAnswers (current cycle) MUST have absolute priority to prevent data loss
+                // Only use prevAnswers (previous cycle) if no current saved data exists
+                // Priority: $savedAnswers > $prevAnswers > 0 (default)
+                $current = $savedAnswers['score'][$competency->id] ?? ($prevAnswers['score'][$competency->id] ?? 0);
                 $prev = $prevAnswers['score'][$competency->id] ?? null;
                 $hasCommentInit = !empty($savedAnswers['comments'][$competency->id]);
                 $isAboveSelectedInit = !empty($savedAnswers['above_expectations'][$competency->id]);
+                
+                // Check if veteran changed score from previous cycle
+                $scoreChanged = false;
+                if ($prev !== null && $prev > 0 && (string)$current !== (string)$prev) {
+                    $scoreChanged = true;
+                }
                 
                 // DEBUG: Log what we're setting for each competency
                 if ($competency->id == 3) {
@@ -1565,9 +1574,24 @@ let autosaveInterval = setTimeout(() => {
 
                         <!-- Checkbox "Dodaj uzasadnienie" -->
                         <div class="add-description-container">
-                            <input id="adddesc-{{ $competency->id }}" type="checkbox" name="add_description[{{ $competency->id }}]" onchange="toggleDescriptionInput(this)" {{ isset($savedAnswers['add_description'][$competency->id]) ? 'checked' : '' }}>
+                            <input id="adddesc-{{ $competency->id }}" type="checkbox" name="add_description[{{ $competency->id }}]" onchange="toggleDescriptionInput(this)" {{ isset($savedAnswers['add_description'][$competency->id]) || $scoreChanged ? 'checked' : '' }} {{ $scoreChanged ? 'disabled' : '' }}>
                             <label for="adddesc-{{ $competency->id }}" class="assessment-label">Dodaj uzasadnienie</label>
                         </div>
+
+                        <!-- Wymagane uzasadnienie dla zmiany oceny (info box - dynamically shown when veteran changes score) -->
+                        @if($prev !== null)
+                        <div class="change-justification-warning" 
+                             data-competency-id="{{ $competency->id }}"
+                             data-prev-score="{{ $prev }}"
+                             style="display:{{ $scoreChanged ? 'block' : 'none' }}; background:#fff3cd; border-left:4px solid #ffc107; padding:12px; margin-top:10px; margin-bottom:10px;">
+                            <div style="font-weight:600; color:#856404; margin-bottom:6px;">
+                                <i class="fas fa-exclamation-triangle"></i> Zmieniłeś/aś ocenę - wymagane uzasadnienie
+                            </div>
+                            <div style="font-size:13px; color:#856404;" class="change-info">
+                                Twoja nowa ocena: <strong class="current-score-display">{{ floatval($current) }}</strong> (poprzednio: <strong>{{ floatval($prev) }}</strong>)
+                            </div>
+                        </div>
+                        @endif
 
                         <!-- DEBUG okienko usunięte - dane działają poprawnie -->
                         <!-- Dymek z definicją poziomu (prevTextGlobal) usunięty - niepotrzebny -->
@@ -1672,6 +1696,64 @@ document.querySelectorAll('.question').forEach(function(q){
     const defContent = q.querySelector('.definition-bubble .def-content');
     const addDescCheckbox = q.querySelector('input[name^="add_description"]');
 
+    // Check if veteran changed score from previous cycle and show/hide justification field
+    function checkScoreChange(questionEl, currentScore, isAbove){
+        const changeWarning = questionEl.querySelector('.change-justification-warning');
+        if (!changeWarning) return; // Not a veteran or no previous data
+        
+        const prevScore = changeWarning.getAttribute('data-prev-score');
+        if (prevScore === null) return;
+        
+        // Skip validation if previous score was 0 (new competency)
+        if (parseFloat(prevScore) === 0) {
+            changeWarning.style.display = 'none';
+            return;
+        }
+        
+        const checkbox = questionEl.querySelector('input[name^="add_description"]');
+        if (!checkbox) return;
+        
+        // Compare current score with previous score
+        // If above_expectations is selected, score is always 1
+        const currentValue = isAbove ? '1' : currentScore;
+        const prevValue = prevScore;
+        
+        // Normalize values to floats for comparison (1 === 1.00)
+        const currentFloat = parseFloat(currentValue);
+        const prevFloat = parseFloat(prevValue);
+        const hasChanged = (currentFloat !== prevFloat);
+        
+        if (hasChanged) {
+            // Show warning box
+            changeWarning.style.display = 'block';
+            // Update display of current score (normalized without trailing .00)
+            const currentDisplay = changeWarning.querySelector('.current-score-display');
+            if (currentDisplay) {
+                currentDisplay.textContent = parseFloat(currentValue).toString();
+            }
+            // Force-check and disable checkbox (like "Powyżej oczekiwań")
+            if (!checkbox.checked) {
+                checkbox.checked = true;
+                toggleDescriptionInput(checkbox);
+            }
+            checkbox.disabled = true;
+        } else {
+            // Hide warning box
+            changeWarning.style.display = 'none';
+            // Re-enable checkbox if not "Powyżej oczekiwań"
+            if (!isAbove) {
+                checkbox.disabled = false;
+                // Auto-uncheck if textarea is empty
+                const textarea = questionEl.querySelector('.textarea-description textarea');
+                const isEmpty = !textarea || textarea.value.trim() === '';
+                if (isEmpty && checkbox.checked) {
+                    checkbox.checked = false;
+                    toggleDescriptionInput(checkbox);
+                }
+            }
+        }
+    }
+
     function updateDefinition(val){
         const d0 = q.getAttribute('data-description0to05') || '';
         const d025 = q.getAttribute('data-description025') || '';
@@ -1737,6 +1819,10 @@ document.querySelectorAll('.question').forEach(function(q){
                 }
             }
             updateDefinition(value);
+            
+            // Check if veteran changed score from previous cycle - show/hide justification field
+            checkScoreChange(q, value, isAbove);
+            
             // Update active row highlight
             wrap.querySelectorAll('.rating-col').forEach(function(c){ c.classList.remove('active'); });
             this.closest('.rating-col')?.classList.add('active');
@@ -1835,6 +1921,10 @@ document.querySelectorAll('.question').forEach(function(q){
         // Ensure checkbox is enabled when not 'Powyżej oczekiwań'
         if (addDescCheckbox) addDescCheckbox.disabled = false;
     }
+    
+    // Check initial state for score change justification
+    checkScoreChange(q, initScore, initStar);
+    
     // After initializing selections, update header once in case of pre-filled values
     try { updateHeaderProgress(); } catch(e) {}
     // Highlight active row initially for this question
@@ -1942,7 +2032,89 @@ document.addEventListener('DOMContentLoaded', function(){
         if (ov) ov.style.display = 'flex';
     }
     if (form){
-        form.addEventListener('submit', function(){
+        form.addEventListener('submit', function(e){
+            // Validate change justifications for veterans who changed scores
+            var missingJustifications = [];
+            
+            // Find all visible change warning boxes (veterans who changed scores)
+            document.querySelectorAll('.change-justification-warning').forEach(function(warningBox){
+                if (warningBox.style.display === 'none') return; // Skip hidden warnings
+                
+                var competencyId = warningBox.getAttribute('data-competency-id');
+                var questionEl = warningBox.closest('.question');
+                if (!questionEl) return;
+                
+                var competencyName = questionEl.querySelector('label')?.textContent?.trim() || 'Nieznana kompetencja';
+                var textarea = questionEl.querySelector('.textarea-description textarea');
+                
+                // Check if textarea exists and has content
+                var hasComment = textarea && textarea.value.trim() !== '';
+                
+                if (!hasComment) {
+                    missingJustifications.push({
+                        id: competencyId,
+                        name: competencyName,
+                        element: textarea || warningBox,
+                        questionEl: questionEl
+                    });
+                }
+            });
+
+            if (missingJustifications.length > 0) {
+                e.preventDefault();
+                
+                // Highlight missing fields with red border
+                missingJustifications.forEach(function(item){
+                    if (item.element.tagName === 'TEXTAREA') {
+                        item.element.style.border = '2px solid #dc3545';
+                    }
+                    // Also highlight the warning box
+                    var warningBox = item.questionEl.querySelector('.change-justification-warning');
+                    if (warningBox) {
+                        warningBox.style.borderLeft = '4px solid #dc3545';
+                    }
+                });
+
+                // Show error message with list of competencies
+                var errorHtml = '<div style="background:#f8d7da; border:1px solid #f5c6cb; color:#721c24; padding:15px; margin:20px 0; border-radius:4px;">';
+                errorHtml += '<strong><i class="fas fa-exclamation-circle"></i> Brakujące uzasadnienia zmian ocen:</strong>';
+                errorHtml += '<ul style="margin:10px 0 0 20px;">';
+                missingJustifications.forEach(function(item){
+                    errorHtml += '<li>' + item.name + '</li>';
+                });
+                errorHtml += '</ul>';
+                errorHtml += '<div style="margin-top:10px;">Zmieniłeś/aś ocenę względem poprzedniego cyklu. Wymagane jest uzasadnienie tej zmiany w polu "Dodaj uzasadnienie".</div>';
+                errorHtml += '</div>';
+
+                // Find first missing element and scroll to it
+                var firstMissing = missingJustifications[0].questionEl;
+                var errorContainer = document.createElement('div');
+                errorContainer.id = 'changeJustificationError';
+                errorContainer.innerHTML = errorHtml;
+                
+                // Remove old error if exists
+                var oldError = document.getElementById('changeJustificationError');
+                if (oldError) oldError.remove();
+                
+                // Insert error before first question
+                firstMissing.parentNode.insertBefore(errorContainer, firstMissing);
+                
+                // Scroll to error
+                errorContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                return false;
+            }
+
+            // Remove red borders if validation passed
+            document.querySelectorAll('.textarea-description textarea').forEach(function(textarea){
+                textarea.style.border = '';
+            });
+            document.querySelectorAll('.change-justification-warning').forEach(function(box){
+                box.style.borderLeft = '4px solid #ffc107';
+            });
+            var oldError = document.getElementById('changeJustificationError');
+            if (oldError) oldError.remove();
+
             var msg = 'Zapisywanie…';
             var label = 'Zapisywanie…';
             if (lastClickedBtn){
