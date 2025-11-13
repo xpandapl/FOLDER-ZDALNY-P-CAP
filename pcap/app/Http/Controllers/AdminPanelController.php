@@ -502,9 +502,20 @@ class AdminPanelController extends Controller
     {
         try {
             // Validate section
-            $allowedSections = ['employees', 'managers', 'hierarchy', 'dates', 'competencies', 'cycles', 'settings'];
+            $allowedSections = ['employees', 'managers', 'hierarchy', 'dates', 'competencies', 'cycles', 'settings', 'server'];
             if (!in_array($section, $allowedSections)) {
                 return response()->json(['error' => 'Invalid section'], 400);
+            }
+
+            // Server status section - special handling
+            if ($section === 'server') {
+                $data = $this->getServerStatusData();
+                $html = view("admin.sections.server", $data)->render();
+                return response()->json([
+                    'success' => true,
+                    'html' => $html,
+                    'section' => $section
+                ]);
             }
 
             // Get data needed for the section (reuse logic from showAdminPanel)
@@ -573,5 +584,28 @@ class AdminPanelController extends Controller
                 'error' => 'Błąd podczas ładowania sekcji: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    private function getServerStatusData()
+    {
+        $serverStatusController = new \App\Http\Controllers\ServerStatusController();
+        
+        return [
+            'mysql' => $this->callPrivateMethod($serverStatusController, 'getMySQLStatus'),
+            'server' => $this->callPrivateMethod($serverStatusController, 'getServerStatus'),
+            'laravel' => $this->callPrivateMethod($serverStatusController, 'getLaravelStatus'),
+            'cache' => $this->callPrivateMethod($serverStatusController, 'getCacheStatus'),
+            'sessions' => $this->callPrivateMethod($serverStatusController, 'getSessionStatus'),
+            'errors' => $this->callPrivateMethod($serverStatusController, 'getRecentErrors'),
+            'timestamp' => now()->format('Y-m-d H:i:s'),
+        ];
+    }
+
+    private function callPrivateMethod($object, $methodName)
+    {
+        $reflection = new \ReflectionClass($object);
+        $method = $reflection->getMethod($methodName);
+        $method->setAccessible(true);
+        return $method->invoke($object);
     }
 }

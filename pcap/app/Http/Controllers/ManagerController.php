@@ -250,8 +250,24 @@ class ManagerController extends Controller
                 ];
             }
 
+            // Load all employees for organization data
+            $allEmployees = Employee::with(['results' => function($q) use ($selectedCycleId) {
+                $q->when($selectedCycleId, function($qq) use ($selectedCycleId) {
+                    $qq->where('cycle_id', $selectedCycleId);
+                });
+            }])->get();
+
+            Log::info('All employees loaded', [
+                'count' => $allEmployees->count(),
+                'selected_cycle_id' => $selectedCycleId
+            ]);
+
             // Prepare data for the entire organization
             $organizationEmployeesData = $this->prepareEmployeesData($allEmployees, $levelNames);
+            
+            Log::info('Organization employees data prepared', [
+                'count' => count($organizationEmployeesData)
+            ]);
         }
 
         if ($manager->role == 'head') {
@@ -304,6 +320,12 @@ class ManagerController extends Controller
         }
 
         // Pass variables to the view
+        Log::info('Passing organizationEmployeesData to view', [
+            'count' => count($organizationEmployeesData),
+            'is_empty' => empty($organizationEmployeesData),
+            'manager_role' => $manager->role
+        ]);
+        
         return view('manager_panel', compact(
             'employees',
             'employeesByLevel',
@@ -1645,6 +1667,13 @@ class ManagerController extends Controller
                     'total_count' => $totalCount,
                 ];
             }
+
+            // Load all employees for organization data
+            $allEmployees = Employee::with(['results' => function($q) use ($selectedCycleId) {
+                $q->when($selectedCycleId, function($qq) use ($selectedCycleId) {
+                    $qq->where('cycle_id', $selectedCycleId);
+                });
+            }])->get();
 
             $organizationEmployeesData = $this->prepareEmployeesData($allEmployees, $levelNames);
         }

@@ -33,6 +33,9 @@
             @case('settings')
                 Ustawienia
                 @break
+            @case('server')
+                Dla nerdów
+                @break
             @default
                 Pracownicy
         @endswitch
@@ -67,6 +70,9 @@
             @break
         @case('settings')
             @include('admin.sections.settings')
+            @break
+        @case('server')
+            @include('admin.sections.server')
             @break
         @default
             @include('admin.sections.employees')
@@ -724,7 +730,8 @@ document.addEventListener('DOMContentLoaded', function() {
             'dates': 'Zarządzanie Datami',
             'competencies': 'Baza pytań',
             'cycles': 'Cykl ocen',
-            'settings': 'Ustawienia'
+            'settings': 'Ustawienia',
+            'server': 'Dla nerdów'
         };
         
         const breadcrumbItem = document.querySelector('.breadcrumb-item:last-child');

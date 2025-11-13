@@ -68,6 +68,49 @@ Route::middleware(['auth'])->group(function(){
         \Artisan::call('cache:clear');
         return 'Cache cleared successfully';
     })->name('admin.clear_cache');
+    
+    // Clear expired sessions - admin only
+    Route::post('/clear-expired-sessions', function() {
+        if (auth()->user()->role !== 'admin' && auth()->user()->role !== 'supermanager') {
+            abort(403, 'Unauthorized');
+        }
+        
+        $driver = config('session.driver');
+        $deleted = 0;
+        
+        if ($driver === 'file') {
+            $sessionPath = storage_path('framework/sessions');
+            if (file_exists($sessionPath)) {
+                $files = glob($sessionPath . '/*');
+                $now = time();
+                $lifetime = config('session.lifetime') * 60;
+                
+                foreach ($files as $file) {
+                    if (is_file($file)) {
+                        $lastModified = filemtime($file);
+                        if (($now - $lastModified) >= $lifetime) {
+                            unlink($file);
+                            $deleted++;
+                        }
+                    }
+                }
+            }
+        } elseif ($driver === 'database') {
+            $table = config('session.table', 'sessions');
+            $lifetime = config('session.lifetime') * 60;
+            $now = time();
+            
+            $deleted = DB::table($table)
+                ->where('last_activity', '<=', $now - $lifetime)
+                ->delete();
+        }
+        
+        return response()->json([
+            'success' => true,
+            'deleted' => $deleted,
+            'message' => "Usunięto {$deleted} wygasłych sesji"
+        ]);
+    })->name('admin.clear_sessions');
 });
 
 // Admin panel

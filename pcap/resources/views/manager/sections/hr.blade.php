@@ -6,6 +6,18 @@
     </div>
     <div class="card-content">
         <!-- Organization Summary Stats -->
+        @if(!isset($organizationEmployeesData))
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                Brak danych organizacyjnych. Zmienna $organizationEmployeesData nie została przekazana.
+            </div>
+        @elseif(empty($organizationEmployeesData))
+            <div class="alert alert-warning">
+                <i class="fas fa-info-circle"></i>
+                Brak danych pracowników w organizacji.
+            </div>
+        @endif
+        
         @php
             $totalEmployees = count($organizationEmployeesData ?? []);
             $filledSurveyCount = 0;
@@ -45,6 +57,16 @@
             }
             
             $completionRate = $totalEmployees > 0 ? round(($filledSurveyCount / $totalEmployees) * 100, 1) : 0;
+            
+            // Debug info
+            \Log::info('HR Stats Debug', [
+                'total_employees' => $totalEmployees,
+                'filled_count' => $filledSurveyCount,
+                'completion_rate' => $completionRate,
+                'level_counts' => $levelCounts,
+                'organization_data_exists' => isset($organizationEmployeesData),
+                'organization_data_count' => count($organizationEmployeesData ?? [])
+            ]);
         @endphp
         
         <!-- Key Metrics -->

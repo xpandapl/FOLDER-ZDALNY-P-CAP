@@ -88,11 +88,6 @@
             </select>
         </div>
         
-        <!-- Podgląd hierarchii -->
-        <div id="hierarchy-preview" style="display: none; background: #f8fafc; padding: 12px; border-radius: 8px; margin-top: 12px;">
-            <h4 style="margin: 0 0 8px 0; color: #374151;">Twoja struktura przełożonych:</h4>
-            <div id="hierarchy-text" style="color: #6b7280; font-size: 14px;"></div>
-        </div>
         <button type="submit" class="btn btn-primary" style="width:100%">Przejdź dalej</button>
     </form>
     </div>
@@ -106,11 +101,9 @@
             document.getElementById('department').addEventListener('change', function () {
                 const department = this.value;
                 const managerSelect = document.getElementById('manager');
-                const hierarchyPreview = document.getElementById('hierarchy-preview');
 
                 // Clear previous options
                 managerSelect.innerHTML = '<option value="">-- Wybierz przełożonego --</option>';
-                hierarchyPreview.style.display = 'none';
 
                 if (department) {
                     // Fetch supervisors for department
@@ -132,49 +125,6 @@
                         }
                     })
                     .catch(error => console.error('Błąd:', error));
-                }
-            });
-
-            // Show hierarchy when supervisor is selected
-            document.getElementById('manager').addEventListener('change', function() {
-                const department = document.getElementById('department').value;
-                const supervisor = this.value;
-                const hierarchyPreview = document.getElementById('hierarchy-preview');
-                const hierarchyText = document.getElementById('hierarchy-text');
-
-                if (department && supervisor) {
-                    // Fetch full hierarchy for this supervisor
-                    fetch("{{ route('get.hierarchy') }}", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "X-CSRF-TOKEN": csrfToken
-                        },
-                        body: JSON.stringify({ 
-                            department: department, 
-                            supervisor: supervisor 
-                        })
-                    })
-                    .then(response => response.json())
-                    .then(hierarchy => {
-                        let hierarchyHtml = '';
-                        
-                        if (hierarchy.supervisor) {
-                            hierarchyHtml += `<strong>Supervisor:</strong> ${hierarchy.supervisor}<br>`;
-                        }
-                        
-                        if (hierarchy.manager) {
-                            hierarchyHtml += `<strong>Manager:</strong> ${hierarchy.manager}<br>`;
-                        }
-                        
-                        hierarchyHtml += `<strong>Head:</strong> ${hierarchy.head}`;
-                        
-                        hierarchyText.innerHTML = hierarchyHtml;
-                        hierarchyPreview.style.display = 'block';
-                    })
-                    .catch(error => console.error('Błąd:', error));
-                } else {
-                    hierarchyPreview.style.display = 'none';
                 }
             });
         });

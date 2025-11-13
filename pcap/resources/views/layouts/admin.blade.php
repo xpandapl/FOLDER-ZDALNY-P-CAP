@@ -683,6 +683,13 @@
                         Ustawienia
                     </a>
                 </div>
+                <div class="nav-item">
+                    <a href="#" data-section="server"
+                       class="nav-link section-link {{ request('section') === 'server' ? 'active' : '' }}">
+                        <i class="fas fa-server"></i>
+                        Dla nerdów
+                    </a>
+                </div>
             </nav>
 
             <div class="sidebar-footer">
