@@ -51,7 +51,7 @@ class AdminPanelController extends Controller
         return view('admin_panel_new', compact('employees', 'blockDate', 'users', 'managerNameByUsername', 'roles', 'appSettings'));
     }
     
-    public function showAdminPanel()
+    public function showAdminPanel(Request $request)
     {
         $employees = \App\Models\Employee::orderBy('created_at', 'desc')->get();
         $users = \App\Models\User::whereIn('role', ['supervisor', 'manager','head','supermanager'])->orderBy('name')->get();
@@ -86,8 +86,20 @@ class AdminPanelController extends Controller
 
         // Dane dla sekcji kompetencji - ładowane przez AJAX
         $totalCompetencies = \App\Models\Competency::count();
+        
+        // Przygotuj podstawowe dane
+        $data = compact('employees', 'users', 'blockDate', 'teams', 'managerNameByUsername', 'roles', 'cycles', 'appSettings', 'hierarchyStructures', 'departmentCounts', 'totalStructures', 'uniqueDepartments', 'totalCompetencies');
+        
+        // Jeśli bezpośredni link do sekcji server, dodaj dane serwera
+        if ($request->get('section') === 'server') {
+            $serverData = $this->getServerStatusData();
+            // Dodaj każdą zmienną z serverData osobno
+            foreach ($serverData as $key => $value) {
+                $data[$key] = $value;
+            }
+        }
 
-        return view('admin_panel_new', compact('employees', 'users', 'blockDate', 'teams', 'managerNameByUsername', 'roles', 'cycles', 'appSettings', 'hierarchyStructures', 'departmentCounts', 'totalStructures', 'uniqueDepartments', 'totalCompetencies'));
+        return view('admin_panel_new', $data);
     }
 
     // UI: start new cycle (optionally mark active). Cloning handled via CLI if needed.
@@ -588,17 +600,30 @@ class AdminPanelController extends Controller
 
     private function getServerStatusData()
     {
-        $serverStatusController = new \App\Http\Controllers\ServerStatusController();
-        
-        return [
-            'mysql' => $this->callPrivateMethod($serverStatusController, 'getMySQLStatus'),
-            'server' => $this->callPrivateMethod($serverStatusController, 'getServerStatus'),
-            'laravel' => $this->callPrivateMethod($serverStatusController, 'getLaravelStatus'),
-            'cache' => $this->callPrivateMethod($serverStatusController, 'getCacheStatus'),
-            'sessions' => $this->callPrivateMethod($serverStatusController, 'getSessionStatus'),
-            'errors' => $this->callPrivateMethod($serverStatusController, 'getRecentErrors'),
-            'timestamp' => now()->format('Y-m-d H:i:s'),
-        ];
+        try {
+            $serverStatusController = new \App\Http\Controllers\ServerStatusController();
+            
+            return [
+                'mysql' => $this->callPrivateMethod($serverStatusController, 'getMySQLStatus') ?? ['status' => 'offline', 'version' => 'N/A', 'connections' => ['current' => 0, 'max' => 0]],
+                'server' => $this->callPrivateMethod($serverStatusController, 'getServerStatus') ?? [],
+                'laravel' => $this->callPrivateMethod($serverStatusController, 'getLaravelStatus') ?? [],
+                'cache' => $this->callPrivateMethod($serverStatusController, 'getCacheStatus') ?? [],
+                'sessions' => $this->callPrivateMethod($serverStatusController, 'getSessionStatus') ?? [],
+                'errors' => $this->callPrivateMethod($serverStatusController, 'getRecentErrors') ?? [],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ];
+        } catch (\Exception $e) {
+            \Log::error('Error loading server status: ' . $e->getMessage());
+            return [
+                'mysql' => ['status' => 'offline', 'version' => 'N/A', 'connections' => ['current' => 0, 'max' => 0]],
+                'server' => ['php_version' => PHP_VERSION, 'memory_limit' => ini_get('memory_limit')],
+                'laravel' => ['version' => app()->version()],
+                'cache' => ['driver' => config('cache.default'), 'status' => 'unknown'],
+                'sessions' => ['driver' => config('session.driver'), 'count' => 0],
+                'errors' => [],
+                'timestamp' => now()->format('Y-m-d H:i:s'),
+            ];
+        }
     }
 
     private function callPrivateMethod($object, $methodName)

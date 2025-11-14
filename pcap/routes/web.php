@@ -227,6 +227,11 @@ Route::post('/manager/change-password', [ManagerController::class, 'changePasswo
     ->name('manager.change_password')
     ->middleware(['auth', 'manager']);
 
+// Clear manager cache
+Route::post('/manager/clear-cache', [ManagerController::class, 'clearCache'])
+    ->name('manager.clear_cache')
+    ->middleware(['auth', 'manager']);
+
 // Export endpoints
 Route::get('/manager/export-team-pdf', [ManagerController::class, 'exportTeamPdf'])
     ->name('manager.export_team_pdf')

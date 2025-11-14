@@ -14,21 +14,28 @@
 @endsection
 
 @section('header-actions')
-    <!-- Cycle Selector -->
-    <div class="cycle-selector">
-        <label for="cycle-select" style="font-weight: 500; margin-right: 8px;">Cykl:</label>
-        <select id="cycle-select" onchange="onCycleChange()">
-            @foreach(($cycles ?? []) as $c)
-                <option value="{{ $c->id }}" {{ (isset($selectedCycleId) && $selectedCycleId == $c->id) ? 'selected' : '' }}>
-                    {{ $c->label }}
-                </option>
-            @endforeach
-        </select>
-        @if(isset($selectedCycle))
-            <span class="cycle-status {{ $isSelectedCycleActive ? 'active' : 'historical' }}">
-                {{ $isSelectedCycleActive ? 'Aktywny' : 'Historyczny' }}
-            </span>
-        @endif
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <!-- Cycle Selector -->
+        <div class="cycle-selector">
+            <label for="cycle-select" style="font-weight: 500; margin-right: 8px;">Cykl:</label>
+            <select id="cycle-select" onchange="onCycleChange()">
+                @foreach(($cycles ?? []) as $c)
+                    <option value="{{ $c->id }}" {{ (isset($selectedCycleId) && $selectedCycleId == $c->id) ? 'selected' : '' }}>
+                        {{ $c->label }}
+                    </option>
+                @endforeach
+            </select>
+            @if(isset($selectedCycle))
+                <span class="cycle-status {{ $isSelectedCycleActive ? 'active' : 'historical' }}">
+                    {{ $isSelectedCycleActive ? 'Aktywny' : 'Historyczny' }}
+                </span>
+            @endif
+        </div>
+        
+        <!-- Clear Cache Button -->
+        <button id="clear-cache-btn" class="btn btn-sm" style="padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s ease;" title="Wyczyść cache i odśwież dane">
+            <i class="fas fa-sync-alt" style="color: var(--primary);"></i>
+        </button>
     </div>
 @endsection
 

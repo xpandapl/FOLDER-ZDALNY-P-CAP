@@ -175,7 +175,7 @@
 
 <div class="server-status-container">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <small style="color: #666;">Ostatnia aktualizacja: {{ $timestamp }}</small>
+        <small style="color: #666;">Ostatnia aktualizacja: {{ $timestamp ?? now()->format('Y-m-d H:i:s') }}</small>
         <button onclick="clearAllCache()" class="btn-clear-cache" id="clearCacheBtn">
             <i class="fas fa-broom"></i> Wyczyść cache
         </button>
@@ -188,7 +188,7 @@
                 <i class="fas fa-database"></i>
                 MySQL
             </h3>
-            @if($mysql['status'] === 'online')
+            @if(isset($mysql) && isset($mysql['status']) && $mysql['status'] === 'online')
                 <div class="server-stat-row">
                     <span class="server-stat-label">Status</span>
                     <span class="server-stat-value server-status-good">
@@ -197,12 +197,12 @@
                 </div>
                 <div class="server-stat-row">
                     <span class="server-stat-label">Wersja</span>
-                    <span class="server-stat-value">{{ $mysql['version'] }}</span>
+                    <span class="server-stat-value">{{ $mysql['version'] ?? 'N/A' }}</span>
                 </div>
                 <div class="server-stat-row">
                     <span class="server-stat-label">Połączenia</span>
                     <span class="server-stat-value">
-                        {{ $mysql['connections']['current'] }} / {{ $mysql['connections']['max'] }}
+                        {{ $mysql['connections']['current'] ?? 0 }} / {{ $mysql['connections']['max'] ?? 0 }}
                     </span>
                 </div>
                 <div class="server-progress-bar">
@@ -431,7 +431,7 @@
     </div>
 
     <!-- MySQL Processes -->
-    @if($mysql['status'] === 'online' && !empty($mysql['processes']['list']))
+    @if(isset($mysql) && isset($mysql['status']) && $mysql['status'] === 'online' && !empty($mysql['processes']['list']))
     <div class="server-card">
         <h3>
             <i class="fas fa-tasks"></i>
@@ -508,8 +508,14 @@
 </div>
 
 <script>
-function clearAllCache() {
+// Upewnij się że funkcje są globalne
+window.clearAllCache = function() {
     const btn = document.getElementById('clearCacheBtn');
+    if (!btn) {
+        console.error('Button #clearCacheBtn not found');
+        return;
+    }
+    
     const originalText = btn.innerHTML;
     
     // Disable button and show loading
@@ -552,9 +558,9 @@ function clearAllCache() {
             btn.style.background = '#4CAF50';
         }, 2000);
     });
-}
+};
 
-function clearExpiredSessions() {
+window.clearExpiredSessions = function() {
     const btn = document.getElementById('clearSessionsBtn');
     const originalText = btn.innerHTML;
     

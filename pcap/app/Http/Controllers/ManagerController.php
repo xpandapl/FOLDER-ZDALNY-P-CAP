@@ -494,6 +494,148 @@ class ManagerController extends Controller
         );
     }
 
+    /**
+     * Export department analytics with statistics
+     * Similar to exportStatisticsExcel but for single department
+     */
+    public function exportDepartmentAnalytics(Request $request)
+    {
+        // Increase timeout for large exports
+        set_time_limit(300); // 5 minutes
+        ini_set('memory_limit', '512M');
+        
+        // Increase MySQL timeout for this query (MySQL 5.7.8+)
+        try {
+            DB::statement('SET SESSION max_execution_time = 300000'); // 300 seconds
+        } catch (\Exception $e) {
+            \Log::warning('Could not set max_execution_time for MySQL', ['error' => $e->getMessage()]);
+        }
+        
+        $manager = Auth::user();
+
+        if ($manager->role != 'head') {
+            abort(403, 'Unauthorized - only heads can export department analytics');
+        }
+
+        $cycleId = $request->query('cycle') ?: $this->selectedCycleId($request);
+
+        // Get department employees
+        $departmentEmployees = Employee::with([
+                'team',
+                'results' => function ($q) use ($cycleId) {
+                    $q->when($cycleId, function($qq) use ($cycleId){ $qq->where('cycle_id', $cycleId); });
+                },
+                'results.competency'
+            ])
+            ->where('department', $manager->department)
+            ->get();
+
+        if ($departmentEmployees->isEmpty()) {
+            return redirect()->back()->with('error', 'Brak pracowników w dziale.');
+        }
+
+        // Group by team/position for analytics
+        $byTeam = $departmentEmployees->groupBy('team.name');
+        
+        // Prepare statistics headers
+        $headers = ['Zespół', 'Liczba pracowników'];
+        foreach ($this->levelNames as $levelName) {
+            $headers[] = $levelName . ' (średnia)';
+        }
+        $headers[] = 'Poziom dominujący';
+        
+        // Build statistics rows
+        $data = [];
+        foreach ($byTeam as $teamName => $teamEmployees) {
+            $employeesData = $this->prepareEmployeesData($teamEmployees, $this->levelNames);
+            
+            // Calculate averages for each level
+            $levelAverages = [];
+            foreach ($this->levelNames as $levelName) {
+                $percentages = [];
+                foreach ($employeesData as $empData) {
+                    $value = $empData['levelPercentagesManager'][$levelName] ?? null;
+                    if (is_numeric($value)) {
+                        $percentages[] = $value;
+                    }
+                }
+                $levelAverages[$levelName] = count($percentages) > 0 
+                    ? array_sum($percentages) / count($percentages) 
+                    : 0;
+            }
+            
+            // Determine dominant level
+            $dominantLevel = 'N/D';
+            $maxAverage = 0;
+            foreach ($levelAverages as $levelName => $avg) {
+                if ($avg > $maxAverage) {
+                    $maxAverage = $avg;
+                    $dominantLevel = $levelName;
+                }
+            }
+            
+            $row = [
+                $teamName ?? 'Nieznany',
+                $teamEmployees->count(),
+            ];
+            
+            // Add level averages
+            foreach ($this->levelNames as $levelName) {
+                $row[] = number_format($levelAverages[$levelName], 2) . '%';
+            }
+            
+            $row[] = $dominantLevel;
+            $data[] = $row;
+        }
+        
+        // Add summary row for entire department
+        $allEmployeesData = $this->prepareEmployeesData($departmentEmployees, $this->levelNames);
+        $levelAveragesAll = [];
+        foreach ($this->levelNames as $levelName) {
+            $percentages = [];
+            foreach ($allEmployeesData as $empData) {
+                $value = $empData['levelPercentagesManager'][$levelName] ?? null;
+                if (is_numeric($value)) {
+                    $percentages[] = $value;
+                }
+            }
+            $levelAveragesAll[$levelName] = count($percentages) > 0 
+                ? array_sum($percentages) / count($percentages) 
+                : 0;
+        }
+        
+        $dominantLevelAll = 'N/D';
+        $maxAverageAll = 0;
+        foreach ($levelAveragesAll as $levelName => $avg) {
+            if ($avg > $maxAverageAll) {
+                $maxAverageAll = $avg;
+                $dominantLevelAll = $levelName;
+            }
+        }
+        
+        $summaryRow = [
+            'CAŁY DZIAŁ',
+            $departmentEmployees->count(),
+        ];
+        
+        foreach ($this->levelNames as $levelName) {
+            $summaryRow[] = number_format($levelAveragesAll[$levelName], 2) . '%';
+        }
+        
+        $summaryRow[] = $dominantLevelAll;
+        $data[] = $summaryRow;
+        
+        $date = now()->format('Y-m-d_H-i');
+        $cycle = $cycleId ? AssessmentCycle::find($cycleId) : null;
+        $cycleSuffix = $cycle ? ('_' . $cycle->label) : '';
+        $filename = "P-CAP_Analityka_Dzial_{$date}" . str_replace(' ', '_', $manager->department) . $cycleSuffix . ".xlsx";
+        
+        return Excel::download(
+            new TeamReportExport($data, $headers),
+            $filename
+        );
+    }
+
 
     /**
      * Prepare employee data for team and organization summaries
@@ -735,11 +877,57 @@ class ManagerController extends Controller
      */
     public function exportTeamPdf(Request $request)
     {
+        // Increase timeout for large exports
+        set_time_limit(300); // 5 minutes
+        ini_set('memory_limit', '512M');
+        
+        // Increase MySQL timeout for this query (MySQL 5.7.8+)
+        try {
+            DB::statement('SET SESSION max_execution_time = 300000'); // 300 seconds
+        } catch (\Exception $e) {
+            // Fallback for older MySQL versions - log warning
+            \Log::warning('Could not set max_execution_time for MySQL', ['error' => $e->getMessage()]);
+        }
+        
         $manager = auth()->user();
         $cycleId = $request->query('cycle') ?: $this->selectedCycleId($request);
+        $teamName = $request->query('team'); // Team name from HR section
         
-        // Get manager's team employees based on role
-        $employees = $this->getEmployeesForManager($manager, $cycleId);
+        // If team parameter is provided (from HR section), filter by team
+        if ($teamName) {
+            $team = Team::where('name', $teamName)->first();
+            if (!$team) {
+                return redirect()->back()->with('error', 'Nie znaleziono zespołu.');
+            }
+            
+            // Get employees from this specific team
+            $employees = Employee::with([
+                    'team:id,name',
+                    'team.competencyTeamValues' => function($q) {
+                        $q->select('id', 'team_id', 'competency_id', 'value');
+                    },
+                    'overriddenCompetencyValues' => function($q) {
+                        $q->select('id', 'employee_id', 'competency_id', 'value');
+                    },
+                    'results' => function ($q) use ($cycleId) {
+                        $q->select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'cycle_id')
+                          ->when($cycleId, function($qq) use ($cycleId) {
+                              $qq->where('cycle_id', $cycleId);
+                          })
+                          ->with(['competency' => function($qc) {
+                              $qc->select('id', 'level');
+                          }]);
+                    },
+                ])
+                ->where('department', $team->name)
+                ->get();
+                
+            $teamDisplayName = $team->name;
+        } else {
+            // Get manager's team employees based on role (dashboard/team section)
+            $employees = $this->getEmployeesForManager($manager, $cycleId);
+            $teamDisplayName = 'Zespół ' . $manager->name;
+        }
         
         if ($employees->isEmpty()) {
             return redirect()->back()->with('error', 'Brak pracowników w zespole.');
@@ -766,7 +954,7 @@ class ManagerController extends Controller
         
         // Generate PDF
         $pdf = PDF::loadView('exports.team_report_pdf', [
-            'team' => (object)['name' => 'Zespół ' . $manager->name],
+            'team' => (object)['name' => $teamDisplayName],
             'employeesData' => $employeesData,
             'levelNames' => $this->levelNames
         ])->setPaper('a4', 'landscape');
@@ -783,11 +971,53 @@ class ManagerController extends Controller
      */
     public function exportTeamExcel(Request $request)
     {
+        // Increase timeout for large exports
+        set_time_limit(300); // 5 minutes
+        ini_set('memory_limit', '512M');
+        
+        // Increase MySQL timeout for this query (MySQL 5.7.8+)
+        try {
+            DB::statement('SET SESSION max_execution_time = 300000'); // 300 seconds
+        } catch (\Exception $e) {
+            \Log::warning('Could not set max_execution_time for MySQL', ['error' => $e->getMessage()]);
+        }
+        
         $manager = auth()->user();
         $cycleId = $request->query('cycle') ?: $this->selectedCycleId($request);
+        $teamName = $request->query('team'); // Team name from HR section
         
-        // Get manager's team employees based on role
-        $employees = $this->getEmployeesForManager($manager, $cycleId);
+        // If team parameter is provided (from HR section), filter by team
+        if ($teamName) {
+            $team = Team::where('name', $teamName)->first();
+            if (!$team) {
+                return redirect()->back()->with('error', 'Nie znaleziono zespołu.');
+            }
+            
+            // Get employees from this specific team
+            $employees = Employee::with([
+                    'team:id,name',
+                    'team.competencyTeamValues' => function($q) {
+                        $q->select('id', 'team_id', 'competency_id', 'value');
+                    },
+                    'overriddenCompetencyValues' => function($q) {
+                        $q->select('id', 'employee_id', 'competency_id', 'value');
+                    },
+                    'results' => function ($q) use ($cycleId) {
+                        $q->select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'cycle_id')
+                          ->when($cycleId, function($qq) use ($cycleId) {
+                              $qq->where('cycle_id', $cycleId);
+                          })
+                          ->with(['competency' => function($qc) {
+                              $qc->select('id', 'level');
+                          }]);
+                    },
+                ])
+                ->where('department', $team->name)
+                ->get();
+        } else {
+            // Get manager's team employees based on role (dashboard/team section)
+            $employees = $this->getEmployeesForManager($manager, $cycleId);
+        }
         
         if ($employees->isEmpty()) {
             return redirect()->back()->with('error', 'Brak pracowników w zespole.');
@@ -834,6 +1064,270 @@ class ManagerController extends Controller
         $cycle = $cycleId ? AssessmentCycle::find($cycleId) : null;
         $cycleSuffix = $cycle ? ('_' . $cycle->label) : '';
         $filename = "P-CAP_Raport_Zespol_{$date}{$cycleSuffix}.xlsx";
+        
+        return Excel::download(
+            new TeamReportExport($data, $headers),
+            $filename
+        );
+    }
+
+    /**
+     * Export organization report as PDF
+     * Available for heads and supermanagers
+     */
+    public function exportOrganizationPdf(Request $request)
+    {
+        // Increase timeout for large exports
+        set_time_limit(300); // 5 minutes
+        ini_set('memory_limit', '512M');
+        
+        // Increase MySQL timeout for this query (MySQL 5.7.8+)
+        try {
+            DB::statement('SET SESSION max_execution_time = 300000'); // 300 seconds
+        } catch (\Exception $e) {
+            \Log::warning('Could not set max_execution_time for MySQL', ['error' => $e->getMessage()]);
+        }
+        
+        $manager = auth()->user();
+        $cycleId = $request->query('cycle') ?: $this->selectedCycleId($request);
+        
+        // Get all employees in manager's organization scope
+        $employees = $this->getEmployeesForManager($manager, $cycleId);
+        
+        if ($employees->isEmpty()) {
+            return redirect()->back()->with('error', 'Brak pracowników w organizacji.');
+        }
+        
+        // Prepare data
+        $employeesData = $this->prepareEmployeesData($employees, $this->levelNames);
+        
+        // Sanitize against legacy level 6
+        $allowedLevelKeys = array_values($this->levelNames);
+        $allowedMap = array_fill_keys($allowedLevelKeys, true);
+        foreach ($employeesData as &$empData) {
+            if (isset($empData['levelPercentagesManager']) && is_array($empData['levelPercentagesManager'])) {
+                $empData['levelPercentagesManager'] = array_intersect_key($empData['levelPercentagesManager'], $allowedMap);
+            }
+            if (!empty($empData['highestLevelManager'])) {
+                $hl = (string)$empData['highestLevelManager'];
+                if (strpos($hl, '6') === 0 || stripos($hl, 'Head of') !== false) {
+                    $empData['highestLevelManager'] = '5. Manager';
+                }
+            }
+        }
+        unset($empData);
+        
+        // Generate PDF
+        $pdf = PDF::loadView('exports.team_report_pdf', [
+            'team' => (object)['name' => 'Organizacja - ' . $manager->name],
+            'employeesData' => $employeesData,
+            'levelNames' => $this->levelNames
+        ])->setPaper('a4', 'landscape');
+        
+        $date = now()->format('Y-m-d_H-i');
+        $cycle = $cycleId ? AssessmentCycle::find($cycleId) : null;
+        $cycleSuffix = $cycle ? ('_' . $cycle->label) : '';
+        
+        return $pdf->download('P-CAP_Raport_Organizacja_' . $date . $cycleSuffix . '.pdf');
+    }
+
+    /**
+     * Export organization report as Excel
+     * Available for heads and supermanagers
+     */
+    public function exportOrganizationExcel(Request $request)
+    {
+        // Increase timeout for large exports
+        set_time_limit(300); // 5 minutes
+        ini_set('memory_limit', '512M');
+        
+        // Increase MySQL timeout for this query (MySQL 5.7.8+)
+        try {
+            DB::statement('SET SESSION max_execution_time = 300000'); // 300 seconds
+        } catch (\Exception $e) {
+            \Log::warning('Could not set max_execution_time for MySQL', ['error' => $e->getMessage()]);
+        }
+        
+        $manager = auth()->user();
+        $cycleId = $request->query('cycle') ?: $this->selectedCycleId($request);
+        
+        // Get all employees in manager's organization scope
+        $employees = $this->getEmployeesForManager($manager, $cycleId);
+        
+        if ($employees->isEmpty()) {
+            return redirect()->back()->with('error', 'Brak pracowników w organizacji.');
+        }
+        
+        // Prepare data
+        $employeesData = $this->prepareEmployeesData($employees, $this->levelNames);
+        
+        // Prepare headers
+        $headers = ['Imię i nazwisko', 'Nazwa stanowiska', 'Dział'];
+        foreach ($this->levelNames as $levelName) {
+            $headers[] = $levelName;
+        }
+        $headers[] = 'Poziom';
+        
+        // Build data rows
+        $data = [];
+        foreach ($employeesData as $empData) {
+            $row = [
+                $empData['name'] ?? '',
+                $empData['job_title'] ?? '',
+                $empData['department'] ?? '',
+            ];
+            
+            // Add level percentages
+            foreach ($this->levelNames as $levelName) {
+                $percentageValueManager = $empData['levelPercentagesManager'][$levelName] ?? null;
+                
+                if ($percentageValueManager === null) {
+                    $row[] = 'N/D';
+                } else if (is_numeric($percentageValueManager)) {
+                    $row[] = number_format($percentageValueManager, 2) . '%';
+                } else {
+                    $row[] = 'N/D';
+                }
+            }
+            
+            // Add highest level
+            $row[] = $empData['highestLevelManager'] ?? 'N/D';
+            $data[] = $row;
+        }
+        
+        $date = now()->format('Y-m-d_H-i');
+        $cycle = $cycleId ? AssessmentCycle::find($cycleId) : null;
+        $cycleSuffix = $cycle ? ('_' . $cycle->label) : '';
+        $filename = "P-CAP_Raport_Organizacja_{$date}{$cycleSuffix}.xlsx";
+        
+        return Excel::download(
+            new TeamReportExport($data, $headers),
+            $filename
+        );
+    }
+
+    /**
+     * Export statistics as Excel
+     * Provides summary statistics for all teams/departments
+     */
+    public function exportStatisticsExcel(Request $request)
+    {
+        // Increase timeout for large exports
+        set_time_limit(300); // 5 minutes
+        ini_set('memory_limit', '512M');
+        
+        // Increase MySQL timeout for this query (MySQL 5.7.8+)
+        try {
+            DB::statement('SET SESSION max_execution_time = 300000'); // 300 seconds
+        } catch (\Exception $e) {
+            \Log::warning('Could not set max_execution_time for MySQL', ['error' => $e->getMessage()]);
+        }
+        
+        $manager = auth()->user();
+        $cycleId = $request->query('cycle') ?: $this->selectedCycleId($request);
+        
+        // Get all employees in manager's organization scope
+        $employees = $this->getEmployeesForManager($manager, $cycleId);
+        
+        if ($employees->isEmpty()) {
+            return redirect()->back()->with('error', 'Brak pracowników w organizacji.');
+        }
+        
+        // Group by department
+        $byDepartment = $employees->groupBy('department');
+        
+        // Prepare statistics headers
+        $headers = ['Dział', 'Liczba pracowników'];
+        foreach ($this->levelNames as $levelName) {
+            $headers[] = $levelName . ' (średnia)';
+        }
+        $headers[] = 'Poziom dominujący';
+        
+        // Build statistics rows
+        $data = [];
+        foreach ($byDepartment as $department => $deptEmployees) {
+            $employeesData = $this->prepareEmployeesData($deptEmployees, $this->levelNames);
+            
+            // Calculate averages for each level
+            $levelAverages = [];
+            foreach ($this->levelNames as $levelName) {
+                $percentages = [];
+                foreach ($employeesData as $empData) {
+                    $value = $empData['levelPercentagesManager'][$levelName] ?? null;
+                    if (is_numeric($value)) {
+                        $percentages[] = $value;
+                    }
+                }
+                $levelAverages[$levelName] = count($percentages) > 0 
+                    ? array_sum($percentages) / count($percentages) 
+                    : 0;
+            }
+            
+            // Determine dominant level
+            $dominantLevel = 'N/D';
+            $maxAverage = 0;
+            foreach ($levelAverages as $levelName => $avg) {
+                if ($avg > $maxAverage) {
+                    $maxAverage = $avg;
+                    $dominantLevel = $levelName;
+                }
+            }
+            
+            $row = [
+                $department ?? 'Nieznany',
+                $deptEmployees->count(),
+            ];
+            
+            // Add level averages
+            foreach ($this->levelNames as $levelName) {
+                $row[] = number_format($levelAverages[$levelName], 2) . '%';
+            }
+            
+            $row[] = $dominantLevel;
+            $data[] = $row;
+        }
+        
+        // Add summary row
+        $allEmployeesData = $this->prepareEmployeesData($employees, $this->levelNames);
+        $levelAveragesAll = [];
+        foreach ($this->levelNames as $levelName) {
+            $percentages = [];
+            foreach ($allEmployeesData as $empData) {
+                $value = $empData['levelPercentagesManager'][$levelName] ?? null;
+                if (is_numeric($value)) {
+                    $percentages[] = $value;
+                }
+            }
+            $levelAveragesAll[$levelName] = count($percentages) > 0 
+                ? array_sum($percentages) / count($percentages) 
+                : 0;
+        }
+        
+        $dominantLevelAll = 'N/D';
+        $maxAverageAll = 0;
+        foreach ($levelAveragesAll as $levelName => $avg) {
+            if ($avg > $maxAverageAll) {
+                $maxAverageAll = $avg;
+                $dominantLevelAll = $levelName;
+            }
+        }
+        
+        $summaryRow = [
+            'CAŁOŚĆ',
+            $employees->count(),
+        ];
+        
+        foreach ($this->levelNames as $levelName) {
+            $summaryRow[] = number_format($levelAveragesAll[$levelName], 2) . '%';
+        }
+        
+        $summaryRow[] = $dominantLevelAll;
+        $data[] = $summaryRow;
+        
+        $date = now()->format('Y-m-d_H-i');
+        $cycle = $cycleId ? AssessmentCycle::find($cycleId) : null;
+        $cycleSuffix = $cycle ? ('_' . $cycle->label) : '';
+        $filename = "P-CAP_Statystyki_{$date}{$cycleSuffix}.xlsx";
         
         return Excel::download(
             new TeamReportExport($data, $headers),
@@ -1174,24 +1668,26 @@ class ManagerController extends Controller
         if (!$withResults) {
             $query = Employee::select('id', 'name', 'first_name', 'last_name', 'email', 'department', 'job_title', 'supervisor_username', 'manager_username', 'head_username');
         } else {
-            // Dla innych sekcji - pełne dane z relacjami
-            $query = Employee::with([
-                'team:id,name',
-                'supervisor:username,name',
-                'manager:username,name', 
-                'head:username,name',
-                'team.competencyTeamValues:id,team_id,competency_id,value',
-                'overriddenCompetencyValues:id,employee_id,competency_id,value',
-                'results' => function ($q) use ($selectedCycleId) {
-                    $q->select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'cycle_id')
-                      ->when($selectedCycleId, function($qq) use ($selectedCycleId) {
-                          $qq->where('cycle_id', $selectedCycleId);
-                      });
-                },
-                'results.competency' => function ($q) {
-                    $q->select('id', 'level');
-                },
-            ]);
+            // Dla innych sekcji - optymalizowane ładowanie tylko dla wybranego cyklu
+            $query = Employee::select('id', 'name', 'first_name', 'last_name', 'email', 'department', 'job_title', 'supervisor_username', 'manager_username', 'head_username')
+                ->with([
+                    'team:id,name',
+                    'team.competencyTeamValues' => function($q) {
+                        $q->select('id', 'team_id', 'competency_id', 'value');
+                    },
+                    'overriddenCompetencyValues' => function($q) {
+                        $q->select('id', 'employee_id', 'competency_id', 'value');
+                    },
+                    'results' => function ($q) use ($selectedCycleId) {
+                        $q->select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'cycle_id')
+                          ->when($selectedCycleId, function($qq) use ($selectedCycleId) {
+                              $qq->where('cycle_id', $selectedCycleId);
+                          })
+                          ->with(['competency' => function($qc) {
+                              $qc->select('id', 'level');
+                          }]);
+                    },
+                ]);
         }
 
         // Sprawdź czy są struktury hierarchiczne (pracownicy z przypisaną hierarchią)
@@ -1418,8 +1914,9 @@ class ManagerController extends Controller
                 'trace' => $e->getTraceAsString()
             ]);
             
-            return redirect()->route('manager_panel')
-                ->with('error', 'Wystąpił błąd podczas ładowania panelu managera. Spróbuj ponownie.');
+            // Redirect to login or home instead of back to manager panel (prevents infinite loop)
+            return redirect('/login')
+                ->with('error', 'Wystąpił błąd podczas ładowania panelu managera. Zaloguj się ponownie.');
         }
     }
 
@@ -1428,6 +1925,9 @@ class ManagerController extends Controller
      */
     private function getManagerPanelData(Request $request)
     {
+        // Zwiększ limit pamięci dla dużych organizacji
+        ini_set('memory_limit', '256M');
+        
         $manager = auth()->user();
 
         if (!$manager) {
@@ -1446,13 +1946,64 @@ class ManagerController extends Controller
         $employeeId = $request->input('employee');
         $section = $request->input('section', 'dashboard');
 
-        // Pobierz pracowników według nowej hierarchii - ZAWSZE dla wyszukiwarki, ale bez results dla hr_individual
+        // Cache key dla pracowników managera (per manager, per cycle, per section)
+        $cacheKey = "manager_panel_employees_{$manager->id}_{$selectedCycleId}_{$section}";
+        $cacheTime = 300; // 5 minut cache
+        
+        \Log::info("Manager Panel: Loading section '{$section}' for manager {$manager->username} (role: {$manager->role}), cycle: {$selectedCycleId}");
+
+        // Dla supermanagera w sekcjach HR/Dashboard - pobierz WSZYSTKICH pracowników
+        $needsAllEmployees = ($manager->role === 'supermanager' && in_array($section, ['dashboard', 'hr', 'team']));
+        
+        // Pobierz pracowników według nowej hierarchii - z cachowaniem
         if ($section === 'hr_individual' || $section === 'individual') {
-            // Dla hr_individual - tylko podstawowe dane do wyszukiwarki, BEZ results
-            $employees = $this->getEmployeesForManager($manager, $selectedCycleId, false); // false = bez results
+            // Dla hr_individual/individual - tylko podstawowe dane do wyszukiwarki, BEZ results
+            if ($needsAllEmployees) {
+                // Supermanager w hr_individual widzi wszystkich
+                $employees = \Cache::remember($cacheKey . '_basic', $cacheTime, function() use ($cacheKey) {
+                    \Log::info("Cache MISS: {$cacheKey}_basic - fetching ALL employees (supermanager)");
+                    return Employee::select('id', 'name', 'first_name', 'last_name', 'email', 'department', 'job_title', 'supervisor_username', 'manager_username', 'head_username')->get();
+                });
+            } else {
+                $employees = \Cache::remember($cacheKey . '_basic', $cacheTime, function() use ($manager, $selectedCycleId, $cacheKey) {
+                    \Log::info("Cache MISS: {$cacheKey}_basic - fetching from database");
+                    return $this->getEmployeesForManager($manager, $selectedCycleId, false); // false = bez results
+                });
+            }
+            \Log::info("Cache key: {$cacheKey}_basic, employees count: " . $employees->count());
         } else {
-            // Dla innych sekcji - pełne dane z results
-            $employees = $this->getEmployeesForManager($manager, $selectedCycleId);
+            // Dla innych sekcji - pełne dane z results - z cachowaniem
+            if ($needsAllEmployees) {
+                // Supermanager w dashboard/hr/team widzi wszystkich z results
+                $employees = \Cache::remember($cacheKey . '_full', $cacheTime, function() use ($selectedCycleId, $cacheKey) {
+                    \Log::info("Cache MISS: {$cacheKey}_full - fetching ALL employees with results (supermanager)");
+                    return Employee::select('id', 'name', 'first_name', 'last_name', 'email', 'department', 'job_title', 'supervisor_username', 'manager_username', 'head_username')
+                        ->with([
+                            'team:id,name',
+                            'team.competencyTeamValues' => function($q) {
+                                $q->select('id', 'team_id', 'competency_id', 'value');
+                            },
+                            'overriddenCompetencyValues' => function($q) {
+                                $q->select('id', 'employee_id', 'competency_id', 'value');
+                            },
+                            'results' => function ($q) use ($selectedCycleId) {
+                                $q->select('id', 'employee_id', 'competency_id', 'score', 'score_manager', 'cycle_id')
+                                  ->when($selectedCycleId, function($qq) use ($selectedCycleId) {
+                                      $qq->where('cycle_id', $selectedCycleId);
+                                  })
+                                  ->with(['competency' => function($qc) {
+                                      $qc->select('id', 'level');
+                                  }]);
+                            },
+                        ])->get();
+                });
+            } else {
+                $employees = \Cache::remember($cacheKey . '_full', $cacheTime, function() use ($manager, $selectedCycleId, $cacheKey) {
+                    \Log::info("Cache MISS: {$cacheKey}_full - fetching from database");
+                    return $this->getEmployeesForManager($manager, $selectedCycleId);
+                });
+            }
+            \Log::info("Cache key: {$cacheKey}_full, employees count: " . $employees->count());
         }
         
         // Grupowanie tylko gdy nie hr_individual
@@ -1461,14 +2012,21 @@ class ManagerController extends Controller
         $stats = [];
         
         if ($section !== 'hr_individual' && $section !== 'individual') {
-            // Grupowanie pracowników według poziomu hierarchii
-            $employeesByLevel = $this->groupEmployeesByLevel($employees, $manager);
+            // Cache dla grupowania i statystyk
+            $statsCacheKey = "manager_stats_{$manager->id}_{$selectedCycleId}";
             
-            // Grupowanie według poziomów kompetencji (1-5) dla dashboardu
-            $employeesByCompetencyLevel = $this->groupEmployeesByCompetencyLevel($employees, $selectedCycleId);
+            $cachedStats = \Cache::remember($statsCacheKey, $cacheTime, function() use ($employees, $manager, $selectedCycleId, $statsCacheKey) {
+                \Log::info("Cache MISS: {$statsCacheKey} - calculating statistics");
+                return [
+                    'employeesByLevel' => $this->groupEmployeesByLevel($employees, $manager),
+                    'employeesByCompetencyLevel' => $this->groupEmployeesByCompetencyLevel($employees, $selectedCycleId),
+                    'stats' => $this->calculateEmployeeStats($employees, $manager),
+                ];
+            });
             
-            // Statystyki dla zakładek
-            $stats = $this->calculateEmployeeStats($employees, $manager);
+            $employeesByLevel = $cachedStats['employeesByLevel'];
+            $employeesByCompetencyLevel = $cachedStats['employeesByCompetencyLevel'];
+            $stats = $cachedStats['stats'];
         }
 
         // For supermanagers, fetch all employees - ZAWSZE potrzebne dla dropdownu
@@ -1647,39 +2205,64 @@ class ManagerController extends Controller
 
         // Prepare data for teams - TYLKO gdy potrzebne (nie dla hr_individual)
         if ($section !== 'hr_individual' && $section !== 'individual') {
-            $teamEmployeesData = $this->prepareEmployeesData($employees, $levelNames);
+            // Cache dla prepareEmployeesData - najcięższa operacja
+            $teamDataCacheKey = "team_employees_data_{$manager->id}_{$selectedCycleId}";
+            $teamEmployeesData = \Cache::remember($teamDataCacheKey, $cacheTime, function() use ($employees, $levelNames, $teamDataCacheKey) {
+                \Log::info("Cache MISS: {$teamDataCacheKey} - preparing employees data (calculating percentages)");
+                return $this->prepareEmployeesData($employees, $levelNames);
+            });
+            \Log::info("Cache key: {$teamDataCacheKey} - data prepared");
         }
 
         // Prepare role-specific data
         if ($manager->role == 'supermanager') {
-            $teams = Team::with(['employees' => function($q) use ($selectedCycleId){
-                $q->select('id','department')->withCount(['results' => function($qq) use ($selectedCycleId){
-                    $qq->when($selectedCycleId, function($qqq) use ($selectedCycleId){ $qqq->where('cycle_id', $selectedCycleId); });
-                }]);
-            }])->get();
+            // Cache dla HR data
+            $hrDataCacheKey = "hr_data_supermanager_{$selectedCycleId}";
+            $hrData = \Cache::remember($hrDataCacheKey, $cacheTime, function() use ($selectedCycleId, $hrDataCacheKey) {
+                \Log::info("Cache MISS: {$hrDataCacheKey} - loading HR data for all teams");
+                $teams = Team::with(['employees' => function($q) use ($selectedCycleId){
+                    $q->select('id','department')->withCount(['results' => function($qq) use ($selectedCycleId){
+                        $qq->when($selectedCycleId, function($qqq) use ($selectedCycleId){ $qqq->where('cycle_id', $selectedCycleId); });
+                    }]);
+                }])->get();
 
-            foreach ($teams as $team) {
-                $completedCount = $team->employees->where('results_count', '>', 0)->count();
-                $totalCount = $team->employees->count();
-                $hrData[] = [
-                    'team_name' => $team->name,
-                    'completed_count' => $completedCount,
-                    'total_count' => $totalCount,
-                ];
-            }
+                $data = [];
+                foreach ($teams as $team) {
+                    $completedCount = $team->employees->where('results_count', '>', 0)->count();
+                    $totalCount = $team->employees->count();
+                    $data[] = [
+                        'team_name' => $team->name,
+                        'completed_count' => $completedCount,
+                        'total_count' => $totalCount,
+                    ];
+                }
+                return $data;
+            });
 
-            // Load all employees for organization data
-            $allEmployees = Employee::with(['results' => function($q) use ($selectedCycleId) {
-                $q->when($selectedCycleId, function($qq) use ($selectedCycleId) {
-                    $qq->where('cycle_id', $selectedCycleId);
-                });
-            }])->get();
+            // Cache dla organization employees data - BARDZO ciężkie zapytanie
+            $orgDataCacheKey = "organization_employees_data_{$selectedCycleId}";
+            $organizationEmployeesData = \Cache::remember($orgDataCacheKey, $cacheTime, function() use ($selectedCycleId, $levelNames, $orgDataCacheKey) {
+                \Log::info("Cache MISS: {$orgDataCacheKey} - loading ALL employees with results (VERY HEAVY)");
+                $allEmployees = Employee::with(['results' => function($q) use ($selectedCycleId) {
+                    $q->when($selectedCycleId, function($qq) use ($selectedCycleId) {
+                        $qq->where('cycle_id', $selectedCycleId);
+                    });
+                }])->get();
 
-            $organizationEmployeesData = $this->prepareEmployeesData($allEmployees, $levelNames);
+                return $this->prepareEmployeesData($allEmployees, $levelNames);
+            });
+            \Log::info("Cache key: {$orgDataCacheKey} - organization data prepared");
         }
 
         if ($manager->role == 'head') {
-            $departmentEmployeesData = $this->prepareEmployeesData($departmentEmployees, $levelNames);
+            // Cache dla department employees data
+            $deptDataCacheKey = "department_employees_data_{$manager->id}_{$selectedCycleId}";
+            $departmentEmployeesData = \Cache::remember($deptDataCacheKey, $cacheTime, function() use ($departmentEmployees, $levelNames, $deptDataCacheKey) {
+                \Log::info("Cache MISS: {$deptDataCacheKey} - preparing department employees data");
+                return $this->prepareEmployeesData($departmentEmployees, $levelNames);
+            });
+            
+            \Log::info("Cache key: {$deptDataCacheKey} - department data prepared");
         }
 
         // Prepare access codes for the codes section
@@ -2245,5 +2828,84 @@ class ManagerController extends Controller
             'message' => 'Hasło zostało zmienione pomyślnie'
         ]);
     }
+
+    /**
+     * Clear manager panel cache
+     */
+    public function clearCache(Request $request)
+    {
+        try {
+            $manager = auth()->user();
+            $selectedCycleId = $this->selectedCycleId($request);
+            
+            \Log::info("Clear Cache Request - Manager: {$manager->username} (ID: {$manager->id}), Cycle ID: {$selectedCycleId}, Request cycle param: " . $request->query('cycle'));
+            
+            $clearedKeys = [];
+            
+            // Lista wszystkich możliwych kluczy cache dla tego managera
+            $sections = ['dashboard', 'team', 'individual', 'hr', 'hr_individual', 'department', 'department_individual', 'codes'];
+            
+            foreach ($sections as $section) {
+                $keyBasic = "manager_panel_employees_{$manager->id}_{$selectedCycleId}_{$section}_basic";
+                $keyFull = "manager_panel_employees_{$manager->id}_{$selectedCycleId}_{$section}_full";
+                
+                if (\Cache::forget($keyBasic)) {
+                    $clearedKeys[] = $keyBasic;
+                }
+                if (\Cache::forget($keyFull)) {
+                    $clearedKeys[] = $keyFull;
+                }
+            }
+            
+            // Statystyki i grupowanie
+            $statsKey = "manager_stats_{$manager->id}_{$selectedCycleId}";
+            if (\Cache::forget($statsKey)) {
+                $clearedKeys[] = $statsKey;
+            }
+            
+            // Team data
+            $teamDataKey = "team_employees_data_{$manager->id}_{$selectedCycleId}";
+            if (\Cache::forget($teamDataKey)) {
+                $clearedKeys[] = $teamDataKey;
+            }
+            
+            // Department data (dla head)
+            if ($manager->role == 'head') {
+                $deptDataKey = "department_employees_data_{$manager->id}_{$selectedCycleId}";
+                if (\Cache::forget($deptDataKey)) {
+                    $clearedKeys[] = $deptDataKey;
+                }
+            }
+            
+            // HR i Organization data (dla supermanager)
+            if ($manager->role == 'supermanager') {
+                $hrDataKey = "hr_data_supermanager_{$selectedCycleId}";
+                $orgDataKey = "organization_employees_data_{$selectedCycleId}";
+                
+                if (\Cache::forget($hrDataKey)) {
+                    $clearedKeys[] = $hrDataKey;
+                }
+                if (\Cache::forget($orgDataKey)) {
+                    $clearedKeys[] = $orgDataKey;
+                }
+            }
+            
+            \Log::info("Manager {$manager->username} cleared cache. Keys cleared: " . implode(', ', $clearedKeys));
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Cache został wyczyszczony pomyślnie',
+                'cleared_keys_count' => count($clearedKeys)
+            ]);
+            
+        } catch (\Exception $e) {
+            \Log::error("Error clearing cache: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Wystąpił błąd podczas czyszczenia cache'
+            ], 500);
+        }
+    }
+
 
 }

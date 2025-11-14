@@ -305,6 +305,29 @@
             color: #92400e;
         }
 
+        /* Clear Cache Button */
+        #clear-cache-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 38px;
+            height: 38px;
+        }
+
+        #clear-cache-btn:hover {
+            background: var(--primary) !important;
+            border-color: var(--primary) !important;
+        }
+
+        #clear-cache-btn:hover i {
+            color: white !important;
+        }
+
+        #clear-cache-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
         /* Content Area */
         .content {
             flex: 1;
@@ -1113,6 +1136,79 @@
             errorDiv.style.cssText = 'color: var(--danger); font-size: 14px; margin-top: 8px; text-align: center;';
             errorDiv.textContent = message;
             document.querySelector('.password-modal-body').appendChild(errorDiv);
+        }
+        
+        // Clear Cache Handler
+        $(document).ready(function() {
+            $('#clear-cache-btn').on('click', function() {
+                const btn = $(this);
+                const originalHtml = btn.html();
+                
+                // Disable button and show loading
+                btn.prop('disabled', true);
+                btn.html('<i class="fas fa-spinner fa-spin"></i>');
+                
+                // Get current cycle from select dropdown (more reliable than URL)
+                const cycleId = $('#cycle-select').val() || new URLSearchParams(window.location.search).get('cycle');
+                
+                console.log('Clearing cache for cycle:', cycleId);
+                
+                fetch('/manager/clear-cache' + (cycleId ? '?cycle=' + cycleId : ''), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Cache clear response:', data);
+                    if (data.success) {
+                        showToast('Cache odświeżony!', 'success');
+                        
+                        // Reload page with ALL current parameters (cycle, section, employee, etc.)
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 800);
+                    } else {
+                        showToast('Błąd odświeżania cache', 'error');
+                        btn.prop('disabled', false);
+                        btn.html(originalHtml);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Błąd odświeżania cache', 'error');
+                    btn.prop('disabled', false);
+                    btn.html(originalHtml);
+                });
+            });
+        });
+        
+        // Simple toast notification
+        function showToast(message, type = 'info') {
+            const toast = $('<div>')
+                .css({
+                    'position': 'fixed',
+                    'top': '20px',
+                    'right': '20px',
+                    'background': type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8',
+                    'color': 'white',
+                    'padding': '16px 24px',
+                    'border-radius': '8px',
+                    'box-shadow': '0 4px 12px rgba(0,0,0,0.3)',
+                    'z-index': '10001',
+                    'font-size': '14px',
+                    'max-width': '400px',
+                    'animation': 'slideInRight 0.3s ease'
+                })
+                .html('<i class="fas fa-' + (type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle') + '"></i> ' + message);
+            
+            $('body').append(toast);
+            
+            setTimeout(() => {
+                toast.fadeOut(300, () => toast.remove());
+            }, 3000);
         }
     </script>
 
